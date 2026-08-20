@@ -1,2 +1,3 @@
 ﻿window.SUPABASE_URL = "https://thtswrhzcfabjwcdocwq.supabase.co";
 window.SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRodHN3cmh6Y2ZhYmp3Y2RvY3dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMzQzOTEsImV4cCI6MjEwMjgxMDM5MX0.tWr4QKknZHdbeMY0gBJLijo5vN021VGyAzfheypY6VM";
+const SUPER_ADMINS = ["barisozasik1@gmail.com"];
