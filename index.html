@@ -1721,7 +1721,13 @@ function crushRebellion(provinceId) {
     toast(`Tebrikler! İsyanı kanla bastırıp ${getTurkishMapName(provinceId)} bölgesini ele geçirdiniz.`, true);
 }
 
-function syncProvinceOwnerFields(ownerId){const owner=getState(ownerId);if(!owner)return;const nameEl=document.getElementById('f_province_country_name'),garrisonEl=document.getElementById('f_province_garrison'),colorEl=document.getElementById('f_province_color');if(nameEl)nameEl.value=owner.name||'';if(garrisonEl)garrisonEl.value=owner.fortressGarrison||0;if(colorEl)colorEl.value=owner.color||'#c5a059';}
+function syncProvinceOwnerFields(ownerId){
+  const owner=getState(ownerId);if(!owner)return;
+  const nameEl=document.getElementById('f_province_country_name'),garrisonEl=document.getElementById('f_province_garrison');
+  if(nameEl)nameEl.value=owner.name||'';
+  if(garrisonEl)garrisonEl.value=owner.fortressGarrison||0;
+}
+ 
 
 function openPlayerProvinceIntel(provinceId,owner)
 {
