@@ -3620,7 +3620,6 @@ function showYearReportModal() {
     }
     
     if(statesToShow.length === 0) return;
-
     let html = `<h2>⏳ YENİ YIL: ${yr.year} - YIL SONU RAPORU</h2>
     <div style='max-height:70vh; overflow:auto;'><div class='cards' style='grid-template-columns:1fr;'>`;
     
@@ -3636,10 +3635,27 @@ function showYearReportModal() {
         if(rpt.events && rpt.events.length > 0) eventHtml += rpt.events.map(r => `<div>🔹 ${r}</div>`).join('');
         if(!eventHtml) eventHtml = `<div class="sub">Bu yıl özel bir gelişme olmadı.</div>`;
         
-        html += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal(); if(currentId) openDetail(currentId); else renderHome();'>KAPAT</button></div>";
+        html += `
+        <div class="list-item" style="flex-direction:column; align-items:stretch; background:rgba(17, 20, 24, 0.9); border:1px solid var(--border-gold);">
+            <div style="border-bottom:1px solid var(--border-gold); margin-bottom:8px; padding-bottom:6px; font-size:16px; font-family:'Playfair Display', serif; color:var(--border-gold);"><b>${esc(rpt.name)}</b></div>
+            
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:10px; background:rgba(10, 12, 14, 0.6); padding:8px; border-radius:3px;">
+                <div>Vergi: <span style="color:var(--green)">${money(rpt.inc)}</span> | Sabit: <span style="color:var(--green)">${money(rpt.permInc)}</span><br>Gider: <span style="color:var(--red)">-${money(rpt.exp)}</span></div>
+                <div style="text-align:right;">Net Hasıla: <b style="color:${col}; font-size:15px;">${rpt.net>=0?'+':''}${money(rpt.net)}</b><br>Yeni Kasa: <b>${money(rpt.newT)}</b></div>
+            </div>
+            
+            <div style="font-size:12px; margin-bottom:8px; border-left:3px solid var(--blue); padding-left:8px;">
+                <b style="color:var(--blue)">ÜLKE GÜNDEMİ:</b><br>${eventHtml}
+            </div>
+            
+            <div style="font-size:12px; border-left:3px solid var(--green); padding-left:8px;">
+                <b style="color:var(--green)">DİVAN VE PAŞALAR:</b><br>${(rpt.advisors||[]).join('<br>') || '<span class="sub">Divanda paşa yok.</span>'}
+            </div>
+        </div>`;
     });
     
-    html += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal()'>KAPAT</button></div>";
+    // KAPAT BUTONU DÖNGÜNÜN DIŞINDA VE EN ALTTA OLMALI:
+    html += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal(); if(currentId) openDetail(currentId); else renderHome();'>KAPAT</button></div>";
     modal(html);
 }
  
