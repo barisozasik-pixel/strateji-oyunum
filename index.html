@@ -1971,12 +1971,15 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
  const growth=Math.max(0,Number(db.settings.populationBuildingGrowth?.[key])||0);
  const costPerPerson=Math.max(0,Number(db.settings.populationBuildingCostPerPerson?.[key])||0);
  const price=Math.max(0,Math.round((Number(s.population)||0)*costPerPerson));
+ const ownedCount = getOwnedMapProvinceIds(s.id).length; // TOPRAK KOTASI GÖRSELİ İÇİN
+ const isFull = (s[key]||0) >= ownedCount; // KOTA DOLDU MU?
+ 
  return `<div class="unit-card population-building-card">
    ${safeImg?`<div class="unit-img-box"><img src="${esc(safeImg)}"></div>`:''}
    <div class="unit-details">
      <div class="unit-title">${esc(name)}</div>
      <div class="unit-info-grid">
-       <div>Mevcut: <strong>${num(s[key]||0)}</strong></div>
+       <div>Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--gold);'}">${num(s[key]||0)} / ${ownedCount}</strong></div>
        <div>Nüfus: <strong style="color:var(--green)">+%${num(growth)}</strong></div>
        <div>Fiyat: <strong style="color:var(--gold)">${money(price)}</strong></div>
      </div>
@@ -2576,17 +2579,24 @@ function buildPopulationBuilding(stateId,key,labelName){
  if(!allowed.includes(key))return;
  
  const qty=Math.max(0,Math.floor(Number(document.getElementById(`qty_${stateId}_${key}`)?.value)||0));
- if(qty<=0)return;
+ if(qty<=0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; } // EKSİ SAYI KORUMASI
+ 
+ // NÜFUS BİNALARI İÇİN TOPRAK KOTASI KONTROLÜ
+ const ownedCount = getOwnedMapProvinceIds(stateId).length;
+ const oldCount = s[key] || 0;
+ if((oldCount + qty) > ownedCount){
+     alert(`⛔ KOTA DOLU: Sadece sahip olduğunuz toprak sayısı kadar (${ownedCount} adet) ${labelName} inşa edebilirsiniz! Önce yeni topraklar fethedin.`);
+     return;
+ }
+ 
  const oldPopulation=Math.max(0,Math.floor(Number(s.population)||0));
  const costPerPerson=Math.max(0,Number(db.settings.populationBuildingCostPerPerson?.[key])||0);
  const unitPrice=Math.max(0,Math.round(oldPopulation*costPerPerson));
  const totalCost=unitPrice*qty;
  if((Number(s.treasury)||0)<totalCost){alert(`Hazine yetersiz! Toplam inşaat maliyeti: ${money(totalCost)}`);return;}
  
- const oldCount=s[key]||0;
  const oldTreasury=Number(s.treasury)||0;
  
- // Bina alındığı an SADECE para düşülür ve bina eklenir (Anında devasa nüfus patlaması iptal edildi)
  s.treasury=oldTreasury-totalCost;
  s[key]=oldCount+qty;
  
@@ -3088,8 +3098,9 @@ function shipCapMax(s){return (s.kucuk_liman||0)*db.settings.capacity.kucuk_lima
 function gunCapacity(s){return (s.kucuk_top||0)+(s.orta_top||0)+(s.buyuk_top||0)}
 function gunCapMax(s){return (s.kucuk_ocak||0)*db.settings.capacity.kucuk_ocak+(s.orta_ocak||0)*db.settings.capacity.orta_ocak+(s.buyuk_ocak||0)*db.settings.capacity.buyuk_ocak}
 
-function buyBulk(id,key, labelName){
- const s=getState(id);
+function buyBulk(id,key, labelName)
+{
+   const s=getState(id);
  if(!s) return;
  if(!isAdmin && s.ownerEmail !== currentUserEmail) return; 
  if(rejectDebtPurchase(s))return;
@@ -3098,9 +3109,19 @@ function buyBulk(id,key, labelName){
  const adv = getAdvisorEffects(s);
  const disc = key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi" ? adv.infraDiscount : adv.recruitDiscount;
  const price = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
-
  const qty = Math.floor(Number(document.getElementById(`qty_${id}_${key}`).value)) || 0;
- if(qty <= 0) return;
+ if(qty <= 0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; } // EKSİ SAYI KORUMASI
+ 
+ // OKUL İÇİN TOPRAK KOTASI KONTROLÜ
+ if(key === "okul") {
+     const ownedCount = getOwnedMapProvinceIds(id).length;
+     const oldCount = s[key] || 0;
+     if((oldCount + qty) > ownedCount) {
+         alert(`⛔ KOTA DOLU: Haritadaki toprak sayınız kadar (${ownedCount} adet) Okul inşa edebilirsiniz! Önce yeni topraklar fethedin.`);
+         return;
+     }
+ }
+ 
  const totalCost = price * qty;
  if(s.treasury<totalCost){alert(`Hazine yetersiz! Toplam maliyet: ${money(totalCost)}`);return}
  const p = calcPop(s);
@@ -3132,7 +3153,6 @@ function buyBulk(id,key, labelName){
      oldUnit: oldUnitCount,
      newUnit: s[key]
  });
-
  queueSave(); openDetail(id);
 }
 
