@@ -2203,12 +2203,12 @@ function openDetail(id){
                 <div class="adv-buff"><b>Artı:</b> ${esc(a.buff)}</div>
                 ${a.debuff ? `<div class="adv-debuff"><b>Götürü:</b> ${esc(a.debuff)}</div>` : ''}
                 
-                <div style="margin-top:6px; font-size:12px; padding:6px; border-radius:3px; background:rgba(0,0,0,0.5); border:1px solid ${netProfit >= 0 ? 'var(--green)' : 'var(--red)'}">
+                <div style="margin-top:6px; font-size:12px; padding:6px 12px; border-radius:3px; background:rgba(0,0,0,0.5); border:1px solid ${netProfit >= 0 ? 'var(--green)' : 'var(--red)'}; width: fit-content;">
                     <b>Devlet Hazinesine Net Katkısı:</b> <span style="color:${netProfit >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:13px; font-weight:bold;">${netProfit >= 0 ? '+' : ''}${money(netProfit)} / yıl</span>
                     <div style="font-size:10px; color:var(--muted); margin-top:3px;">(Sağladığı ekstra vergi ve tasarruflar eksi (-) Kendi Maaşı)</div>
                 </div>
                 ${a.upgradeHistory && a.upgradeHistory.length > 0 ? `
-                <div style="margin-top:6px; font-size:12px; padding:6px; border-radius:3px; background:rgba(0,0,0,0.5); border:1px solid var(--border-gold); color:var(--green);">
+                <div style="margin-top:6px; font-size:12px; padding:6px 12px; border-radius:3px; background:rgba(0,0,0,0.5); border:1px solid var(--border-gold); color:var(--green); width: fit-content;">
                     <b style="color:var(--gold);">📈 Kariyer Geçmişi:</b><br>${a.upgradeHistory.join('<br>')}
                 </div>` : ''}
                 
