@@ -2192,6 +2192,7 @@ function openDetail(id){
                 <div style="font-size:10px; color:var(--muted); margin:2px 0;">Yaş: <b>${a.ageYears||5}</b> | Ölüm Yaşı: <b>${a.maxAge||20}</b> | Kalan Ömür: <b>${Math.max(0, (a.maxAge||20) - (a.ageYears||5))} Yıl</b> | Hizmet: <b>${hiredYears} Yıl</b></div>
                 <div class="adv-buff"><b>Artı:</b> ${esc(a.buff)}</div>
                 <div class="adv-debuff"><b>Götürü:</b> ${esc(a.debuff)}</div>
+                ${a.upgradeHistory && a.upgradeHistory.length > 0 ? `<div style="margin-top:6px; font-size:10px; color:var(--green); border-top:1px dashed var(--line); padding-top:4px;"><b>📈 Kariyer Geçmişi:</b><br>${a.upgradeHistory.join('<br>')}</div>` : ''}
                 ${canManage ? `<div style="text-align:right; margin-top:6px;">
                     ${locked ? '<span style="color:var(--gold); font-size:11px; font-weight:bold; margin-right:8px;">🔒 1 Yıl Sözleşme Sürüyor</span>' : ''}
                     <button class="btn red small" onclick="fireAdvisor('${s.id}','${a.id}')" ${locked ? 'disabled title="Aynı yıl içinde iade edilemez!" style="opacity:0.5;"' : ''}>AZLET (İADE ET)</button>
@@ -2218,6 +2219,7 @@ function openDetail(id){
                 <div style="font-size:10px; color:var(--muted); margin:2px 0;">Yaş: ${a.ageYears||5} | Ömür Beklentisi: ${a.maxAge||20} Yıl</div>
                 <div class="adv-buff"><b>Artı:</b> ${esc(a.buff)}</div>
                 <div class="adv-debuff"><b>Götürü:</b> ${esc(a.debuff)}</div>
+                ${a.upgradeHistory && a.upgradeHistory.length > 0 ? `<div style="margin-top:6px; font-size:10px; color:var(--green); border-top:1px dashed var(--line); padding-top:4px;"><b>📈 Kariyer Geçmişi:</b><br>${a.upgradeHistory.join('<br>')}</div>` : ''}
                 ${canManage ? `<div style="text-align:right; margin-top:6px;"><button class="btn green small" onclick="hireAdvisor('${s.id}','${a.id}')" ${activeAdvisors.length >= maxSlots ? 'disabled title="Kontenjan Dolu!" style="opacity:0.5;"' : ''}>DİVANA ATA (GÖREVE ÇAĞIR)</button></div>` : ''}
             </div>
         </div>
@@ -3527,6 +3529,10 @@ function passOneYear(){
                         if(Number(adv.infraDiscount)>0) adv.infraDiscount = Number((Number(adv.infraDiscount) + boostPercent).toFixed(1));
                         if(Number(adv.happinessBonus)>0) adv.happinessBonus = Number((Number(adv.happinessBonus) + boostPercent).toFixed(1));
                         adv.lastUpgradeMsg = `(Gelişti! Bonuslar +%${boostPercent} arttı)`;
+                        // İŞTE YENİ EKLENEN KARİYER GEÇMİŞİ KODU TAM OLARAK BURADA:
+                        adv.upgradeHistory = adv.upgradeHistory || [];
+                        adv.upgradeHistory.push(`• ${adv.ageYears} Yaşında: +%${boostPercent} Gelişim`);
+                     
                     } else { adv.lastUpgradeMsg = null; }
                 }
             }
