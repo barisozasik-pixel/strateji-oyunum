@@ -1041,172 +1041,187 @@ document.getElementById("authBtn").onclick=async()=>{
 
 async function logout(){await sb.auth.signOut()}
 
-async function loadDB(){
- toast("Veriler yükleniyor…");
+async function loadDB(silent = false){
+ if(!silent) toast("Veriler yeni tablolardan yükleniyor…");
  if(!sb){toast("Supabase bağlantısı kurulamadı.");return}
- const result=await sb.from("game_state").select("data,revision").eq("id",1).maybeSingle();
- const data=result.data,error=result.error;
- if(error){toast("Supabase okuma hatası: "+error.message);return}
- if(data?.data){
-    db=data.data;
-    db.settings={...defaultSettings,...(db.settings||{})};
-    db.settings.prices={...defaultSettings.prices,...(db.settings?.prices||{})};
-    db.settings.capacity={...defaultSettings.capacity,...(db.settings?.capacity||{})};
-    db.settings.upkeep={...defaultSettings.upkeep,...(db.settings?.upkeep||{})};
-    db.settings.garrisonUpkeep={...defaultSettings.garrisonUpkeep,...(db.settings?.garrisonUpkeep||{})};
-    delete db.settings.garrisonUpkeep.city;
-    db.settings.populationBuildingGrowth={...defaultSettings.populationBuildingGrowth,...(db.settings?.populationBuildingGrowth||{})};
-    db.settings.populationBuildingCostPerPerson={...defaultSettings.populationBuildingCostPerPerson,...(db.settings?.populationBuildingCostPerPerson||{})};
-    db.settings.populationBuildingUpkeep={...defaultSettings.populationBuildingUpkeep,...(db.settings?.populationBuildingUpkeep||{})};
-    db.settings.infrastructureUpkeep={...defaultSettings.infrastructureUpkeep,...(db.settings?.infrastructureUpkeep||{})};
-    db.settings.edictCost={...defaultSettings.edictCost,...(db.settings?.edictCost||{})};
-    db.settings.campaignCost={...defaultSettings.campaignCost,...(db.settings?.campaignCost||{})};
-    db.settings.images={...defaultSettings.images,...(db.settings?.images||{})};
-    db.settings.customItems = db.settings.customItems || [];
-    db.purchaseLog = db.purchaseLog || []; 
-    db.letters = db.letters || [];
-    db.timerSeconds = db.timerSeconds || 0;
-    db.timerRunning = db.timerRunning || false;
-     db.gameYear = Number.isFinite(Number(db.gameYear)) ? Number(db.gameYear) : 1453;
-     db.pendingEvents = db.pendingEvents || [];
-    db.eventHistory = db.eventHistory || [];
-    db.mapProvinceOwners = db.mapProvinceOwners || {};
-    db.mapProvinceDetails = db.mapProvinceDetails || {};
-    db.valuableRegions = db.valuableRegions || {};
-    await loadEventAssets();
-    
-    if(!db.advisors || !Array.isArray(db.advisors) || db.advisors.length === 0) {
-        // Oyun hiç başlamamışsa (ilk kurulum) 45 varsayılan paşayla başlat.
-        db.advisors = structuredClone(DEFAULT_45_ADVISORS);
-    } else {
-        // ÖNEMLİ: Eskiden burada "paşa sayısı 45 değilse hepsini sil, baştan yükle"
-        // kuralı vardı. Bir paşa ölünce/emekli olunca ya da admin bir paşayı
-        // silince sayı 45'ten düşüyor ve bu kural tüm paşaların yaşını, kazandığı
-        // bonusları vs. sıfırlayıp yeniden 45 varsayılan paşayı yüklüyordu.
-        // Şimdi mevcut paşalara asla dokunulmuyor; sadece db'de henüz olmayan
-        // (id'si eşleşmeyen) varsayılan paşalar varsa onlar ekleniyor.
-        const existingIds = new Set(db.advisors.map(a => a.id));
-        DEFAULT_45_ADVISORS.forEach(def => {
-            if(!existingIds.has(def.id)) db.advisors.push(structuredClone(def));
-        });
-    }
-    restoreOriginalAdvisorEffects();
-    
-    db.states.forEach(s => { 
-        s.customLedger = s.customLedger || []; 
-        s.permanentLedger = s.permanentLedger || [];
-        s.rulerImage = cleanUrl(s.rulerImage || "");
-        s.bgImage = cleanUrl(s.bgImage || "");
-        s.istihbarat_binasi = s.istihbarat_binasi || 0;
-        s.hiredAdvisors = s.hiredAdvisors || [];
-        s.advisorHiredYears = s.advisorHiredYears || {}; // Hangi paşanın kaç yıldır çalıştırıldığı
-        s.advisorSlots = s.advisorSlots || 3;
-        delete s.cityCount;
-        s.fortressCount = Math.max(0, Math.floor(Number(s.fortressCount)||0));
-        s.fortressPopulationCount = Math.max(0, Math.floor(Number(s.fortressPopulationCount ?? s.fortressCount)||0));
-        delete s.cityGarrison;
-        s.fortressGarrison = Math.max(0, Math.floor(Number(s.fortressGarrison)||0));
-        s.garrisonWarDeaths = Math.max(0, Math.floor(Number(s.garrisonWarDeaths)||0));
-        ["hastane","asevi","su_degirmeni","kervansaray","pazar"].forEach(key=>s[key]=Math.max(0,Math.floor(Number(s[key])||0)));
-    });
+ 
+ try {
+   // 5 Tablodan da verileri aynı anda (çok hızlı) çekiyoruz
+   const [coreRes, statesRes, advisorsRes, lettersRes, logsRes] = await Promise.all([
+     sb.from('game_core').select('*').eq('id', 1).single(),
+     sb.from('game_states').select('*'),
+     sb.from('game_advisors').select('*'),
+     sb.from('game_letters').select('*'),
+     sb.from('game_logs').select('*').order('created_at', { ascending: false }).limit(300)
+   ]);
+   if(coreRes.error && coreRes.error.code !== "PGRST116") throw coreRes.error;
+   const core = coreRes.data || {};
+   
+   // Tüm parçaları toplayıp eski "db" objemizi eskisi gibi birleştiriyoruz
+   // Böylece arayüz kodlarınızın hiçbirini değiştirmeye gerek kalmıyor!
+   db = {
+     settings: normalizeSettings(core.settings || {}),
+     gameYear: core.game_year || 1453,
+     timerSeconds: core.timer_seconds || 0,
+     timerRunning: core.timer_running || false,
+     mapProvinceOwners: core.map_data?.mapProvinceOwners || {},
+     mapProvinceDetails: core.map_data?.mapProvinceDetails || {},
+     valuableRegions: core.map_data?.valuableRegions || {},
+     pendingEvents: core.events_data?.pendingEvents || [],
+     eventHistory: core.events_data?.eventHistory || [],
+     states: statesRes.data ? statesRes.data.map(r => r.data) : [],
+     advisors: advisorsRes.data ? advisorsRes.data.map(r => r.data) : [],
+     letters: lettersRes.data ? lettersRes.data.map(r => r.data) : [],
+     purchaseLog: logsRes.data ? logsRes.data.map(r => r.data) : []
+   };
+   // Varsayılan paşa ve ayar yüklemeleri (eskisi gibi)
+   if(!db.advisors || db.advisors.length === 0) {
+      db.advisors = structuredClone(DEFAULT_45_ADVISORS);
+   } else {
+      const existingIds = new Set(db.advisors.map(a => a.id));
+      DEFAULT_45_ADVISORS.forEach(def => {
+          if(!existingIds.has(def.id)) db.advisors.push(structuredClone(def));
+      });
+   }
+   restoreOriginalAdvisorEffects();
+   
+   db.states.forEach(s => { 
+      s.customLedger = s.customLedger || []; 
+      s.permanentLedger = s.permanentLedger || [];
+      s.rulerImage = cleanUrl(s.rulerImage || "");
+      s.bgImage = cleanUrl(s.bgImage || "");
+      s.hiredAdvisors = s.hiredAdvisors || [];
+      s.advisorHiredYears = s.advisorHiredYears || {}; 
+      s.advisorSlots = s.advisorSlots || 3;
+   });
+   dbBaseSnapshot = structuredClone(db);
+   if(!silent) toast("Yeni Sistem Aktif", true);
+ } catch(e) {
+   toast("Yükleme hatası: " + e.message);
  }
- else {
-    db={states:[],settings:structuredClone(defaultSettings),transfers:[], purchaseLog:[], letters:[], advisors:structuredClone(DEFAULT_45_ADVISORS), timerSeconds:0, timerRunning:false, gameYear:1453, pendingEvents:[], eventHistory:[]};
-    await loadEventAssets();
-    await saveDB();
- }
- dbBaseSnapshot=structuredClone(db);
- dbServerRevision=Number(result.data?.revision||1);
- toast("Sistem Aktif",true);
 }
-
 async function saveDB(){
  if(!sb)return false;
  if(saveInFlight){saveQueued=true;return false;}
  saveInFlight=true;
+ 
  try{
-  const latest=await sb.from("game_state").select("data,revision").eq("id",1).maybeSingle();
-  if(latest.error)throw latest.error;
-  const remote=latest.data?.data||{};
-  remote.settings=normalizeSettings(remote.settings);
-  const base=dbBaseSnapshot||remote;
-  const conflicts=[];
-  const merged=mergeStateThreeWay(base,db,remote,"",conflicts);
-  if(conflicts.length){
-   // Ayar/form kayıtlarında uzak taraftaki değişikliklerle birlikte yerel
-   // ayarları koru. Eski davranış yerel fiyatları atıp kullanıcıyı ana sayfaya
-   // gönderiyordu.
-   const conflictMerged=structuredClone(remote);
-   if(!valuesEqual(db?.settings,base?.settings)) conflictMerged.settings=preferLocalChangedFields(base?.settings,db.settings,remote?.settings);
-   const retry=await sb.rpc("save_game_state",{expected_revision:Number(latest.data?.revision||1),next_data:conflictMerged});
-   if(retry.error)throw retry.error;
-   if(retry.data&&retry.data.length){
-     db=conflictMerged;
-     dbBaseSnapshot=structuredClone(conflictMerged);
-     dbServerRevision=Number(retry.data[0].saved_revision||dbServerRevision+1);
-     toast("Çakışma çözüldü; değişikliklerin kaydedildi.",true);
-     return true;
+   const promises = [];
+   // 1. SADECE DEĞİŞEN DEVLETLERİ KAYDET
+   db.states.forEach(s => {
+       const baseState = dbBaseSnapshot.states.find(x => x.id === s.id);
+       if(!baseState || !valuesEqual(s, baseState)){
+           promises.push(sb.from('game_states').upsert({ id: s.id, name: s.name, owner_email: s.ownerEmail, data: s }));
+       }
+   });
+   dbBaseSnapshot.states.forEach(baseState => {
+       if(!db.states.find(x => x.id === baseState.id)){
+           promises.push(sb.from('game_states').delete().eq('id', baseState.id));
+       }
+   });
+   // 2. SADECE DEĞİŞEN PAŞALARI KAYDET
+   db.advisors.forEach(a => {
+       const baseAdv = dbBaseSnapshot.advisors.find(x => x.id === a.id);
+       if(!baseAdv || !valuesEqual(a, baseAdv)){
+           promises.push(sb.from('game_advisors').upsert({ id: a.id, data: a })); 
+       }
+   });
+   dbBaseSnapshot.advisors.forEach(baseAdv => {
+       if(!db.advisors.find(x => x.id === baseAdv.id)){
+           promises.push(sb.from('game_advisors').delete().eq('id', baseAdv.id));
+       }
+   });
+   // 3. SADECE DEĞİŞEN MEKTUPLARI KAYDET
+   db.letters.forEach(l => {
+       const baseLetter = dbBaseSnapshot.letters.find(x => x.id === l.id);
+       if(!baseLetter || !valuesEqual(l, baseLetter)){
+           promises.push(sb.from('game_letters').upsert({ id: l.id, to_state_id: l.toStateId, from_state_id: l.fromStateId, read: l.read, data: l }));
+       }
+   });
+   dbBaseSnapshot.letters.forEach(baseLetter => {
+       if(!db.letters.find(x => x.id === baseLetter.id)){
+           promises.push(sb.from('game_letters').delete().eq('id', baseLetter.id));
+       }
+   });
+   // 4. SADECE YENİ EKLENEN LOGLARI KAYDET
+   db.purchaseLog.forEach(log => {
+       const baseLog = dbBaseSnapshot.purchaseLog.find(x => x.logId === log.logId);
+       if(!baseLog){
+           promises.push(sb.from('game_logs').insert({ id: log.logId, state_id: log.stateId, log_type: log.logType||'purchase', data: log }));
+       }
+   });
+   // 5. MERKEZ (CORE) DEĞİŞİKLİKLERİ
+   const coreChanged = 
+       db.gameYear !== dbBaseSnapshot.gameYear ||
+       db.timerSeconds !== dbBaseSnapshot.timerSeconds ||
+       db.timerRunning !== dbBaseSnapshot.timerRunning ||
+       !valuesEqual(db.settings, dbBaseSnapshot.settings) ||
+       !valuesEqual(db.mapProvinceOwners, dbBaseSnapshot.mapProvinceOwners) ||
+       !valuesEqual(db.mapProvinceDetails, dbBaseSnapshot.mapProvinceDetails) ||
+       !valuesEqual(db.valuableRegions, dbBaseSnapshot.valuableRegions) ||
+       !valuesEqual(db.pendingEvents, dbBaseSnapshot.pendingEvents) ||
+       !valuesEqual(db.eventHistory, dbBaseSnapshot.eventHistory);
+   if(coreChanged){
+       const coreData = {
+           game_year: db.gameYear,
+           timer_seconds: db.timerSeconds,
+           timer_running: db.timerRunning,
+           settings: db.settings,
+           map_data: {
+               mapProvinceOwners: db.mapProvinceOwners,
+               mapProvinceDetails: db.mapProvinceDetails,
+               valuableRegions: db.valuableRegions
+           },
+           events_data: {
+               pendingEvents: db.pendingEvents,
+               eventHistory: db.eventHistory
+           }
+       };
+       promises.push(sb.from('game_core').update(coreData).eq('id', 1));
    }
-   await sb.from("game_state_snapshots").insert({game_state_id:1,data:db,source:"conflict_unsaved"});
-   toast("Çakışma çözülemedi; tekrar kaydetmeyi deneyin.");
+   // Çakışma olmadan paralelde tüm güncellemeleri saniyeler içinde yolla!
+   if(promises.length > 0){
+       await Promise.all(promises);
+       toast("Kaydedildi " + new Date().toLocaleTimeString("tr-TR"), true);
+   }
+   dbBaseSnapshot = structuredClone(db);
+   return true;
+ }catch(error){
+   console.error(error);
+   toast("Kayıt hatası: "+(error.message||error));
    return false;
-  }
-  const write=await sb.rpc("save_game_state",{expected_revision:Number(latest.data?.revision||1),next_data:merged});
-  if(write.error)throw write.error;
-  if(!write.data||!write.data.length){
-   saveQueued=true;
-   return false;
-  }
-  db=merged;
-  dbBaseSnapshot=structuredClone(merged);
-  dbServerRevision=Number(write.data[0].saved_revision||dbServerRevision+1);
-  toast("Kaydedildi "+new Date().toLocaleTimeString("tr-TR"),true);
-  return true;
- }catch(error){toast("Kayit hatasi: "+(error.message||error));return false}
- finally{
-  saveInFlight=false;
-  if(saveQueued){saveQueued=false;queueSave();}
+ }finally{
+   saveInFlight=false;
+   if(saveQueued){saveQueued=false;queueSave();}
  }
 }
 function setupGameRealtime(){
  if(!sb||gameSyncChannel)return;
- gameSyncChannel=sb.channel("game-state-sync").on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_state",filter:"id=eq.1"},payload=>{
-   const remote=payload.new?.data;
-   if(!remote)return;
-   // Supabase kendi kaydımızı da realtime üzerinden geri yayınlar. Aynı
-   // revision zaten bu istemcide işlendi ise bunu başka oyuncu değişikliği
-   // sayma ve gereksiz bildirim gösterme.
-   const incomingRevision=Number(payload.new?.revision||0);
-   if(incomingRevision && incomingRevision<=Number(dbServerRevision||0))return;
-   // Bu veri zaten ekranda mevcutsa bu, kendi kaydımızın realtime yankısıdır.
-   // Ekranı yeniden çizme; aksi hâlde sekme ve scroll konumu sıfırlanır.
-   if(valuesEqual(remote,db)){
-     dbBaseSnapshot=structuredClone(remote);
-     dbServerRevision=incomingRevision||dbServerRevision;
-     return;
-   }
-   // Modal açıkken formu yeniden oluşturma. Kullanıcının girdiği değerler
-   // DOM'da duruyor; uzak veri bir sonraki kaydetmede üç-yollu birleştirilir.
-   if(document.getElementById('modal')?.classList.contains('show')){
-     remote.settings=normalizeSettings(remote.settings);
-     db=remote;
-     dbBaseSnapshot=structuredClone(remote);
-     dbServerRevision=incomingRevision||dbServerRevision;
-     return;
-   }
-   if(valuesEqual(db,dbBaseSnapshot)){
-     remote.settings=normalizeSettings(remote.settings);
-     const activeTab=document.querySelector('.hoi-tab.active')?.id?.replace('tab-btn-','');
-     const scrollTop=window.scrollY;
-     db=remote;
-     dbBaseSnapshot=structuredClone(remote);
-     dbServerRevision=incomingRevision||dbServerRevision;
-     if(currentId)openDetail(currentId);else renderHome();
-     if(currentId&&activeTab){switchTab(activeTab);window.scrollTo(0,scrollTop);}
-     toast("Başka bir oyuncunun değişikliği anlık olarak yüklendi.",true);
-   }
- }).subscribe();
+ 
+ // Yeni tabloların HERHANGİ birinde değişiklik olursa tetiklenir
+ gameSyncChannel = sb.channel('game-sync-channel')
+   .on('postgres_changes', { event: '*', schema: 'public', table: 'game_states' }, handleRealtimeUpdate)
+   .on('postgres_changes', { event: '*', schema: 'public', table: 'game_core' }, handleRealtimeUpdate)
+   .on('postgres_changes', { event: '*', schema: 'public', table: 'game_letters' }, handleRealtimeUpdate)
+   .on('postgres_changes', { event: '*', schema: 'public', table: 'game_advisors' }, handleRealtimeUpdate)
+   .subscribe();
 }
+async function handleRealtimeUpdate(payload) {
+   // Kullanıcının modal (bildirim/işlem) ekranı açıksa yenilemeyi beklet (işi yarım kalmasın)
+   if(document.getElementById('modal')?.classList.contains('show')) return;
+   
+   // Kullanıcının henüz kaydetmediği bir işlemi yoksa, yeni verileri çekip ekranı yenile
+   if(valuesEqual(db, dbBaseSnapshot)){
+     const activeTab = document.querySelector('.hoi-tab.active')?.id?.replace('tab-btn-', '');
+     const scrollTop = window.scrollY;
+     
+     await loadDB(true); // Sessizce güncel verileri çek
+     
+     if(currentId) openDetail(currentId); else renderHome();
+     if(currentId && activeTab) { switchTab(activeTab); window.scrollTo(0, scrollTop); }
+     toast("Sunucudan yeni bilgiler alındı.", true);
+   }
+} 
 function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveDB,250)}
 async function saveMapDB(){
  const ok=await saveDB();
