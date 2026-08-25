@@ -1375,23 +1375,64 @@ function saveStrategicRegions(){
  if(document.getElementById('gameMapCanvas')){applyMapOwnership();}
  toast('Stratejik bölgeler kaydedildi',true);
 }
-function applyMapOwnership(){
+let mapAdjacencyCache = null;
+function applyMapOwnership()
+{
  const canvas=document.getElementById('gameMapCanvas');if(!canvas)return;
  canvas.querySelectorAll('.strategic-country-label,.strategic-country-clip').forEach(label=>label.remove());
+ 
+ const viewer = getCurrentPlayerState();
+ let visibleProvinces = "ALL";
+ 
+ if(!isAdmin && viewer && (viewer.istihbarat_binasi || 0) === 0) {
+    const myProvinces = getOwnedMapProvinceIds(viewer.id);
+    visibleProvinces = new Set(myProvinces);
+    (viewer.discoveredProvinces || []).forEach(id => visibleProvinces.add(id));
+    
+    if(myProvinces.length > 0) {
+        // SVG haritası üzerinden toprakların birbirine yakınlığını hesaplayıp komşuları bulan sistem
+        if(!mapAdjacencyCache) {
+            mapAdjacencyCache = {};
+            const paths = Array.from(canvas.querySelectorAll('path[id][d]'));
+            const bboxes = paths.map(p => { try { return { id: p.id, b: p.getBBox() }; } catch(e) { return null; } }).filter(x => x);
+            const bboxGap = (a,b) => Math.hypot(Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width)), Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height)));
+            for(let i=0; i<bboxes.length; i++) {
+                mapAdjacencyCache[bboxes[i].id] = [];
+                for(let j=0; j<bboxes.length; j++) {
+                    if(i !== j && bboxGap(bboxes[i].b, bboxes[j].b) <= 15) mapAdjacencyCache[bboxes[i].id].push(bboxes[j].id);
+                }
+            }
+        }
+        myProvinces.forEach(id => {
+            (mapAdjacencyCache[id] || []).forEach(adjId => visibleProvinces.add(adjId));
+        });
+    }
+ }
  canvas.querySelectorAll('path[id][d]').forEach(path=>{
    if(!path.dataset.originalFill)path.dataset.originalFill=path.getAttribute('fill')||path.style.fill||'';
    const ownerId=db.mapProvinceOwners?.[path.id];
    const owner=getState(ownerId);
    const detail=db.mapProvinceDetails?.[path.id];
    const displayOwner=detail?.countryName||owner?.name||'Sahipsiz / atanmadı';
-   path.style.fill=detail?.color||(owner?(owner.color||'#c5a059'):path.dataset.originalFill);
+   
+   let isVisible = (visibleProvinces === "ALL" || visibleProvinces.has(path.id) || ownerId === "__rebel__");
+   if(isVisible) {
+       path.style.fill=detail?.color||(owner?(owner.color||'#c5a059'):path.dataset.originalFill);
+       let title=path.querySelector('title');
+       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
+       title.textContent=`${getTurkishMapName(path.id)} — ${displayOwner}`;
+   } else {
+       path.style.fill = "#1a1a1a";
+       let title=path.querySelector('title');
+       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
+       title.textContent=`Bilinmeyen Toprak (Savaş Sisi)`;
+   }
+   
    path.onclick=()=>handleProvinceClick(path.id);
-   let title=path.querySelector('title');
-   if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
-   title.textContent=`${getTurkishMapName(path.id)} — ${displayOwner}`;
  });
  if(mapStrategicView){renderStrategicRegionStickers();}
 }
+ 
 function renderStrategicMapLabels(){
  const canvas=document.getElementById('gameMapCanvas'),svg=canvas?.querySelector('svg');if(!canvas||!svg)return;
  canvas.querySelectorAll('.strategic-country-label,.strategic-country-clip').forEach(node=>node.remove());
@@ -1650,11 +1691,24 @@ function crushRebellion(provinceId) {
 
 function syncProvinceOwnerFields(ownerId){const owner=getState(ownerId);if(!owner)return;const nameEl=document.getElementById('f_province_country_name'),garrisonEl=document.getElementById('f_province_garrison'),colorEl=document.getElementById('f_province_color');if(nameEl)nameEl.value=owner.name||'';if(garrisonEl)garrisonEl.value=owner.fortressGarrison||0;if(colorEl)colorEl.value=owner.color||'#c5a059';}
 
-function openPlayerProvinceIntel(provinceId,owner){
+function openPlayerProvinceIntel(provinceId,owner)
+{
  const viewer=getCurrentPlayerState();
  const provinceName=getTurkishMapName(provinceId);
  const detail=db.mapProvinceDetails?.[provinceId]||{};
- const countryName=detail.countryName||owner?.name||'';
+ 
+ // SİS KONTROLÜ
+ let isFogged = false;
+ if(viewer && (viewer.istihbarat_binasi || 0) === 0) {
+     const myProvinces = getOwnedMapProvinceIds(viewer.id);
+     const isMine = myProvinces.includes(provinceId);
+     const isDiscovered = (viewer.discoveredProvinces || []).includes(provinceId);
+     const isAdjacent = (mapAdjacencyCache && mapAdjacencyCache[provinceId]) ? mapAdjacencyCache[provinceId].some(adj => myProvinces.includes(adj)) : false;
+     const isRebel = (db.mapProvinceOwners?.[provinceId] === "__rebel__");
+     if(!isMine && !isDiscovered && !isAdjacent && !isRebel) isFogged = true;
+ }
+
+ const countryName = isFogged ? "Bilinmeyen Devlet (Savaş Sisi)" : (detail.countryName||owner?.name||'');
  const realGarrison=detail.garrison??owner?.fortressGarrison??0;
  const strategic=getStrategicRegionConfig(provinceId);
  const strategicHtml=strategic.enabled&&strategic.description?`<div class="event-result" style="margin-top:10px;border-color:var(--gold);"><b>⭐ STRATEJİK BÖLGE</b><br>${esc(strategic.description)}</div>`:'';
@@ -1666,10 +1720,12 @@ function openPlayerProvinceIntel(provinceId,owner){
    return;
  }
  const cost=Math.max(0,Number(db.settings.mapIntelReportCost)||0);
- modal(`<h2>🗺️ TOPRAK BİLGİSİ</h2><div class="event-result"><b>Toprak:</b> ${esc(provinceName)}<br><b>Sahibi:</b> ${esc(countryName)}</div>${strategicHtml}<p class="sub">İstihbarat Dairen yok. Yerel muhbirlerden %1–20 sapmalı garnizon raporu satın alabilirsin.</p><div class="event-result"><b>Rapor ücreti:</b> ${money(cost)}<br><b>Hazinen:</b> ${money(viewer.treasury||0)}</div><div class="actions"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn gold" onclick="buyProvinceIntelReport('${esc(provinceId)}','${esc(viewer.id)}')">RAPORU SATIN AL</button></div>`);
+ modal(`<h2>🗺️ TOPRAK BİLGİSİ</h2><div class="event-result"><b>Toprak:</b> ${esc(provinceName)}<br><b>Sahibi:</b> ${esc(countryName)}</div>${strategicHtml}<p class="sub">${isFogged ? "Bu bölge tamamen sis altında. Sınırlarınızın ötesini görmek için yerel muhbirlerden rapor almalısınız." : "İstihbarat Dairen yok. Yerel muhbirlerden %1–20 sapmalı garnizon raporu satın alabilirsin."}</p><div class="event-result"><b>Rapor ücreti:</b> ${money(cost)}<br><b>Hazinen:</b> ${money(viewer.treasury||0)}</div><div class="actions"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn gold" onclick="buyProvinceIntelReport('${esc(provinceId)}','${esc(viewer.id)}')">RAPORU SATIN AL & AYDINLAT</button></div>`);
+}
 }
 
-function buyProvinceIntelReport(provinceId,viewerId){
+function buyProvinceIntelReport(provinceId,viewerId)
+{
  const owner=getState(db.mapProvinceOwners?.[provinceId]),detail=db.mapProvinceDetails?.[provinceId]||{},viewer=getState(viewerId),currentViewer=getCurrentPlayerState();if(!viewer||!currentViewer||currentViewer.id!==viewer.id)return;
  const countryName=detail.countryName||owner?.name||'Bilinmeyen';
  const realGarrison=detail.garrison??owner?.fortressGarrison??0;
@@ -1677,9 +1733,15 @@ function buyProvinceIntelReport(provinceId,viewerId){
  if((viewer.treasury||0)<cost){alert(`Hazine yetersiz! Gerekli: ${money(cost)}`);return;}
  const oldTreasury=viewer.treasury||0;viewer.treasury=oldTreasury-cost;
  const report=getGarrisonIntelReport(viewer,realGarrison);
- addLog({stateId:viewer.id,stateName:viewer.name,action:`Toprak istihbaratı satın alındı: ${getTurkishMapName(provinceId)}`,qty:1,cost,oldTreasury,newTreasury:viewer.treasury});
+ 
+ // SİS KALDIRMA: İstihbarat alınan toprağı kalıcı olarak aydınlat
+ viewer.discoveredProvinces = viewer.discoveredProvinces || [];
+ if(!viewer.discoveredProvinces.includes(provinceId)) viewer.discoveredProvinces.push(provinceId);
+ addLog({stateId:viewer.id,stateName:viewer.name,action:`Toprak istihbaratı satın alındı (Sis kaldırıldı): ${getTurkishMapName(provinceId)}`,qty:1,cost,oldTreasury,newTreasury:viewer.treasury});
  queueSave();
+ applyMapOwnership(); // Haritayı anında aydınlat
  modal(`<h2>🕵️ MUHBİR RAPORU</h2><div class="event-result"><b>Toprak:</b> ${esc(getTurkishMapName(provinceId))}<br><b>Sahibi:</b> ${esc(countryName)}<br><b>${report.exact?'Kesin':'Tahmini'} toprak garnizonu:</b> ${report.exact?'':'~'}${num(report.value)} asker</div><p class="sub">${esc(report.note)} Hazineden ${money(cost)} ödendi.</p><div class="actions"><button class="btn" onclick="closeModal()">KAPAT</button></div>`);
+
 }
 
 function saveProvinceOwner(provinceId){
