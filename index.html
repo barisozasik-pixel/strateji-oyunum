@@ -2178,21 +2178,37 @@ function openDetail(id){
     <p class="sub" style="margin-bottom:10px;">Devletinize hizmet veren paşalar. 1 yıl dolmadan görevden alınamazlar!</p>`;
 
  if(activeAdvisors.length > 0) {
-    divanHtml += activeAdvisors.map(a => {
+        divanHtml += activeAdvisors.map(a => {
         const hiredYears = (s.advisorHiredYears || {})[a.id] || 0;
-        const locked = hiredYears < 1; // 1 yıldan az çalıştıysa kilitli
-
+        const locked = hiredYears < 1; 
+        // Yıllık Finansal Katkı (Kâr/Zarar) Hesaplama
+        let extraIncome = 0;
+        let bInc = calcIncome(s) / (1 + ((getAdvisorEffects(s).taxBonus||0)/100)); 
+        if(a.taxBonus) extraIncome += (bInc * (a.taxBonus/100));
+        
+        let pUpkeep = db.settings.upkeep || {};
+        if(a.milUpkeepDiscount) extraIncome += (((s.piyade||0)*(pUpkeep.piyade||0)) + ((s.suvari||0)*(pUpkeep.suvari||0)) + ((s.nisanci||0)*(pUpkeep.nisanci||0))) * (a.milUpkeepDiscount/100);
+        if(a.navyUpkeepDiscount) extraIncome += (((s.kucuk_gemi||0)*(pUpkeep.kucuk_gemi||0)) + ((s.orta_gemi||0)*(pUpkeep.orta_gemi||0)) + ((s.buyuk_gemi||0)*(pUpkeep.buyuk_gemi||0))) * (a.navyUpkeepDiscount/100);
+        
+        let netProfit = Math.floor(extraIncome) - (a.salary||0);
         return `<div class="advisor-card" style="border-left-color:var(--green);">
-            ${a.icon ? `<img src="${esc(a.icon)}" class="advisor-avatar">` : `<div class="advisor-avatar" style="display:flex;align-items:center;justify-content:center;font-size:20px;">👑</div>`}
+            ${a.icon ? `<img src="${esc(a.icon)}" class="advisor-avatar">` : `<div class="advisor-avatar" style="display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>`}
             <div class="advisor-info">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div><b>${esc(a.name)}</b> <span class="stars-span">${'★'.repeat(a.stars||1)}</span> <span class="badge">${esc(a.role)}</span></div>
                     <span style="color:var(--gold); font-weight:bold;">${money(a.salary)}/yıl</span>
                 </div>
                 <div style="font-size:10px; color:var(--muted); margin:2px 0;">Yaş: <b>${a.ageYears||5}</b> | Ölüm Yaşı: <b>${a.maxAge||20}</b> | Kalan Ömür: <b>${Math.max(0, (a.maxAge||20) - (a.ageYears||5))} Yıl</b> | Hizmet: <b>${hiredYears} Yıl</b></div>
+                
                 <div class="adv-buff"><b>Artı:</b> ${esc(a.buff)}</div>
-                <div class="adv-debuff"><b>Götürü:</b> ${esc(a.debuff)}</div>
+                ${a.debuff ? `<div class="adv-debuff"><b>Götürü:</b> ${esc(a.debuff)}</div>` : ''}
+                
+                <div style="margin-top:6px; font-size:11px; padding:6px; border-radius:3px; background:rgba(0,0,0,0.5); border:1px solid ${netProfit >= 0 ? 'var(--green)' : 'var(--red)'}">
+                    <b>Devlet Hazinesine Net Katkısı:</b> <span style="color:${netProfit >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:13px;">${netProfit >= 0 ? '+' : ''}${money(netProfit)} TL / yıl</span>
+                    <div style="font-size:9px; color:var(--muted);">(Sağladığı ekstra vergi ve tasarruflar eksi (-) Kendi Maaşı)</div>
+                </div>
                 ${a.upgradeHistory && a.upgradeHistory.length > 0 ? `<div style="margin-top:6px; font-size:10px; color:var(--green); border-top:1px dashed var(--line); padding-top:4px;"><b>📈 Kariyer Geçmişi:</b><br>${a.upgradeHistory.join('<br>')}</div>` : ''}
+                
                 ${canManage ? `<div style="text-align:right; margin-top:6px;">
                     ${locked ? '<span style="color:var(--gold); font-size:11px; font-weight:bold; margin-right:8px;">🔒 1 Yıl Sözleşme Sürüyor</span>' : ''}
                     <button class="btn red small" onclick="fireAdvisor('${s.id}','${a.id}')" ${locked ? 'disabled title="Aynı yıl içinde iade edilemez!" style="opacity:0.5;"' : ''}>AZLET (İADE ET)</button>
