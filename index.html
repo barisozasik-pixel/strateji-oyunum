@@ -3794,19 +3794,37 @@ function renderWarGarrisonFields()
  const s=getState(stateId);
  if(!box) return;
  if(!s){box.innerHTML='<p class="sub">İşlem yapmak için önce bir devlet seçin.</p>';return;}
- box.innerHTML=`<div class="event-result" style="margin-top:10px;">
+ 
+ let customUnits = (db.settings.customItems||[]).filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id));
+ let customStatus = ""; let customInputs = "";
+ customUnits.forEach(c => {
+    customStatus += `${esc(c.name)}: <b>${num(s[c.id]||0)}</b> | `;
+    customInputs += field("war_death_" + c.id, "Ölen " + esc(c.name), 0, "number");
+ });
+ box.innerHTML=`<div class="event-result" style="margin-top:10px; font-size:12px;">
      <b>${esc(s.name)} Mevcut Ordusu:</b><br>
      Piyade: <b>${num(s.piyade||0)}</b> | Süvari: <b>${num(s.suvari||0)}</b> | Nişancı: <b>${num(s.nisanci||0)}</b><br>
+     K. Top: <b>${num(s.kucuk_top||0)}</b> | O. Top: <b>${num(s.orta_top||0)}</b> | B. Top: <b>${num(s.buyuk_top||0)}</b><br>
+     K. Gemi: <b>${num(s.kucuk_gemi||0)}</b> | O. Gemi: <b>${num(s.orta_gemi||0)}</b> | B. Gemi: <b>${num(s.buyuk_gemi||0)}</b><br>
      Kale Garnizonu: <b>${num(s.fortressGarrison||0)}</b><br>
-     <div class="sub" style="margin-top:4px; color:var(--red);">Bugüne kadar verilen toplam savaş zayiatı: ${num((s.warCasualties||0)+(s.garrisonWarDeaths||0))} asker</div>
+     ${customStatus ? customStatus + '<br>' : ''}
+     <div class="sub" style="margin-top:4px; color:var(--red);">Bugüne kadar verilen toplam SAVAŞ ŞEHİDİ (Nüfustan düşülen): ${num((s.warCasualties||0)+(s.garrisonWarDeaths||0))} İnsan</div>
    </div>
    <div class="formgrid" style="margin-top:10px;">
-     ${field("war_death_piyade","Ölen Piyade Sayısı",0,"number")}
-     ${field("war_death_suvari","Ölen Süvari Sayısı",0,"number")}
-     ${field("war_death_nisanci","Ölen Nişancı Sayısı",0,"number")}
-     ${field("war_death_garrison","Düşen Kaledeki Garnizon Sayısı",0,"number")}
+     ${field("war_death_piyade","Ölen Piyade",0,"number")}
+     ${field("war_death_suvari","Ölen Süvari",0,"number")}
+     ${field("war_death_nisanci","Ölen Nişancı",0,"number")}
+     ${customInputs}
+     <div class="full" style="border-top:1px dashed var(--line); margin-top:5px; padding-top:5px;"></div>
+     ${field("war_death_kucuk_top","Patlayan K. Top",0,"number")}
+     ${field("war_death_orta_top","Patlayan O. Top",0,"number")}
+     ${field("war_death_buyuk_top","Patlayan B. Top",0,"number")}
+     ${field("war_death_kucuk_gemi","Batan K. Gemi",0,"number")}
+     ${field("war_death_orta_gemi","Batan O. Gemi",0,"number")}
+     ${field("war_death_buyuk_gemi","Batan B. Gemi",0,"number")}
+     ${field("war_death_garrison","Ölen Kale Garnizonu",0,"number")}
    </div>
-   <button class="btn red" style="width:100%;margin-top:10px;" onclick="applyWarGarrisonDeaths('${s.id}')">KAYIPLARI UYGULA (ASLA GERİ DÖNMEZLER)</button>`;
+   <button class="btn red" style="width:100%;margin-top:10px;" onclick="applyWarGarrisonDeaths('${s.id}')">KAYIPLARI UYGULA (NÜFUSTAN DÜŞ)</button>`;
 }
 
 function applyWarGarrisonDeaths(stateId)
@@ -3815,32 +3833,59 @@ function applyWarGarrisonDeaths(stateId)
  const s=getState(stateId);
  if(!s) return;
  
- const dPiyade = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_piyade")?.value)||0));
- const dSuvari = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_suvari")?.value)||0));
- const dNisanci = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_nisanci")?.value)||0));
+ let totalHumanDeaths = 0;
+ let totalEquipmentLost = 0;
+ let details = [];
+ 
+ // İnsan kayıpları (Nüfustan Düşecekler)
+ const humanKeys = ["piyade", "suvari", "nisanci"];
+ let customUnits = (db.settings.customItems||[]).filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id));
+ customUnits.forEach(c => humanKeys.push(c.id));
+ 
+ for(const k of humanKeys) {
+     const lost = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_" + k)?.value)||0));
+     if(lost > 0) {
+         if(lost > (s[k]||0)) { alert(`${k} kaybı mevcut ordudan fazla olamaz!`); return; }
+         s[k] -= lost;
+         totalHumanDeaths += lost;
+         details.push(`${num(lost)} ${k}`);
+     }
+ }
+ 
+ // Garnizon kaybı (İnsan - Nüfustan Düşer)
  const dGarrison = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_garrison")?.value)||0));
+ if(dGarrison > 0) {
+     if(dGarrison > (s.fortressGarrison||0)) { alert("Ölen garnizon mevcut garnizondan fazla olamaz!"); return; }
+     s.fortressGarrison -= dGarrison;
+     totalHumanDeaths += dGarrison;
+     details.push(`${num(dGarrison)} garnizon`);
+ }
  
- const totalDeaths = dPiyade + dSuvari + dNisanci + dGarrison;
- if(totalDeaths === 0){alert("En az bir kayıp sayısı girin.");return;}
+ // Ekipman kayıpları (Toplar ve Gemiler - Nüfustan DÜŞMEZ)
+ const equipmentKeys = ["kucuk_top", "orta_top", "buyuk_top", "kucuk_gemi", "orta_gemi", "buyuk_gemi"];
+ for(const k of equipmentKeys) {
+     const lost = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_" + k)?.value)||0));
+     if(lost > 0) {
+         if(lost > (s[k]||0)) { alert(`${k} kaybı mevcuttan fazla olamaz!`); return; }
+         s[k] -= lost;
+         totalEquipmentLost += lost;
+         details.push(`${num(lost)} ${k}`);
+     }
+ }
  
- if(dPiyade > (s.piyade||0)){alert("Ölen piyade sayısı mevcut piyadeden fazla olamaz!");return;}
- if(dSuvari > (s.suvari||0)){alert("Ölen süvari sayısı mevcut süvariden fazla olamaz!");return;}
- if(dNisanci > (s.nisanci||0)){alert("Ölen nişancı sayısı mevcut nişancıdan fazla olamaz!");return;}
- if(dGarrison > (s.fortressGarrison||0)){alert("Ölen garnizon sayısı mevcut garnizondan fazla olamaz!");return;}
+ if(totalHumanDeaths === 0 && totalEquipmentLost === 0){alert("En az bir kayıp sayısı girin.");return;}
  
- s.piyade -= dPiyade;
- s.suvari -= dSuvari;
- s.nisanci -= dNisanci;
- s.fortressGarrison -= dGarrison;
- 
- s.population = Math.max(0, (s.population||0) - totalDeaths); // Toplam Nüfus'tan sil!
- s.warCasualties = (s.warCasualties || 0) + totalDeaths; // Havuza dönmelerini engelle!
+ // Sadece ölen "İnsanlar" toplam nüfustan düşülür ve havuza dönmeleri engellenir.
+ if(totalHumanDeaths > 0) {
+     s.population = Math.max(0, (s.population||0) - totalHumanDeaths);
+     s.warCasualties = (s.warCasualties || 0) + totalHumanDeaths;
+ }
  
  if(dGarrison > 0) redistributeMapGarrisonsForStateIds([s.id]);
  
- addLog({stateId:s.id,stateName:s.name,action:`Savaş Kayıpları İşlendi: ${num(totalDeaths)} asker şehit düştü!`,qty:totalDeaths,cost:0});
+ addLog({stateId:s.id,stateName:s.name,action:`Savaş Zayiatı: ${details.join(', ')}`,qty:totalHumanDeaths + totalEquipmentLost,cost:0});
  queueSave();
- toast(`${s.name}: ${num(totalDeaths)} asker kalıcı olarak silindi.`);
+ toast(`${s.name} savaş kayıpları işlendi.`);
  openWarGarrisonModal();
  const selector=document.getElementById("war_state");
  if(selector){selector.value=s.id;renderWarGarrisonFields();}
