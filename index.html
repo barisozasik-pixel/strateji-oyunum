@@ -1540,8 +1540,8 @@ function getGarrisonIntelReport(viewerState,realGarrison){
  return {value:Math.max(0,Math.round(realValue*(1+(direction*deviationPercent)))),exact:false,note:'Rapor %1–20 arasında yanıltma payı içerir.'};
 }
 
-function handleProvinceClick(provinceId){
- function handleProvinceClick(provinceId){
+function handleProvinceClick(provinceId)
+{
  const ownerId = db.mapProvinceOwners?.[provinceId];
  const owner = getState(ownerId);
  const detail = db.mapProvinceDetails?.[provinceId]||{};
@@ -1646,7 +1646,6 @@ function crushRebellion(provinceId) {
     closeModal();
     openDetail(viewer.id); // Asker sayısının azaldığını ekranda anında görsün
     toast(`Tebrikler! İsyanı kanla bastırıp ${getTurkishMapName(provinceId)} bölgesini ele geçirdiniz.`, true);
-}
 }
 
 function syncProvinceOwnerFields(ownerId){const owner=getState(ownerId);if(!owner)return;const nameEl=document.getElementById('f_province_country_name'),garrisonEl=document.getElementById('f_province_garrison'),colorEl=document.getElementById('f_province_color');if(nameEl)nameEl.value=owner.name||'';if(garrisonEl)garrisonEl.value=owner.fortressGarrison||0;if(colorEl)colorEl.value=owner.color||'#c5a059';}
