@@ -3520,12 +3520,7 @@ function passOneYear(){
             }
         });
         
-        let maxAllowedGrowth = 5; 
-        if(Number(s.population) >= 1000000) { maxAllowedGrowth = 4; }
-        if(Number(s.population) >= 3000000) { maxAllowedGrowth = 3; }
-        if(Number(s.population) >= 5000000) { maxAllowedGrowth = 2; }
-        if(Number(s.population) >= 10000000){ maxAllowedGrowth = 1; }
-        if (totalGrowthPercent > maxAllowedGrowth) { totalGrowthPercent = maxAllowedGrowth; }
+
         let newPop = Number(s.population || 0);
         if (totalGrowthPercent > 0) {
             let growthMultiplier = 1 + (totalGrowthPercent / 100);
