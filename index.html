@@ -3526,7 +3526,7 @@ function passOneYear(){
             let growthMultiplier = 1 + (totalGrowthPercent / 100);
             let calculatedPop = Math.floor(newPop * growthMultiplier);
             let extraPeople = calculatedPop - newPop;
-            if (extraPeople > 10000) { extraPeople = 10000; } 
+          
             s.population = newPop + extraPeople;
             rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
         }
