@@ -3489,7 +3489,7 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
-        // ADIM 3: NÜFUS ARTIŞI VE PATLAMA KORUMASI (Para kasaya girdikten sonra doğarlar)
+        // ADIM 3: NÜFUS ARTIŞI VE PATLAMA KORUMASI
         let totalGrowthPercent = 0;
         ["hastane", "asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
@@ -3511,7 +3511,7 @@ function passOneYear(){
             let growthMultiplier = 1 + (totalGrowthPercent / 100);
             let calculatedPop = Math.floor(newPop * growthMultiplier);
             let extraPeople = calculatedPop - newPop;
-            if (extraPeople > 10000) { extraPeople = 10000; } // Binalardan en fazla 10.000 kişi gelebilir
+            if (extraPeople > 10000) { extraPeople = 10000; } 
             s.population = newPop + extraPeople;
             rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
         }
@@ -3542,7 +3542,7 @@ function passOneYear(){
         db.settings.lastYearReport.states[s.id] = rpt;
     });
     
-    // 2. DÖNGÜ: SADECE PAŞA YAŞLANDIRMALARI VE VARİS SİSTEMİ
+    // 2. DÖNGÜ: SADECE PAŞA YAŞLANDIRMALARI VE FABRİKA AYARLARINA DÖNÜŞ
     let globallyAgedAdvisors = new Set(); 
     
     db.states.forEach(s => {
@@ -3578,19 +3578,17 @@ function passOneYear(){
                 }
             }
             
-            // VARİS (REENKARNASYON) MEKANİĞİ
+            // FABRİKA AYARLARINA DÖNÜŞ MEKANİĞİ
             if(adv.ageYears >= adv.maxAge) {
-                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan vefat etti. (Ailesinden yeni bir varis yetişiyor)`);
+                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan vefat etti. (Yerine orijinal hali atandı)`);
                 delete s.advisorHiredYears[advId];
                 
-                db.advisors = (db.advisors || []).filter(x => x.id !== advId); // Eskisini sil
+                db.advisors = (db.advisors || []).filter(x => x.id !== advId); // Şişmiş eskisini sil
                 
                 let original = (typeof DEFAULT_45_ADVISORS !== 'undefined' ? DEFAULT_45_ADVISORS.find(x => x.id === advId) : null);
                 if(original) {
-                    let freshClone = structuredClone(original);
-                    freshClone.ageYears = 20 + Math.floor(Math.random() * 10); 
-                    freshClone.maxAge = 60 + Math.floor(Math.random() * 21);   
-                    db.advisors.push(freshClone); // Sıfır kilometre taze paşayı havuza geri at
+                    // Hiçbir özelliğini elleme, tamamen orijinal ham halini havuza geri at!
+                    db.advisors.push(structuredClone(original)); 
                 }
             } else {
                 survivingHired.push(advId);
