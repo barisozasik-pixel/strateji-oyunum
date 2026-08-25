@@ -2268,18 +2268,16 @@ function buildPopulationBuilding(stateId,key,labelName){
  
  const qty=Math.max(0,Math.floor(Number(document.getElementById(`qty_${stateId}_${key}`)?.value)||0));
  if(qty<=0)return;
-
  const oldPopulation=Math.max(0,Math.floor(Number(s.population)||0));
  const costPerPerson=Math.max(0,Number(db.settings.populationBuildingCostPerPerson?.[key])||0);
  const unitPrice=Math.max(0,Math.round(oldPopulation*costPerPerson));
  const totalCost=unitPrice*qty;
-
  if((Number(s.treasury)||0)<totalCost){alert(`Hazine yetersiz! Toplam inşaat maliyeti: ${money(totalCost)}`);return;}
  
  const oldCount=s[key]||0;
  const oldTreasury=Number(s.treasury)||0;
  
- // DÜZELTME: Anında nüfus eklemeyi kaldırdık. Sadece parayı kesip binayı ekliyoruz.
+ // Bina alındığı an SADECE para düşülür ve bina eklenir (Anında devasa nüfus patlaması iptal edildi)
  s.treasury=oldTreasury-totalCost;
  s[key]=oldCount+qty;
  
@@ -3136,14 +3134,13 @@ function passOneYear(){
     if(!isAdmin) return;
     if(!confirm("⏳ Tüm devletler için 1 tam yıl geçirilecek.\n\nVergiler toplanacak, paşalar yaşlanacak ve gelişim gösterecek. Onaylıyor musunuz?")) return;
     
-    // Sayaç sıfırlanır
     db.timerSeconds = 0;
     db.timerRunning = false;
     db.gameYear = (Number(db.gameYear) || 1453) + 1;
-
     let yearEventReport = [];
     let debtReport = [];
     
+    // Nüfus Artışı, Olaylar ve Borçlar
     db.states.forEach(s => {
         s.debtYears=Math.max(0,Math.floor(Number(s.debtYears)||0));
         if(Number(s.treasury||0)<0){
@@ -3154,17 +3151,16 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
-        // YENİ EKLENEN KISIM: YILLIK NÜFUS ARTIŞI HESAPLAMA (Sahip olunan binalara göre)
+        // --- YILLIK NÜFUS BÜYÜMESİ ---
         let totalGrowthPercent = 0;
         ["hastane", "asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
             if (count > 0) {
                 const growthRate = Math.max(0, Number(db.settings.populationBuildingGrowth?.[key]) || 0);
-                const efficiency = Math.max(0.2, 1 - (count * 0.05)); // Çok bina varsa verim düşer
+                const efficiency = Math.max(0.2, 1 - (count * 0.05));
                 totalGrowthPercent += (growthRate * count * efficiency);
             }
         });
-
         if (totalGrowthPercent > 0) {
             const addedPopulation = Math.floor((s.population || 0) * (totalGrowthPercent / 100));
             s.population += addedPopulation;
@@ -3175,12 +3171,11 @@ function passOneYear(){
         db.pendingEvents.push(...generated);
         if(generated.length) yearEventReport.push(`${esc(s.name)}: ${generated.length} olay`);
     });
-
     let summaryHtml = "<h2>⏳ YIL SONU RAPORU & PAŞA GELİŞİMİ</h2>" + `<div class="event-result"><b>Yeni yıl: ${db.gameYear}</b><br>${debtReport.length ? "⚠️ BORÇ BİLDİRİMLERİ: " + debtReport.join(" • ") + "<br>" : ""}${yearEventReport.length ? "📈 Bu yıl gerçekleşenler:<br>" + yearEventReport.join("<br>") : "🎲 Bu yıl özel bir durum oluşmadı."}</div>` + "<div style='max-height:60vh; overflow:auto;'><div class='cards' style='grid-template-columns:1fr;'>";
     
-    // Paşaların Yaşlandırılması ve Hasıla Hesaplamaları
-    let globallyAgedAdvisors = new Set(); // Aynı paşanın 2 kere yaşlanmasını engelleyen güvenlik önlemi
+    let globallyAgedAdvisors = new Set(); 
     
+    // Paşa Gelişimleri ve Gelir/Gider 
     db.states.forEach(s => {
         let inc = calcIncome(s);
         let permInc = calcPermIncome(s); 
@@ -3193,46 +3188,40 @@ function passOneYear(){
         s.treasury += net;
         s.customLedger = []; 
         let col = net >= 0 ? 'var(--green)' : 'var(--red)';
-
         s.advisorHiredYears = s.advisorHiredYears || {};
         (s.hiredAdvisors || []).forEach(advId => {
             s.advisorHiredYears[advId] = (s.advisorHiredYears[advId] || 0) + 1;
         });
-
         let advisorReport = [];
         let survivingHired = [];
         
         (s.hiredAdvisors || []).forEach(advId => {
             let adv = (db.advisors||[]).find(a => a.id === advId);
             if(!adv) return;
-
-            // Paşa bu turda zaten yaşlandıysa tekrar yaşlanmasını engelliyoruz
             if(!globallyAgedAdvisors.has(advId)) {
                 globallyAgedAdvisors.add(advId);
                 adv.ageYears = Number.isFinite(Number(adv.ageYears)) ? Number(adv.ageYears) + 1 : 6;
                 adv.maxAge = Number.isFinite(Number(adv.maxAge)) ? Number(adv.maxAge) : Math.floor(Math.random() * 21) + 60; 
-
                 if(adv.ageYears < adv.maxAge) {
                     adv.yearsSinceUpgrade = (adv.yearsSinceUpgrade || 0) + 1;
                     if(adv.yearsSinceUpgrade >= 3) {
                         adv.yearsSinceUpgrade = 0;
                         let boostPercent = Math.floor(Math.random() * 8) + 1; 
                         
-                        if(adv.taxBonus>0) adv.taxBonus = Number((adv.taxBonus + boostPercent).toFixed(1));
-                        if(adv.milUpkeepDiscount>0) adv.milUpkeepDiscount = Number((adv.milUpkeepDiscount + boostPercent).toFixed(1));
-                        if(adv.navyUpkeepDiscount>0) adv.navyUpkeepDiscount = Number((adv.navyUpkeepDiscount + boostPercent).toFixed(1));
-                        if(adv.artUpkeepDiscount>0) adv.artUpkeepDiscount = Number((adv.artUpkeepDiscount + boostPercent).toFixed(1));
-                        if(adv.recruitDiscount>0) adv.recruitDiscount = Number((adv.recruitDiscount + boostPercent).toFixed(1));
-                        if(adv.infraDiscount>0) adv.infraDiscount = Number((adv.infraDiscount + boostPercent).toFixed(1));
-                        if(adv.happinessBonus>0) adv.happinessBonus = Number((adv.happinessBonus + boostPercent).toFixed(1));
-
+                        // HATA ÇÖZÜMÜ: Eğer değerler veritabanında string kalmışsa çökmemesi için Number zorlaması yapıldı.
+                        if(Number(adv.taxBonus)>0) adv.taxBonus = Number((Number(adv.taxBonus) + boostPercent).toFixed(1));
+                        if(Number(adv.milUpkeepDiscount)>0) adv.milUpkeepDiscount = Number((Number(adv.milUpkeepDiscount) + boostPercent).toFixed(1));
+                        if(Number(adv.navyUpkeepDiscount)>0) adv.navyUpkeepDiscount = Number((Number(adv.navyUpkeepDiscount) + boostPercent).toFixed(1));
+                        if(Number(adv.artUpkeepDiscount)>0) adv.artUpkeepDiscount = Number((Number(adv.artUpkeepDiscount) + boostPercent).toFixed(1));
+                        if(Number(adv.recruitDiscount)>0) adv.recruitDiscount = Number((Number(adv.recruitDiscount) + boostPercent).toFixed(1));
+                        if(Number(adv.infraDiscount)>0) adv.infraDiscount = Number((Number(adv.infraDiscount) + boostPercent).toFixed(1));
+                        if(Number(adv.happinessBonus)>0) adv.happinessBonus = Number((Number(adv.happinessBonus) + boostPercent).toFixed(1));
                         adv.lastUpgradeMsg = `📈 %${boostPercent} gelişti!`;
                     } else {
                         adv.lastUpgradeMsg = null;
                     }
                 }
             }
-
             if(adv.ageYears >= adv.maxAge) {
                 advisorReport.push(`⚠️ <b>${adv.name}</b> yaşlılıktan vefat etti / emekli oldu.`);
                 delete s.advisorHiredYears[advId];
@@ -3252,7 +3241,6 @@ function passOneYear(){
             oldTreasury: oldT,
             newTreasury: s.treasury
         });
-
         summaryHtml += `<div class="list-item" style="flex-direction:column; align-items:stretch;">
             <div style="border-bottom:1px solid var(--line); margin-bottom:4px; padding-bottom:4px;"><b>${esc(s.name)}</b></div>
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
