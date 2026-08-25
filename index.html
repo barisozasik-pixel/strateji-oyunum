@@ -574,7 +574,8 @@ input:focus, select:focus, textarea:focus { border-color:var(--border-gold); }
 <div id="modal" class="modal"><div class="modalbox"><div id="modalContent"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>`r`n<script src="game-data.js"></script>
+<script src="config.js"></script>
+<script src="game-data.js"></script>
 <script>
 let currentUserEmail = null;
 let isAdmin = false;
@@ -813,9 +814,31 @@ function mergeStateThreeWay(base,local,remote,path="",conflicts=[]){
  if(valuesEqual(remote,base))return structuredClone(local);
  if(valuesEqual(local,remote))return structuredClone(local);
  if(Array.isArray(local)||Array.isArray(remote)){
-   const all=[...(Array.isArray(remote)?remote:[]),...(Array.isArray(local)?local:[])];
-   const seen=new Set(),merged=[];
-   all.forEach(item=>{const key=item&&typeof item==='object'?(item.id||item.uid||item.logId||item.stateId||JSON.stringify(item)):String(item);if(!seen.has(key)){seen.add(key);merged.push(structuredClone(item));}});
+   // ÖNEMLİ: Eskiden burada aynı id'ye sahip öğe hem local hem remote'da varsa
+   // sadece remote'daki kopya tutulup local'deki değişiklik SESSİZCE siliniyordu.
+   // Bu, iki oyuncu aynı anda farklı devletlerde işlem yaptığında birinin
+   // değişikliğinin kaybolmasına sebep oluyordu. Şimdi öğeler id/uid/logId/
+   // stateId'ye göre eşleştirilip her öğe kendi içinde tekrar 3-way merge ediliyor.
+   const baseArr=Array.isArray(base)?base:[];
+   const localArr=Array.isArray(local)?local:[];
+   const remoteArr=Array.isArray(remote)?remote:[];
+   const keyOf=it=>(it&&typeof it==='object')?(it.id??it.uid??it.logId??it.stateId??JSON.stringify(it)):it;
+   const byKey=arr=>{const m=new Map();arr.forEach(it=>m.set(keyOf(it),it));return m;};
+   const baseMap=byKey(baseArr),localMap=byKey(localArr),remoteMap=byKey(remoteArr);
+
+   const order=[],seen=new Set();
+   [...remoteArr,...localArr].forEach(it=>{const k=keyOf(it);if(!seen.has(k)){seen.add(k);order.push(k);}});
+
+   const merged=[];
+   order.forEach(k=>{
+     const inLocal=localMap.has(k),inRemote=remoteMap.has(k),inBase=baseMap.has(k);
+     if(!inLocal&&!inRemote)return;              // ikisinde de yok
+     if(!inLocal&&inBase)return;                 // yerelde silinmiş -> silik kalsın
+     if(!inRemote&&inBase)return;                // sunucuda silinmiş -> silik kalsın
+     if(!inLocal){merged.push(structuredClone(remoteMap.get(k)));return;}   // sadece uzakta eklenmiş
+     if(!inRemote){merged.push(structuredClone(localMap.get(k)));return;}  // sadece yerelde eklenmiş
+     merged.push(mergeStateThreeWay(baseMap.get(k),localMap.get(k),remoteMap.get(k),`${path}[${k}]`,conflicts));
+   });
    return merged;
  }
  if(local===null||remote===null||typeof local!=="object"||typeof remote!=="object"){
@@ -2622,7 +2645,30 @@ function calcPopulationBuildingExpense(s){
 function preferLocalChangedFields(base,local,remote){
  if(valuesEqual(local,base))return structuredClone(remote);
  if(valuesEqual(remote,base))return structuredClone(local);
- if(Array.isArray(local)||Array.isArray(remote))return structuredClone(remote);
+ if(Array.isArray(local)||Array.isArray(remote)){
+   // ÖNEMLİ: Eskiden çakışma anında dizi alanlarındaki (örn. customItems)
+   // yerel değişiklikler komple silinip remote'un aynısı döndürülüyordu.
+   // Şimdi öğeler id/uid/logId/stateId'ye göre eşleştirilip yerel değişiklikler korunuyor.
+   const baseArr=Array.isArray(base)?base:[];
+   const localArr=Array.isArray(local)?local:[];
+   const remoteArr=Array.isArray(remote)?remote:[];
+   const keyOf=it=>(it&&typeof it==='object')?(it.id??it.uid??it.logId??it.stateId??JSON.stringify(it)):it;
+   const byKey=arr=>{const m=new Map();arr.forEach(it=>m.set(keyOf(it),it));return m;};
+   const baseMap=byKey(baseArr),localMap=byKey(localArr),remoteMap=byKey(remoteArr);
+   const order=[],seen=new Set();
+   [...remoteArr,...localArr].forEach(it=>{const k=keyOf(it);if(!seen.has(k)){seen.add(k);order.push(k);}});
+   const merged=[];
+   order.forEach(k=>{
+     const inLocal=localMap.has(k),inRemote=remoteMap.has(k),inBase=baseMap.has(k);
+     if(!inLocal&&!inRemote)return;
+     if(!inLocal&&inBase)return;
+     if(!inRemote&&inBase)return;
+     if(!inLocal){merged.push(structuredClone(remoteMap.get(k)));return;}
+     if(!inRemote){merged.push(structuredClone(localMap.get(k)));return;}
+     merged.push(preferLocalChangedFields(baseMap.get(k),localMap.get(k),remoteMap.get(k)));
+   });
+   return merged;
+ }
  if(local===null||typeof local!=="object"||remote===null||typeof remote!=="object")return structuredClone(local);
  const result=structuredClone(remote||{});
  Object.keys(local||{}).forEach(key=>{result[key]=preferLocalChangedFields(base?.[key],local[key],remote?.[key]);});
