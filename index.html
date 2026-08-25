@@ -1581,6 +1581,8 @@ function getGarrisonIntelReport(viewerState,realGarrison){
  return {value:Math.max(0,Math.round(realValue*(1+(direction*deviationPercent)))),exact:false,note:'Rapor %1–20 arasında yanıltma payı içerir.'};
 }
 
+
+// (Menüyü Açan Kod): Haritadaki herhangi bir toprağa tıklandığında ekrana menüyü açan koddur. (Tıklayan adminse ayar menüsünü, oyuncuysa bilgi menüsünü açar).
 function handleProvinceClick(provinceId)
 {
  const ownerId = db.mapProvinceOwners?.[provinceId];
@@ -1592,6 +1594,30 @@ function handleProvinceClick(provinceId)
      openRebellionModal(provinceId, detail);
      return;
  }
+ if(!isAdmin){openPlayerProvinceIntel(provinceId,owner);return;}
+ if(mapBatch){toggleBatchProvince(provinceId);return;}
+ if(mapPickerMode){pickProvinceAsBrush(provinceId);return;}
+ if(mapBrush){paintProvinceWithBrush(provinceId);return;}
+ const currentColor=getProvinceDisplayColor(provinceId,detail,owner);
+ const options=`<option value="">Sahipsiz / atanmamış</option>`+db.states.map(s=>`<option value="${s.id}" ${owner?.id===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+ const isGloballyVisible = detail.isGloballyVisible ? 'checked' : '';
+ const stateOpts = db.states.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+ 
+ modal(`<h2>🗺️ TOPRAK YÖNETİMİ</h2><div class="event-result"><b>Toprak:</b> ${esc(getTurkishMapName(provinceId))}<br><b>Gösterilen ülke:</b> ${esc(detail.countryName||owner?.name||'Sahipsiz / atanmadı')}<br><b>Bu topraktaki garnizon:</b> ${num(detail.garrison??owner?.fortressGarrison??0)} asker</div><div class="formgrid" style="margin-top:10px;"><div class="full"><label>Devlet Kartına Bağla (İsteğe Bağlı)</label><select id="province_owner" onchange="syncProvinceOwnerFields(this.value)">${options}</select></div>${field('province_country_name','Ülke Adı (Kart olmadan yazılabilir)',detail.countryName||owner?.name||'','text')}${field('province_garrison','Bu Topraktaki Garnizon Sayısı',detail.garrison??owner?.fortressGarrison??0,'number')}${field('province_color','Toprak Rengi',currentColor,'color')}<div><label style="display:flex;align-items:center;gap:7px;margin-top:20px;"><input id="province_apply_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün topraklara rengi uygula</label></div><div class="full" style="background:rgba(197, 160, 89, 0.1); border:1px solid var(--border-gold); padding:8px; border-radius:3px;"><label style="display:flex;align-items:center;gap:7px;margin:0;color:var(--border-gold);"><input id="province_global_visible" type="checkbox" style="width:auto;" ${isGloballyVisible}> 👁️ BÖLGEYİ DÜNYAYA AÇ (Sisi Herkes İçin Kaldır)</label></div>
+ 
+ <div class="full" style="background:rgba(52, 152, 219, 0.1); border:1px solid var(--blue); padding:8px; border-radius:3px; margin-top:10px;">
+    <label style="color:var(--blue); font-size:12px; font-weight:bold; margin-top:0;">👁️ BU TOPRAĞIN İSTİHBARATINI BİR DEVLETE VER</label>
+    <div style="display:flex; gap:6px; margin-top:6px;">
+        <select id="intel_grant_state" style="flex:1;">${stateOpts}</select>
+        <button class="btn blue" onclick="grantIntelToState('${esc(provinceId)}')">İSTİHBARATI VER</button>
+    </div>
+    <label style="display:flex; align-items:center; gap:7px; margin-top:8px;">
+        <input id="intel_grant_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün toprakların sisini seçilen devlete kaldır
+    </label>
+ </div>
+ 
+ </div><div class="actions" style="margin-top:12px;"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn green" onclick="saveProvinceOwner('${esc(provinceId)}')">KAYDET</button></div>`);
+}
 
  if(!isAdmin){openPlayerProvinceIntel(provinceId,owner);return;}
  if(mapBatch){toggleBatchProvince(provinceId);return;}
@@ -1744,6 +1770,59 @@ function buyProvinceIntelReport(provinceId,viewerId)
 
 }
 
+ 
+// (Sisi Kaldıran Kod): Adminin, haritadaki karanlık bir toprağın (sisin) sadece seçtiği bir devlet (örn: Kırım) tarafından kalıcı olarak görülmesini sağladığı koddur.
+function grantIntelToState(provinceId) {
+    if(!isAdmin) return;
+    const targetStateId = document.getElementById("intel_grant_state").value;
+    const s = getState(targetStateId);
+    if(!s) return;
+    
+    const applyAll = document.getElementById("intel_grant_all").checked;
+    s.discoveredProvinces = s.discoveredProvinces || [];
+    
+    let count = 0;
+    if(applyAll) {
+        const detail = db.mapProvinceDetails?.[provinceId]||{};
+        const owner = getState(db.mapProvinceOwners?.[provinceId]);
+        const countryName = detail.countryName || owner?.name || '';
+        
+        if(!countryName) { alert("Bu toprağın bağlı olduğu belli bir ülke adı yok."); return; }
+        
+        document.querySelectorAll('#gameMapCanvas path[id][d]').forEach(path => {
+             const linkedOwner = getState(db.mapProvinceOwners?.[path.id]);
+             const existing = db.mapProvinceDetails[path.id]||{};
+             const effectiveName = existing.countryName || linkedOwner?.name || '';
+             if(normalizeMapName(effectiveName) === normalizeMapName(countryName)) {
+                 if(!s.discoveredProvinces.includes(path.id)) {
+                     s.discoveredProvinces.push(path.id);
+                     count++;
+                 }
+             }
+        });
+    } else {
+        if(!s.discoveredProvinces.includes(provinceId)) {
+            s.discoveredProvinces.push(provinceId);
+            count++;
+        }
+    }
+    
+    if(count > 0) {
+        addLog({
+            stateId: s.id,
+            stateName: s.name,
+            action: `Admin tarafından ${count} toprağın istihbaratı verildi (Sis aydınlatıldı).`,
+            qty: count, cost: 0
+        });
+        queueSave();
+        toast(`${s.name} devletine ${count} toprağın istihbaratı verildi!`, true);
+    } else {
+        toast("Seçilen devlet zaten bu yerin istihbaratına sahip.", false);
+    }
+}
+
+
+//(Değişikliği Veritabanına Yazan Kod): Admin menüde ayar yapıp "Kaydet" tuşuna bastığında; toprağın yeni sahibini, garnizonunu ve rengini veritabanına yazıp haritayı herkes için güncelleyen koddur.
 function saveProvinceOwner(provinceId){
  if(!isAdmin)return;
  const newOwnerId=document.getElementById('province_owner')?.value||'';
