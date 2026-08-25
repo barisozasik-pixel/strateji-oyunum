@@ -1722,7 +1722,7 @@ function openPlayerProvinceIntel(provinceId,owner)
  const cost=Math.max(0,Number(db.settings.mapIntelReportCost)||0);
  modal(`<h2>🗺️ TOPRAK BİLGİSİ</h2><div class="event-result"><b>Toprak:</b> ${esc(provinceName)}<br><b>Sahibi:</b> ${esc(countryName)}</div>${strategicHtml}<p class="sub">${isFogged ? "Bu bölge tamamen sis altında. Sınırlarınızın ötesini görmek için yerel muhbirlerden rapor almalısınız." : "İstihbarat Dairen yok. Yerel muhbirlerden %1–20 sapmalı garnizon raporu satın alabilirsin."}</p><div class="event-result"><b>Rapor ücreti:</b> ${money(cost)}<br><b>Hazinen:</b> ${money(viewer.treasury||0)}</div><div class="actions"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn gold" onclick="buyProvinceIntelReport('${esc(provinceId)}','${esc(viewer.id)}')">RAPORU SATIN AL & AYDINLAT</button></div>`);
 }
-}
+
 
 function buyProvinceIntelReport(provinceId,viewerId)
 {
