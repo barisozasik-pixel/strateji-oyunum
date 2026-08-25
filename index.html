@@ -977,6 +977,13 @@ async function showApp(session){
  setupGameRealtime();
  renderTopActions();
  renderHome();
+        // Oyuna ilk girildiğinde veya çevrimdışıyken atlanan yıl raporunu patlatma
+ if(db.settings && db.settings.lastYearReport) {
+   let lastSeenYear = Number(localStorage.getItem('lastSeenYearReport')) || 0;
+   if(db.settings.lastYearReport.year > lastSeenYear && !isAdmin) {
+   showYearReportModal();
+     }
+   }     
 }
 
 function renderTopActions() {
@@ -3542,7 +3549,9 @@ function passOneYear(){
 function showYearReportModal() {
     const yr = db.settings.lastYearReport;
     if(!yr) return;
-
+ 
+    localStorage.setItem('lastSeenYearReport', yr.year);
+ 
     let statesToShow = [];
     if(isAdmin) {
         statesToShow = db.states.map(s => s.id);
