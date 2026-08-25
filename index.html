@@ -1083,8 +1083,6 @@ async function loadDB(silent = false){
           if(!existingIds.has(def.id)) db.advisors.push(structuredClone(def));
       });
    }
-   
-   
    db.states.forEach(s => { 
       s.customLedger = s.customLedger || []; 
       s.permanentLedger = s.permanentLedger || [];
