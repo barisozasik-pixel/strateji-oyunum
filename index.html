@@ -1075,8 +1075,20 @@ async function loadDB(){
     db.valuableRegions = db.valuableRegions || {};
     await loadEventAssets();
     
-    if(!db.advisors || db.advisors.length !== 45) {
+    if(!db.advisors || !Array.isArray(db.advisors) || db.advisors.length === 0) {
+        // Oyun hiç başlamamışsa (ilk kurulum) 45 varsayılan paşayla başlat.
         db.advisors = structuredClone(DEFAULT_45_ADVISORS);
+    } else {
+        // ÖNEMLİ: Eskiden burada "paşa sayısı 45 değilse hepsini sil, baştan yükle"
+        // kuralı vardı. Bir paşa ölünce/emekli olunca ya da admin bir paşayı
+        // silince sayı 45'ten düşüyor ve bu kural tüm paşaların yaşını, kazandığı
+        // bonusları vs. sıfırlayıp yeniden 45 varsayılan paşayı yüklüyordu.
+        // Şimdi mevcut paşalara asla dokunulmuyor; sadece db'de henüz olmayan
+        // (id'si eşleşmeyen) varsayılan paşalar varsa onlar ekleniyor.
+        const existingIds = new Set(db.advisors.map(a => a.id));
+        DEFAULT_45_ADVISORS.forEach(def => {
+            if(!existingIds.has(def.id)) db.advisors.push(structuredClone(def));
+        });
     }
     restoreOriginalAdvisorEffects();
     
@@ -3188,14 +3200,16 @@ function passOneYear(){
                 adv.yearsSinceUpgrade = 0;
                 let boostPercent = Math.floor(Math.random() * 8) + 1; // %1 ile %8 arası
                 
-                // Buff çarpanlarını artır
-                if(adv.taxBonus>0) adv.taxBonus = Number((adv.taxBonus * (1 + boostPercent/100)).toFixed(1));
-                if(adv.milUpkeepDiscount>0) adv.milUpkeepDiscount = Number((adv.milUpkeepDiscount * (1 + boostPercent/100)).toFixed(1));
-                if(adv.navyUpkeepDiscount>0) adv.navyUpkeepDiscount = Number((adv.navyUpkeepDiscount * (1 + boostPercent/100)).toFixed(1));
-                if(adv.artUpkeepDiscount>0) adv.artUpkeepDiscount = Number((adv.artUpkeepDiscount * (1 + boostPercent/100)).toFixed(1));
-                if(adv.recruitDiscount>0) adv.recruitDiscount = Number((adv.recruitDiscount * (1 + boostPercent/100)).toFixed(1));
-                if(adv.infraDiscount>0) adv.infraDiscount = Number((adv.infraDiscount * (1 + boostPercent/100)).toFixed(1));
-                if(adv.happinessBonus>0) adv.happinessBonus = Number((adv.happinessBonus * (1 + boostPercent/100)).toFixed(1));
+                // Buff değerlerini artır (PUAN OLARAK EKLE, ÇARPMA!)
+                // Örn: taxBonus %10 iken boostPercent %4 geldiyse -> %14 olmalı (10+4),
+                // eskiden 10.4 oluyordu çünkü 10 * 1.04 hesaplanıyordu.
+                if(adv.taxBonus>0) adv.taxBonus = Number((adv.taxBonus + boostPercent).toFixed(1));
+                if(adv.milUpkeepDiscount>0) adv.milUpkeepDiscount = Number((adv.milUpkeepDiscount + boostPercent).toFixed(1));
+                if(adv.navyUpkeepDiscount>0) adv.navyUpkeepDiscount = Number((adv.navyUpkeepDiscount + boostPercent).toFixed(1));
+                if(adv.artUpkeepDiscount>0) adv.artUpkeepDiscount = Number((adv.artUpkeepDiscount + boostPercent).toFixed(1));
+                if(adv.recruitDiscount>0) adv.recruitDiscount = Number((adv.recruitDiscount + boostPercent).toFixed(1));
+                if(adv.infraDiscount>0) adv.infraDiscount = Number((adv.infraDiscount + boostPercent).toFixed(1));
+                if(adv.happinessBonus>0) adv.happinessBonus = Number((adv.happinessBonus + boostPercent).toFixed(1));
 
                 advisorReport.push(`📈 <b>${adv.name}</b> tecrübe kazandı ve %${boostPercent} oranında gelişti! (Yaş: ${adv.ageYears}/${adv.maxAge})`);
             } else {
