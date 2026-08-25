@@ -1541,8 +1541,17 @@ function getGarrisonIntelReport(viewerState,realGarrison){
 }
 
 function handleProvinceClick(provinceId){
- const owner=getState(db.mapProvinceOwners?.[provinceId]);
- const detail=db.mapProvinceDetails?.[provinceId]||{};
+ function handleProvinceClick(provinceId){
+ const ownerId = db.mapProvinceOwners?.[provinceId];
+ const owner = getState(ownerId);
+ const detail = db.mapProvinceDetails?.[provinceId]||{};
+ 
+ // Eğer toprak isyancıların eline geçtiyse özel çatışma menüsü aç!
+ if(ownerId === "__rebel__") {
+     openRebellionModal(provinceId, detail);
+     return;
+ }
+
  if(!isAdmin){openPlayerProvinceIntel(provinceId,owner);return;}
  if(mapBatch){toggleBatchProvince(provinceId);return;}
  if(mapPickerMode){pickProvinceAsBrush(provinceId);return;}
@@ -1550,6 +1559,94 @@ function handleProvinceClick(provinceId){
  const currentColor=getProvinceDisplayColor(provinceId,detail,owner);
  const options=`<option value="">Sahipsiz / atanmamış</option>`+db.states.map(s=>`<option value="${s.id}" ${owner?.id===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
  modal(`<h2>🗺️ TOPRAK YÖNETİMİ</h2><div class="event-result"><b>Toprak:</b> ${esc(getTurkishMapName(provinceId))}<br><b>Gösterilen ülke:</b> ${esc(detail.countryName||owner?.name||'Sahipsiz / atanmadı')}<br><b>Bu topraktaki garnizon:</b> ${num(detail.garrison??owner?.fortressGarrison??0)} asker</div><div class="formgrid" style="margin-top:10px;"><div class="full"><label>Devlet Kartına Bağla (İsteğe Bağlı)</label><select id="province_owner" onchange="syncProvinceOwnerFields(this.value)">${options}</select></div>${field('province_country_name','Ülke Adı (Kart olmadan yazılabilir)',detail.countryName||owner?.name||'','text')}${field('province_garrison','Bu Topraktaki Garnizon Sayısı',detail.garrison??owner?.fortressGarrison??0,'number')}${field('province_color','Toprak Rengi',currentColor,'color')}<div><label style="display:flex;align-items:center;gap:7px;margin-top:20px;"><input id="province_apply_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün topraklara rengi uygula</label></div></div><div class="actions" style="margin-top:12px;"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn green" onclick="saveProvinceOwner('${esc(provinceId)}')">KAYDET</button></div>`);
+}
+
+function openRebellionModal(provinceId, detail) {
+    const viewer = getCurrentPlayerState();
+    const cost = detail.garrison || 5000;
+    let actionHtml = '';
+    
+    if(viewer) {
+        let totalArmy = (viewer.piyade||0) + (viewer.suvari||0) + (viewer.nisanci||0);
+        if(totalArmy >= cost) {
+            actionHtml = `<button class="btn red" style="width:100%; padding:10px; font-weight:bold;" onclick="crushRebellion('${esc(provinceId)}')">⚔️ İSYANI BASTIR (-${num(cost)} Asker)</button>`;
+        } else {
+            actionHtml = `<div class="event-result" style="color:var(--red);">İsyanı bastırmak için ordunuzda en az ${num(cost)} birim asker (Piyade/Süvari/Nişancı) gereklidir. Sizin toplam ordunuz: ${num(totalArmy)}</div>`;
+        }
+    } else {
+        if(isAdmin) {
+            actionHtml = `<button class="btn gold" style="width:100%; padding:10px;" onclick="adminClearRebellion('${esc(provinceId)}')">🛠️ ADMİN: İSYANI SİL</button>`;
+        } else {
+            actionHtml = `<p class="sub">Devleti olmayan bir oyuncu isyan bastıramaz.</p>`;
+        }
+    }
+
+    modal(`<h2>🔥 BÖLGESEL İSYAN KONTROLDEN ÇIKTI!</h2>
+    <div class="event-result" style="border-color:var(--red);">
+        <b>İsyan Çıkan Toprak:</b> ${esc(getTurkishMapName(provinceId))}<br>
+        <b>İsyancı Çapulcu Gücü:</b> ${num(cost)} Asker
+    </div>
+    <p class="sub" style="margin-bottom:12px; line-height:1.5;">Bu toprağı kurtarmak için ordunuzla müdahale etmelisiniz. Kayıplar ordunuzdan kalıcı olarak düşülür. <b>İsyanı hangi devlet bastırırsa toprak tamamen ona geçer!</b> Fırsatı değerlendirin.</p>
+    ${actionHtml}
+    <div class="actions" style="margin-top:12px;"><button class="btn" onclick="closeModal()">KAPAT</button></div>`);
+}
+
+function adminClearRebellion(provinceId) {
+    if(!isAdmin) return;
+    delete db.mapProvinceOwners[provinceId];
+    delete db.mapProvinceDetails[provinceId];
+    queueMapSave();
+    applyMapOwnership();
+    closeModal();
+    toast("İsyan admin tarafından temizlendi.", true);
+}
+
+function crushRebellion(provinceId) {
+    const viewer = getCurrentPlayerState();
+    if(!viewer) return;
+    const detail = db.mapProvinceDetails?.[provinceId] || {};
+    const cost = detail.garrison || 5000;
+    
+    let totalArmy = (viewer.piyade||0) + (viewer.suvari||0) + (viewer.nisanci||0);
+    if(totalArmy < cost) { alert("Yeterli askeriniz yok!"); return; }
+    
+    let remaining = cost;
+    
+    // Çatışma kayıplarını ordudan sil (Önce piyadeden başlar)
+    for(const key of ["piyade", "nisanci", "suvari"]) {
+        const take = Math.min(viewer[key]||0, remaining);
+        viewer[key] = (viewer[key]||0) - take;
+        remaining -= take;
+        if(!remaining) break;
+    }
+
+    // Toprağı kahraman oyuncunun üzerine geçir
+    db.mapProvinceOwners[provinceId] = viewer.id;
+    db.mapProvinceDetails[provinceId] = {
+        countryName: viewer.name,
+        color: viewer.color || "#c5a059",
+        garrison: 0
+    };
+
+    addLog({
+        stateId: viewer.id,
+        stateName: viewer.name,
+        action: `⚔️ İsyan Bastırıldı: ${getTurkishMapName(provinceId)} toprağı ele geçirildi!`,
+        qty: cost,
+        cost: 0,
+        unitName: "Çatışmada Kaybedilen Asker",
+        oldUnit: totalArmy,
+        newUnit: totalArmy - cost
+    });
+
+    refreshMapFortressCounts();
+    redistributeMapGarrisonsForStateIds([viewer.id]);
+    queueMapSave();
+    applyMapOwnership();
+    closeModal();
+    openDetail(viewer.id); // Asker sayısının azaldığını ekranda anında görsün
+    toast(`Tebrikler! İsyanı kanla bastırıp ${getTurkishMapName(provinceId)} bölgesini ele geçirdiniz.`, true);
+}
 }
 
 function syncProvinceOwnerFields(ownerId){const owner=getState(ownerId);if(!owner)return;const nameEl=document.getElementById('f_province_country_name'),garrisonEl=document.getElementById('f_province_garrison'),colorEl=document.getElementById('f_province_color');if(nameEl)nameEl.value=owner.name||'';if(garrisonEl)garrisonEl.value=owner.fortressGarrison||0;if(colorEl)colorEl.value=owner.color||'#c5a059';}
@@ -3161,7 +3258,7 @@ function passOneYear(){
     let yearEventReport = [];
     let debtReport = [];
     
-    // Nüfus Artışı, Olaylar ve Borçlar
+    // Nüfus Artışı, Olaylar, Borçlar VE İSYANLAR!
     db.states.forEach(s => {
         s.debtYears=Math.max(0,Math.floor(Number(s.debtYears)||0));
         if(Number(s.treasury||0)<0){
@@ -3188,10 +3285,33 @@ function passOneYear(){
             yearEventReport.push(`${esc(s.name)}: Binalardan +${num(addedPopulation)} Nüfus`);
         }
         
+        // --- İSYAN MEKANİĞİ ---
+        const adv = getAdvisorEffects(s);
+        let hapNow = Math.max(0, Math.min(100, s.happiness + adv.happinessBonus));
+        if(hapNow <= 40 && !adv.stopAnarchy) {
+            let rebellionChance = (40 - hapNow) * 0.02; // Mutluluk 20 ise %40 ihtimal
+            if(Math.random() < rebellionChance) {
+                let myProvinces = getOwnedMapProvinceIds(s.id);
+                if(myProvinces.length > 0) {
+                    let randomProv = myProvinces[Math.floor(Math.random() * myProvinces.length)];
+                    db.mapProvinceOwners = db.mapProvinceOwners || {};
+                    db.mapProvinceDetails = db.mapProvinceDetails || {};
+                    db.mapProvinceOwners[randomProv] = "__rebel__";
+                    db.mapProvinceDetails[randomProv] = {
+                        countryName: "İsyancılar (" + s.name + " Karşıtı)",
+                        color: "#000000",
+                        garrison: 5000 + Math.floor(Math.random() * 5000)
+                    };
+                    yearEventReport.push(`🔥 <b style="color:var(--red)">${esc(s.name)} İsyanı: ${getTurkishMapName(randomProv)} bölgesinde kontrol kaybedildi!</b>`);
+                }
+            }
+        }
+
         const generated = createYearEventsForState(s);
         db.pendingEvents.push(...generated);
         if(generated.length) yearEventReport.push(`${esc(s.name)}: ${generated.length} olay`);
     });
+    
     let summaryHtml = "<h2>⏳ YIL SONU RAPORU & PAŞA GELİŞİMİ</h2>" + `<div class="event-result"><b>Yeni yıl: ${db.gameYear}</b><br>${debtReport.length ? "⚠️ BORÇ BİLDİRİMLERİ: " + debtReport.join(" • ") + "<br>" : ""}${yearEventReport.length ? "📈 Bu yıl gerçekleşenler:<br>" + yearEventReport.join("<br>") : "🎲 Bu yıl özel bir durum oluşmadı."}</div>` + "<div style='max-height:60vh; overflow:auto;'><div class='cards' style='grid-template-columns:1fr;'>";
     
     let globallyAgedAdvisors = new Set(); 
@@ -3229,7 +3349,6 @@ function passOneYear(){
                         adv.yearsSinceUpgrade = 0;
                         let boostPercent = Math.floor(Math.random() * 8) + 1; 
                         
-                        // HATA ÇÖZÜMÜ: Eğer değerler veritabanında string kalmışsa çökmemesi için Number zorlaması yapıldı.
                         if(Number(adv.taxBonus)>0) adv.taxBonus = Number((Number(adv.taxBonus) + boostPercent).toFixed(1));
                         if(Number(adv.milUpkeepDiscount)>0) adv.milUpkeepDiscount = Number((Number(adv.milUpkeepDiscount) + boostPercent).toFixed(1));
                         if(Number(adv.navyUpkeepDiscount)>0) adv.navyUpkeepDiscount = Number((Number(adv.navyUpkeepDiscount) + boostPercent).toFixed(1));
@@ -3273,7 +3392,8 @@ function passOneYear(){
     });
     
     summaryHtml += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal()'>KAPAT</button></div>";
-    queueSave(); modal(summaryHtml);
+    queueMapSave(); // İsyan çıktıysa haritayı otomatik güncellesin diye burayı queueMapSave yaptık.
+    modal(summaryHtml);
     renderTopActions();
     if(currentId) openDetail(currentId); else renderHome();
 }
