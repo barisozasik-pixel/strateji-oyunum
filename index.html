@@ -1207,21 +1207,29 @@ function setupGameRealtime(){
    .subscribe();
 }
 async function handleRealtimeUpdate(payload) {
-   // Kullanıcının modal (bildirim/işlem) ekranı açıksa yenilemeyi beklet (işi yarım kalmasın)
    if(document.getElementById('modal')?.classList.contains('show')) return;
    
-   // Kullanıcının henüz kaydetmediği bir işlemi yoksa, yeni verileri çekip ekranı yenile
    if(valuesEqual(db, dbBaseSnapshot)){
      const activeTab = document.querySelector('.hoi-tab.active')?.id?.replace('tab-btn-', '');
      const scrollTop = window.scrollY;
      
-     await loadDB(true); // Sessizce güncel verileri çek
+     await loadDB(true); 
      
-     if(currentId) openDetail(currentId); else renderHome();
-     if(currentId && activeTab) { switchTab(activeTab); window.scrollTo(0, scrollTop); }
-     toast("Sunucudan yeni bilgiler alındı.", true);
+     // HATA ÇÖZÜMÜ: Önce harita ekranında olup olmadığına bakıyoruz!
+     if (!document.getElementById('mapScreen')?.classList.contains('hidden')) {
+         // Eğer haritadaysa, ASLA başka ekrana atma, sadece haritayı anlık boya
+         if(typeof applyMapOwnership === 'function') applyMapOwnership();
+     } else if(currentId) {
+         // Haritada değilse, kaldığı devletin ekranını yenile
+         openDetail(currentId); 
+         if(activeTab) { switchTab(activeTab); window.scrollTo(0, scrollTop); }
+     } else {
+         renderHome();
+     }
+     
+     // toast("Sunucudan yeni bilgiler alındı.", true); // İsterseniz bu bildirimi silebilirsiniz haritada rahatsız etmesin derseniz.
    }
-} 
+}
 function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveDB,250)}
 async function saveMapDB(){
  const ok=await saveDB();
