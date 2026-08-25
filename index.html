@@ -3478,6 +3478,7 @@ function passOneYear(){
         rpt.inc = inc; rpt.permInc = permInc; rpt.exp = exp; rpt.net = net; rpt.newT = s.treasury;
         
         addLog({stateId: s.id, stateName: s.name, action: `Yıl Sonu Hasılası`, cost: Math.abs(net), qty: 1, oldTreasury: oldT, newTreasury: s.treasury});
+        
         // ADIM 2: BORÇ VE FAİZ KONTROLÜ
         s.debtYears=Math.max(0,Math.floor(Number(s.debtYears)||0));
         if(Number(s.treasury||0)<0){
@@ -3541,7 +3542,7 @@ function passOneYear(){
         db.settings.lastYearReport.states[s.id] = rpt;
     });
     
-    // 2. DÖNGÜ: SADECE PAŞA YAŞLANDIRMALARI (Öncekine karışmasın diye ayrı yapıldı)
+    // 2. DÖNGÜ: SADECE PAŞA YAŞLANDIRMALARI VE VARİS SİSTEMİ
     let globallyAgedAdvisors = new Set(); 
     
     db.states.forEach(s => {
@@ -3576,9 +3577,21 @@ function passOneYear(){
                     } else { adv.lastUpgradeMsg = null; }
                 }
             }
+            
+            // VARİS (REENKARNASYON) MEKANİĞİ
             if(adv.ageYears >= adv.maxAge) {
-                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan ve vefat etti.`);
+                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan vefat etti. (Ailesinden yeni bir varis yetişiyor)`);
                 delete s.advisorHiredYears[advId];
+                
+                db.advisors = (db.advisors || []).filter(x => x.id !== advId); // Eskisini sil
+                
+                let original = (typeof DEFAULT_45_ADVISORS !== 'undefined' ? DEFAULT_45_ADVISORS.find(x => x.id === advId) : null);
+                if(original) {
+                    let freshClone = structuredClone(original);
+                    freshClone.ageYears = 20 + Math.floor(Math.random() * 10); 
+                    freshClone.maxAge = 60 + Math.floor(Math.random() * 21);   
+                    db.advisors.push(freshClone); // Sıfır kilometre taze paşayı havuza geri at
+                }
             } else {
                 survivingHired.push(advId);
                 rpt.advisors.push(`👤 ${adv.name} (Yaş: ${adv.ageYears}) ${adv.lastUpgradeMsg ? `<b style="color:var(--green)">${adv.lastUpgradeMsg}</b>` : ''}`);
@@ -3588,6 +3601,7 @@ function passOneYear(){
     });
     
     queueMapSave();
+    if(currentId) openDetail(currentId); else renderHome();
     showYearReportModal();
 }
 //oyuncular için açılabilir pencere ekranı 
@@ -3622,23 +3636,7 @@ function showYearReportModal() {
         if(rpt.events && rpt.events.length > 0) eventHtml += rpt.events.map(r => `<div>🔹 ${r}</div>`).join('');
         if(!eventHtml) eventHtml = `<div class="sub">Bu yıl özel bir gelişme olmadı.</div>`;
         
-        html += `
-        <div class="list-item" style="flex-direction:column; align-items:stretch; background:rgba(17, 20, 24, 0.9); border:1px solid var(--border-gold);">
-            <div style="border-bottom:1px solid var(--border-gold); margin-bottom:8px; padding-bottom:6px; font-size:16px; font-family:'Playfair Display', serif; color:var(--border-gold);"><b>${esc(rpt.name)}</b></div>
-            
-            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:10px; background:rgba(10, 12, 14, 0.6); padding:8px; border-radius:3px;">
-                <div>Vergi: <span style="color:var(--green)">${money(rpt.inc)}</span> | Sabit: <span style="color:var(--green)">${money(rpt.permInc)}</span><br>Gider: <span style="color:var(--red)">-${money(rpt.exp)}</span></div>
-                <div style="text-align:right;">Net Hasıla: <b style="color:${col}; font-size:15px;">${rpt.net>=0?'+':''}${money(rpt.net)}</b><br>Yeni Kasa: <b>${money(rpt.newT)}</b></div>
-            </div>
-            
-            <div style="font-size:12px; margin-bottom:8px; border-left:3px solid var(--blue); padding-left:8px;">
-                <b style="color:var(--blue)">ÜLKE GÜNDEMİ:</b><br>${eventHtml}
-            </div>
-            
-            <div style="font-size:12px; border-left:3px solid var(--green); padding-left:8px;">
-                <b style="color:var(--green)">DİVAN VE PAŞALAR:</b><br>${(rpt.advisors||[]).join('<br>') || '<span class="sub">Divanda paşa yok.</span>'}
-            </div>
-        </div>`;
+        html += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal(); if(currentId) openDetail(currentId); else renderHome();'>KAPAT</button></div>";
     });
     
     html += "</div></div><div class='actions' style='margin-top:12px;'><button class='btn blue' style='width:100%;' onclick='closeModal()'>KAPAT</button></div>";
