@@ -3464,6 +3464,21 @@ function passOneYear(){
     db.states.forEach(s => {
         let rpt = { name: s.name, events: [], rebellions: [], debts: [], advisors: [] };
         
+        // ADIM 1: ÖNCE GEÇEN YILIN HAK EDİLEN PARASINI HESAPLA (Nüfus artmadan önce)
+        let inc = calcIncome(s); 
+        let permInc = calcPermIncome(s); 
+        let exp = calcExpenses(s);
+        let tempLedgerTotal = 0;
+        if(s.customLedger && s.customLedger.length > 0) s.customLedger.forEach(item => { tempLedgerTotal += item.amount; });
+        
+        let net = inc + permInc - exp + tempLedgerTotal;
+        const oldT = s.treasury; 
+        s.treasury += net; 
+        s.customLedger = []; 
+        rpt.inc = inc; rpt.permInc = permInc; rpt.exp = exp; rpt.net = net; rpt.newT = s.treasury;
+        
+        addLog({stateId: s.id, stateName: s.name, action: `Yıl Sonu Hasılası`, cost: Math.abs(net), qty: 1, oldTreasury: oldT, newTreasury: s.treasury});
+        // ADIM 2: BORÇ VE FAİZ KONTROLÜ
         s.debtYears=Math.max(0,Math.floor(Number(s.debtYears)||0));
         if(Number(s.treasury||0)<0){
             s.debtYears++;
@@ -3473,6 +3488,7 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
+        // ADIM 3: NÜFUS ARTIŞI VE PATLAMA KORUMASI (Para kasaya girdikten sonra doğarlar)
         let totalGrowthPercent = 0;
         ["hastane", "asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
@@ -3482,12 +3498,24 @@ function passOneYear(){
                 totalGrowthPercent += (growthRate * count * efficiency);
             }
         });
+        
+        let maxAllowedGrowth = 5; 
+        if(Number(s.population) >= 1000000) { maxAllowedGrowth = 4; }
+        if(Number(s.population) >= 3000000) { maxAllowedGrowth = 3; }
+        if(Number(s.population) >= 5000000) { maxAllowedGrowth = 2; }
+        if(Number(s.population) >= 10000000){ maxAllowedGrowth = 1; }
+        if (totalGrowthPercent > maxAllowedGrowth) { totalGrowthPercent = maxAllowedGrowth; }
+        let newPop = Number(s.population || 0);
         if (totalGrowthPercent > 0) {
-            const addedPopulation = Math.floor((s.population || 0) * (totalGrowthPercent / 100));
-            s.population += addedPopulation;
-            rpt.events.push(`Binalardan +${num(addedPopulation)} Nüfus`);
+            let growthMultiplier = 1 + (totalGrowthPercent / 100);
+            let calculatedPop = Math.floor(newPop * growthMultiplier);
+            let extraPeople = calculatedPop - newPop;
+            if (extraPeople > 10000) { extraPeople = 10000; } // Binalardan en fazla 10.000 kişi gelebilir
+            s.population = newPop + extraPeople;
+            rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
         }
         
+        // ADIM 4: İSYANLAR
         const adv = getAdvisorEffects(s);
         let hapNow = Math.max(0, Math.min(100, Number(s.happiness || 0) + Number(adv.happinessBonus || 0)));
         if(hapNow <= 70 && !adv.stopAnarchy) {
@@ -3504,6 +3532,8 @@ function passOneYear(){
                 }
             }
         }
+        
+        // ADIM 5: OLAYLAR
         const generated = createYearEventsForState(s);
         db.pendingEvents.push(...generated);
         if(generated.length) rpt.events.push(`Yeni Yıl: Karar bekleyen ${generated.length} adet olay var.`);
@@ -3511,18 +3541,11 @@ function passOneYear(){
         db.settings.lastYearReport.states[s.id] = rpt;
     });
     
+    // 2. DÖNGÜ: SADECE PAŞA YAŞLANDIRMALARI (Öncekine karışmasın diye ayrı yapıldı)
     let globallyAgedAdvisors = new Set(); 
     
     db.states.forEach(s => {
         let rpt = db.settings.lastYearReport.states[s.id];
-        let inc = calcIncome(s); let permInc = calcPermIncome(s); let exp = calcExpenses(s);
-        let tempLedgerTotal = 0;
-        if(s.customLedger && s.customLedger.length > 0) s.customLedger.forEach(item => { tempLedgerTotal += item.amount; });
-        
-        let net = inc + permInc - exp + tempLedgerTotal;
-        const oldT = s.treasury; s.treasury += net; s.customLedger = []; 
-        
-        rpt.inc = inc; rpt.permInc = permInc; rpt.exp = exp; rpt.net = net; rpt.newT = s.treasury;
         
         s.advisorHiredYears = s.advisorHiredYears || {};
         (s.hiredAdvisors || []).forEach(advId => { s.advisorHiredYears[advId] = (s.advisorHiredYears[advId] || 0) + 1; });
@@ -3548,15 +3571,13 @@ function passOneYear(){
                         if(Number(adv.infraDiscount)>0) adv.infraDiscount = Number((Number(adv.infraDiscount) + boostPercent).toFixed(1));
                         if(Number(adv.happinessBonus)>0) adv.happinessBonus = Number((Number(adv.happinessBonus) + boostPercent).toFixed(1));
                         adv.lastUpgradeMsg = `(Gelişti! Bonuslar +%${boostPercent} arttı)`;
-                        // İŞTE YENİ EKLENEN KARİYER GEÇMİŞİ KODU TAM OLARAK BURADA:
                         adv.upgradeHistory = adv.upgradeHistory || [];
                         adv.upgradeHistory.push(`• ${adv.ageYears} Yaşında: +%${boostPercent} Gelişim`);
-                     
                     } else { adv.lastUpgradeMsg = null; }
                 }
             }
             if(adv.ageYears >= adv.maxAge) {
-                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan vefat etti.`);
+                rpt.advisors.push(`⚠️ <b>${adv.name}</b> yaşlılıktan ve vefat etti.`);
                 delete s.advisorHiredYears[advId];
             } else {
                 survivingHired.push(advId);
@@ -3564,7 +3585,6 @@ function passOneYear(){
             }
         });
         s.hiredAdvisors = survivingHired;
-        addLog({stateId: s.id, stateName: s.name, action: `Yıl Sonu Hasılası`, cost: Math.abs(net), qty: 1, oldTreasury: oldT, newTreasury: s.treasury});
     });
     
     queueMapSave();
