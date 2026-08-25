@@ -73,7 +73,7 @@ button,input,select,textarea{font:inherit} button{cursor:pointer;border:0}
 label{display:block;color:var(--muted);font-size:11px;margin:8px 0 2px; text-transform:uppercase; font-family:'Oswald', sans-serif;}
 input,select,textarea{width:100%;padding:6px 8px;border-radius:3px;border:1px solid var(--line);background:rgba(10, 12, 14, 0.7);backdrop-filter:blur(4px);color:var(--text);outline:none;}
 input:focus, select:focus, textarea:focus { border-color:var(--border-gold); }
-
+input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
 /* ANA EKRAN KARTLARI */
 .screen{margin-top:12px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
@@ -1249,7 +1249,12 @@ function getTurkishMapName(value){
 }
 function normalizeMapName(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('tr-TR').replace(/[^a-z0-9]+/g,'')}
 function normalizeMapColor(value,fallback='#c5a059'){const v=String(value||'').trim();if(/^#[0-9a-f]{6}$/i.test(v))return v;if(/^#[0-9a-f]{3}$/i.test(v))return '#'+v.slice(1).split('').map(x=>x+x).join('');const m=v.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);if(m)return '#'+[m[1],m[2],m[3]].map(x=>Math.max(0,Math.min(255,Number(x))).toString(16).padStart(2,'0')).join('');return fallback;}
-function getProvinceDisplayColor(provinceId,detail={},owner=null){const path=document.getElementById(provinceId);return normalizeMapColor(path?.style.fill||path?.getAttribute('fill')||detail.color||owner?.color,normalizeMapColor(detail.color||owner?.color));}
+function getProvinceDisplayColor(provinceId,detail={},owner=null)
+{
+  const path=document.getElementById(provinceId);
+  let rawColor = detail?.color || owner?.color || path?.dataset?.originalFill || '#c5a059';
+  return normalizeMapColor(rawColor);
+}
 function getOwnedMapProvinceIds(stateId){return Object.entries(db.mapProvinceOwners||{}).filter(([,ownerId])=>ownerId===stateId).map(([provinceId])=>provinceId);}
 function refreshMapFortressCounts(){db.states.forEach(s=>{const next=Math.max(0,getOwnedMapProvinceIds(s.id).length);const applied=Math.max(0,Math.floor(Number(s.fortressPopulationCount)||0));const fortressDelta=next-applied;if(fortressDelta)s.population=Math.max(0,(Number(s.population)||0)+(fortressDelta*30000));s.fortressPopulationCount=next;s.fortressCount=next;});}
 function redistributeMapGarrisonsForStateIds(stateIds){for(const stateId of new Set(stateIds)){const s=getState(stateId);if(s&&getOwnedMapProvinceIds(s.id).length)distributeFortressGarrisonToMap(s,s.fortressGarrison||0);}}
