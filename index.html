@@ -1381,16 +1381,23 @@ function applyMapOwnership()
  const canvas=document.getElementById('gameMapCanvas');if(!canvas)return;
  canvas.querySelectorAll('.strategic-country-label,.strategic-country-clip').forEach(label=>label.remove());
  
- const viewer = getCurrentPlayerState();
+ let viewer = getCurrentPlayerState();
+ let isSimulating = false;
+ 
+ // ADMİN KİMLİĞİNE BÜRÜNME MANTIĞI
+ if(isAdmin) {
+     const simId = document.getElementById('admin_vision_sim')?.value;
+     if(simId) { viewer = getState(simId); isSimulating = true; } // Admin, seçtiği devletin gözünden bakıyor!
+ }
+ 
  let visibleProvinces = "ALL";
  
- if(!isAdmin && viewer && (viewer.istihbarat_binasi || 0) === 0) {
+ if((!isAdmin || isSimulating) && viewer && (viewer.istihbarat_binasi || 0) === 0) {
     const myProvinces = getOwnedMapProvinceIds(viewer.id);
     visibleProvinces = new Set(myProvinces);
     (viewer.discoveredProvinces || []).forEach(id => visibleProvinces.add(id));
     
     if(myProvinces.length > 0) {
-        // SVG haritası üzerinden toprakların birbirine yakınlığını hesaplayıp komşuları bulan sistem
         if(!mapAdjacencyCache) {
             mapAdjacencyCache = {};
             const paths = Array.from(canvas.querySelectorAll('path[id][d]'));
@@ -1408,6 +1415,30 @@ function applyMapOwnership()
         });
     }
  }
+ canvas.querySelectorAll('path[id][d]').forEach(path=>{
+   if(!path.dataset.originalFill)path.dataset.originalFill=path.getAttribute('fill')||path.style.fill||'';
+   const ownerId=db.mapProvinceOwners?.[path.id];
+   const owner=getState(ownerId);
+   const detail=db.mapProvinceDetails?.[path.id];
+   const displayOwner=detail?.countryName||owner?.name||'Sahipsiz / atanmadı';
+   
+   let isVisible = (visibleProvinces === "ALL" || visibleProvinces.has(path.id) || ownerId === "__rebel__" || detail?.isGloballyVisible);
+   if(isVisible) {
+       path.style.fill=detail?.color||(owner?(owner.color||'#c5a059'):path.dataset.originalFill);
+       let title=path.querySelector('title');
+       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
+       title.textContent=`${getTurkishMapName(path.id)} — ${displayOwner}`;
+   } else {
+       path.style.fill = "#1a1a1a";
+       let title=path.querySelector('title');
+       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
+       title.textContent=`Bilinmeyen Toprak (Savaş Sisi)`;
+   }
+   
+   path.onclick=()=>handleProvinceClick(path.id);
+ });
+ if(mapStrategicView){renderStrategicRegionStickers();}
+}
  canvas.querySelectorAll('path[id][d]').forEach(path=>{
    if(!path.dataset.originalFill)path.dataset.originalFill=path.getAttribute('fill')||path.style.fill||'';
    const ownerId=db.mapProvinceOwners?.[path.id];
@@ -1465,16 +1496,20 @@ function renderStrategicMapLabels(){
 }
 function toggleStrategicMapView(){mapStrategicView=!mapStrategicView;const btn=document.getElementById('mapStrategicBtn');if(btn){btn.textContent=mapStrategicView?'✕ STRATEJİK GÖRÜNÜM':'🧭 STRATEJİK GÖRÜNÜM';btn.className=mapStrategicView?'btn red':'btn blue';}applyMapOwnership();}
 
-async function openGameMap(){
+async function openGameMap()
+{
  mapBrush=null;mapPickerMode=false;mapBatch=null;mapBatchSelection.clear();mapStrategicView=false;
  document.getElementById('home').classList.add('hidden');
  document.getElementById('detail').classList.add('hidden');
  const screen=document.getElementById('mapScreen');screen.classList.remove('hidden');
- screen.innerHTML=`<div class="map-toolbar"><button class="btn" onclick="renderHome()">← DEVLETLERE DÖN</button><button class="btn" onclick="changeMapZoom(-0.25)">−</button><button class="btn" onclick="changeMapZoom(0.25)">+</button><button class="btn blue" onclick="resetMapZoom()">%500</button><span class="sub">${isAdmin?'Bir toprağa tıklayarak sahibini değiştirebilirsin.':'Toprağa tıklayarak sahibini görebilirsin.'}</span></div><div id="gameMapStatus" class="sub">Harita yükleniyor…</div>`;
+ screen.innerHTML=`<div class="map-toolbar"><button class="btn" onclick="renderHome()">← DEVLETLERE DÖN</button><span class="sub">Harita yükleniyor…</span></div>`;
  try{
    await loadMapAssets();
    initializeMapOwnersFromConfig();
-   screen.innerHTML=`<div class="map-toolbar"><button class="btn" onclick="renderHome()">← DEVLETLERE DÖN</button><button class="btn" onclick="changeMapZoom(-0.25)">−</button><button class="btn" onclick="changeMapZoom(0.25)">+</button><button class="btn blue" onclick="resetMapZoom()">%500</button>${isAdmin?'<button id="mapPickerBtn" class="btn blue" onclick="toggleMapPicker()">💧 RENK/ÜLKE SEÇ</button><button id="mapBrushBtn" class="btn gold" onclick="openMapBrushSetup()">🖌️ FIRÇA</button><button id="mapBatchBtn" class="btn green" onclick="openMapBatchSetup()">☑ ÇOKLU ATAMA</button>':''}<button id="mapStrategicBtn" class="btn blue" onclick="toggleStrategicMapView()">🧭 STRATEJİK GÖRÜNÜM</button><span id="mapZoomLabel" class="badge">%500</span><span id="mapBrushStatus" class="sub">${isAdmin?'Toprağa dokun: düzenle, damlalıkla seç veya fırça kullan.':'Toprağa dokun: sahibini gör.'}</span></div><div id="gameMapViewport" class="game-map-viewport"><div id="gameMapCanvas" class="game-map-canvas">${mapSvgCache}</div></div><div class="sub" style="margin-top:6px;text-align:right;">Harita: MapChart.net — CC BY-SA 4.0</div>`;
+   
+   // SİMÜLASYON MENÜSÜ (Kimin Gözünden Bakıyorsun?)
+   const visionSelect = isAdmin ? `<select id="admin_vision_sim" onchange="applyMapOwnership()" style="width:auto; padding:5px; font-weight:bold; background:rgba(0,0,0,0.5); border:1px solid var(--border-gold); color:var(--gold); border-radius:3px;"><option value="">👁️ Tam Görüş (Admin)</option>` + db.states.map(s=>`<option value="${s.id}">${esc(s.name)} Gözünden Bak</option>`).join('') + `</select>` : '';
+   screen.innerHTML=`<div class="map-toolbar"><button class="btn" onclick="renderHome()">← DEVLETLERE DÖN</button><button class="btn" onclick="changeMapZoom(-0.25)">−</button><button class="btn" onclick="changeMapZoom(0.25)">+</button><button class="btn blue" onclick="resetMapZoom()">%500</button>${isAdmin?'<button id="mapPickerBtn" class="btn blue" onclick="toggleMapPicker()">💧 RENK/ÜLKE SEÇ</button><button id="mapBrushBtn" class="btn gold" onclick="openMapBrushSetup()">🖌️ FIRÇA</button><button id="mapBatchBtn" class="btn green" onclick="openMapBatchSetup()">☑ ÇOKLU ATAMA</button>':''}<button id="mapStrategicBtn" class="btn blue" onclick="toggleStrategicMapView()">🧭 STRATEJİK GÖRÜNÜM</button>${visionSelect}<span id="mapZoomLabel" class="badge">%500</span><span id="mapBrushStatus" class="sub">${isAdmin?'Toprağa dokun: düzenle, damlalıkla seç veya fırça kullan.':'Toprağa dokun: sahibini gör.'}</span></div><div id="gameMapViewport" class="game-map-viewport"><div id="gameMapCanvas" class="game-map-canvas">${mapSvgCache}</div></div><div class="sub" style="margin-top:6px;text-align:right;">Harita: MapChart.net — CC BY-SA 4.0</div>`;
    mapZoom=5;changeMapZoom(0);applyMapOwnership();const mapViewport=document.getElementById('gameMapViewport');if(mapViewport){mapViewport.scrollLeft=Math.max(0,(mapViewport.scrollWidth-mapViewport.clientWidth)*.62);mapViewport.scrollTop=Math.max(0,(mapViewport.scrollHeight-mapViewport.clientHeight)*.15);}initMapTouchControls();
  }catch(error){screen.innerHTML=`<button class="btn" onclick="renderHome()">← DEVLETLERE DÖN</button><p class="error">❌ ${esc(error.message||error)}</p>`;}
 }
@@ -1589,15 +1624,12 @@ function handleProvinceClick(provinceId)
  const owner = getState(ownerId);
  const detail = db.mapProvinceDetails?.[provinceId]||{};
  
- // Eğer toprak isyancıların eline geçtiyse özel çatışma menüsü aç!
- if(ownerId === "__rebel__") {
-     openRebellionModal(provinceId, detail);
-     return;
- }
+ if(ownerId === "__rebel__") { openRebellionModal(provinceId, detail); return; }
  if(!isAdmin){openPlayerProvinceIntel(provinceId,owner);return;}
  if(mapBatch){toggleBatchProvince(provinceId);return;}
  if(mapPickerMode){pickProvinceAsBrush(provinceId);return;}
  if(mapBrush){paintProvinceWithBrush(provinceId);return;}
+ 
  const currentColor=getProvinceDisplayColor(provinceId,detail,owner);
  const options=`<option value="">Sahipsiz / atanmamış</option>`+db.states.map(s=>`<option value="${s.id}" ${owner?.id===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
  const isGloballyVisible = detail.isGloballyVisible ? 'checked' : '';
@@ -1606,13 +1638,14 @@ function handleProvinceClick(provinceId)
  modal(`<h2>🗺️ TOPRAK YÖNETİMİ</h2><div class="event-result"><b>Toprak:</b> ${esc(getTurkishMapName(provinceId))}<br><b>Gösterilen ülke:</b> ${esc(detail.countryName||owner?.name||'Sahipsiz / atanmadı')}<br><b>Bu topraktaki garnizon:</b> ${num(detail.garrison??owner?.fortressGarrison??0)} asker</div><div class="formgrid" style="margin-top:10px;"><div class="full"><label>Devlet Kartına Bağla (İsteğe Bağlı)</label><select id="province_owner" onchange="syncProvinceOwnerFields(this.value)">${options}</select></div>${field('province_country_name','Ülke Adı (Kart olmadan yazılabilir)',detail.countryName||owner?.name||'','text')}${field('province_garrison','Bu Topraktaki Garnizon Sayısı',detail.garrison??owner?.fortressGarrison??0,'number')}${field('province_color','Toprak Rengi',currentColor,'color')}<div><label style="display:flex;align-items:center;gap:7px;margin-top:20px;"><input id="province_apply_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün topraklara rengi uygula</label></div><div class="full" style="background:rgba(197, 160, 89, 0.1); border:1px solid var(--border-gold); padding:8px; border-radius:3px;"><label style="display:flex;align-items:center;gap:7px;margin:0;color:var(--border-gold);"><input id="province_global_visible" type="checkbox" style="width:auto;" ${isGloballyVisible}> 👁️ BÖLGEYİ DÜNYAYA AÇ (Sisi Herkes İçin Kaldır)</label></div>
  
  <div class="full" style="background:rgba(52, 152, 219, 0.1); border:1px solid var(--blue); padding:8px; border-radius:3px; margin-top:10px;">
-    <label style="color:var(--blue); font-size:12px; font-weight:bold; margin-top:0;">👁️ BU TOPRAĞIN İSTİHBARATINI BİR DEVLETE VER</label>
+    <label style="color:var(--blue); font-size:12px; font-weight:bold; margin-top:0;">👁️ BU TOPRAĞIN İSTİHBARATINI BİR DEVLETE VER VEYA GERİ AL</label>
     <div style="display:flex; gap:6px; margin-top:6px;">
         <select id="intel_grant_state" style="flex:1;">${stateOpts}</select>
-        <button class="btn blue" onclick="grantIntelToState('${esc(provinceId)}')">İSTİHBARATI VER</button>
+        <button class="btn blue" style="flex:1; padding:4px;" onclick="grantIntelToState('${esc(provinceId)}', true)">İSTİHBARATI VER</button>
+        <button class="btn red" style="flex:1; padding:4px;" onclick="grantIntelToState('${esc(provinceId)}', false)">GERİ AL</button>
     </div>
     <label style="display:flex; align-items:center; gap:7px; margin-top:8px;">
-        <input id="intel_grant_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün toprakların sisini seçilen devlete kaldır
+        <input id="intel_grant_all" type="checkbox" style="width:auto;"> Aynı ülke adlı bütün toprakların sisini seçilen devlete kaldır/geri al
     </label>
  </div>
  
@@ -1764,7 +1797,8 @@ function buyProvinceIntelReport(provinceId,viewerId)
 
  
 // (Sisi Kaldıran Kod): Adminin, haritadaki karanlık bir toprağın (sisin) sadece seçtiği bir devlet (örn: Kırım) tarafından kalıcı olarak görülmesini sağladığı koddur.
-function grantIntelToState(provinceId) {
+function grantIntelToState(provinceId) 
+{
     if(!isAdmin) return;
     const targetStateId = document.getElementById("intel_grant_state").value;
     const s = getState(targetStateId);
@@ -1786,16 +1820,22 @@ function grantIntelToState(provinceId) {
              const existing = db.mapProvinceDetails[path.id]||{};
              const effectiveName = existing.countryName || linkedOwner?.name || '';
              if(normalizeMapName(effectiveName) === normalizeMapName(countryName)) {
-                 if(!s.discoveredProvinces.includes(path.id)) {
-                     s.discoveredProvinces.push(path.id);
-                     count++;
+                 if(isGranting) {
+                     if(!s.discoveredProvinces.includes(path.id)) { s.discoveredProvinces.push(path.id); count++; }
+                 } else {
+                     if(s.discoveredProvinces.includes(path.id)) {
+                         s.discoveredProvinces = s.discoveredProvinces.filter(x => x !== path.id); count++;
+                     }
                  }
              }
         });
     } else {
-        if(!s.discoveredProvinces.includes(provinceId)) {
-            s.discoveredProvinces.push(provinceId);
-            count++;
+        if(isGranting) {
+            if(!s.discoveredProvinces.includes(provinceId)) { s.discoveredProvinces.push(provinceId); count++; }
+        } else {
+            if(s.discoveredProvinces.includes(provinceId)) {
+                s.discoveredProvinces = s.discoveredProvinces.filter(x => x !== provinceId); count++;
+            }
         }
     }
     
@@ -1803,13 +1843,14 @@ function grantIntelToState(provinceId) {
         addLog({
             stateId: s.id,
             stateName: s.name,
-            action: `Admin tarafından ${count} toprağın istihbaratı verildi (Sis aydınlatıldı).`,
+            action: `Admin tarafından ${count} toprağın istihbaratı ${isGranting ? 'verildi (Aydınlatıldı)' : 'geri alındı (Sise Gömüldü)'}.`,
             qty: count, cost: 0
         });
         queueSave();
-        toast(`${s.name} devletine ${count} toprağın istihbaratı verildi!`, true);
+        applyMapOwnership(); // Simülasyon menüsü açıksa anında haritanın karardığını/açıldığını göstersin
+        toast(`${s.name} devletinden ${count} toprağın istihbaratı ${isGranting ? 'verildi' : 'geri alındı'}!`, true);
     } else {
-        toast("Seçilen devlet zaten bu yerin istihbaratına sahip.", false);
+        toast(isGranting ? "Seçilen devlet zaten bu yerin istihbaratına sahip." : "Devlet zaten burayı görmüyor.", false);
     }
 }
 
