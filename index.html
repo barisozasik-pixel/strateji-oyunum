@@ -1439,30 +1439,6 @@ function applyMapOwnership()
  });
  if(mapStrategicView){renderStrategicRegionStickers();}
 }
- canvas.querySelectorAll('path[id][d]').forEach(path=>{
-   if(!path.dataset.originalFill)path.dataset.originalFill=path.getAttribute('fill')||path.style.fill||'';
-   const ownerId=db.mapProvinceOwners?.[path.id];
-   const owner=getState(ownerId);
-   const detail=db.mapProvinceDetails?.[path.id];
-   const displayOwner=detail?.countryName||owner?.name||'Sahipsiz / atanmadı';
-   
-   let isVisible = (visibleProvinces === "ALL" || visibleProvinces.has(path.id) || ownerId === "__rebel__");
-   if(isVisible) {
-       path.style.fill=detail?.color||(owner?(owner.color||'#c5a059'):path.dataset.originalFill);
-       let title=path.querySelector('title');
-       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
-       title.textContent=`${getTurkishMapName(path.id)} — ${displayOwner}`;
-   } else {
-       path.style.fill = "#1a1a1a";
-       let title=path.querySelector('title');
-       if(!title){title=document.createElementNS('http://www.w3.org/2000/svg','title');path.appendChild(title);}
-       title.textContent=`Bilinmeyen Toprak (Savaş Sisi)`;
-   }
-   
-   path.onclick=()=>handleProvinceClick(path.id);
- });
- if(mapStrategicView){renderStrategicRegionStickers();}
-}
  
 function renderStrategicMapLabels(){
  const canvas=document.getElementById('gameMapCanvas'),svg=canvas?.querySelector('svg');if(!canvas||!svg)return;
