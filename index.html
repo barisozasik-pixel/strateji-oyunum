@@ -3287,7 +3287,7 @@ function passOneYear(){
         
         // --- İSYAN MEKANİĞİ ---
         const adv = getAdvisorEffects(s);
-        let hapNow = Math.max(0, Math.min(100, s.happiness + adv.happinessBonus));
+        let hapNow = Math.max(0, Math.min(100, Number(s.happiness || 0) + Number(adv.happinessBonus || 0)));
         if(hapNow <= 40 && !adv.stopAnarchy) {
             let rebellionChance = (40 - hapNow) * 0.02; // Mutluluk 20 ise %40 ihtimal
             if(Math.random() < rebellionChance) {
