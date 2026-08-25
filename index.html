@@ -2062,7 +2062,7 @@ function openDetail(id){
  altyapiHtml += buildUnitCard(s, 'kucuk_ocak', 'Küçük Top Ocağı', imgs.kucuk_ocak, db.settings.prices.kucuk_ocak, 0, '', canManage, false, true);
  altyapiHtml += buildUnitCard(s, 'orta_ocak', 'Orta Top Ocağı', imgs.orta_ocak, db.settings.prices.orta_ocak, 0, '', canManage, false, true);
  altyapiHtml += buildUnitCard(s, 'buyuk_ocak', 'Büyük Top Ocağı', imgs.buyuk_ocak, db.settings.prices.buyuk_ocak, 0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'okul', 'Okul', imgs.okul, db.settings.prices.okul, db.settings.schoolUpkeep||0, `${num((s.okul||0)*(db.settings.schoolCapacityPerBuilding||0))} kişi`, canManage, false, true);
+ altyapiHtml += buildUnitCard(s, 'okul', 'Okul', imgs.okul, db.settings.prices.okul, db.settings.schoolUpkeep||0, `${s.okul||0} / ${getOwnedMapProvinceIds(s.id).length}`, canManage, false, true);
  altyapiHtml += buildUnitCard(s, 'istihbarat_binasi', 'İstihbarat Dairesi', imgs.istihbarat_binasi, db.settings.prices.istihbarat_binasi, 0, '', canManage, false, true);
  
  const customInfra = (db.settings.customItems || []).filter(item => (!item.faction || item.faction === s.id) && item.category !== 'asker');
