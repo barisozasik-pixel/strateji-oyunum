@@ -1784,7 +1784,7 @@ function buyProvinceIntelReport(provinceId,viewerId)
 
  
 // (Sisi Kaldıran Kod): Adminin, haritadaki karanlık bir toprağın (sisin) sadece seçtiği bir devlet (örn: Kırım) tarafından kalıcı olarak görülmesini sağladığı koddur.
-function grantIntelToState(provinceId) 
+function grantIntelToState(provinceId,isGranting) 
 {
     if(!isAdmin) return;
     const targetStateId = document.getElementById("intel_grant_state").value;
