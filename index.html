@@ -3793,50 +3793,73 @@ async function openAdmin(){
 }
 
 // ---------------- SAVAŞTA GARNİZON KAYIPLARI (ADMİN) ----------------
-function openWarGarrisonModal(){
+function openWarGarrisonModal()
+{
  if(!isAdmin) return;
  const opts=`<option value="">Devlet seçin…</option>`+db.states.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
- modal(`<h2>⚔️ SAVAŞ — GARNİZON KAYIPLARI</h2>
-   <p class="sub">Savaşta ölen garnizon askerleri garnizondan düşer ve elverişli nüfusa geri eklenmez.</p>
+ modal(`<h2>⚔️ SAVAŞ VE ASKERİ KAYIPLAR</h2>
+   <p class="sub">Buradan sildiğiniz askerler "Terhis" edilmiş sayılmaz, "Şehit/Ölü" sayılır. Yani elverişli nüfus havuzuna geri dönmezler ve ülkenin toplam nüfusundan kalıcı olarak düşülürler.</p>
    <div class="formgrid">
-     <div class="full"><label>Devlet</label><select id="war_state" onchange="renderWarGarrisonFields()">${opts}</select></div>
+     <div class="full"><label>Hedef Devlet</label><select id="war_state" onchange="renderWarGarrisonFields()">${opts}</select></div>
    </div>
    <div id="war_garrison_fields"><p class="sub">İşlem yapmak için önce bir devlet seçin.</p></div>
    <div class="actions" style="margin-top:14px"><button class="btn" onclick="openAdmin()">GERİ</button></div>`);
 }
 
-function renderWarGarrisonFields(){
+function renderWarGarrisonFields()
+{
  const stateId=document.getElementById("war_state")?.value;
  const box=document.getElementById("war_garrison_fields");
  const s=getState(stateId);
  if(!box) return;
  if(!s){box.innerHTML='<p class="sub">İşlem yapmak için önce bir devlet seçin.</p>';return;}
  box.innerHTML=`<div class="event-result" style="margin-top:10px;">
-     <b>${esc(s.name)}</b><br>
-     Kale garnizonu: <b>${num(s.fortressGarrison||0)}</b> asker<br>
-     Önceki savaşlarda ölen garnizon: <b style="color:var(--red)">${num(s.garrisonWarDeaths||0)}</b> asker
+     <b>${esc(s.name)} Mevcut Ordusu:</b><br>
+     Piyade: <b>${num(s.piyade||0)}</b> | Süvari: <b>${num(s.suvari||0)}</b> | Nişancı: <b>${num(s.nisanci||0)}</b><br>
+     Kale Garnizonu: <b>${num(s.fortressGarrison||0)}</b><br>
+     <div class="sub" style="margin-top:4px; color:var(--red);">Bugüne kadar verilen toplam savaş zayiatı: ${num((s.warCasualties||0)+(s.garrisonWarDeaths||0))} asker</div>
    </div>
    <div class="formgrid" style="margin-top:10px;">
-     ${field("war_fortress_deaths","Kale Garnizonu Ölümü",0,"number")}
+     ${field("war_death_piyade","Ölen Piyade Sayısı",0,"number")}
+     ${field("war_death_suvari","Ölen Süvari Sayısı",0,"number")}
+     ${field("war_death_nisanci","Ölen Nişancı Sayısı",0,"number")}
+     ${field("war_death_garrison","Düşen Kaledeki Garnizon Sayısı",0,"number")}
    </div>
-   <button class="btn red" style="width:100%;margin-top:10px;" onclick="applyWarGarrisonDeaths('${s.id}')">KAYIPLARI UYGULA</button>`;
+   <button class="btn red" style="width:100%;margin-top:10px;" onclick="applyWarGarrisonDeaths('${s.id}')">KAYIPLARI UYGULA (ASLA GERİ DÖNMEZLER)</button>`;
 }
 
-function applyWarGarrisonDeaths(stateId){
+function applyWarGarrisonDeaths(stateId)
+{
  if(!isAdmin) return;
  const s=getState(stateId);
  if(!s) return;
- const fortressDeaths=Math.max(0,Math.floor(Number(document.getElementById("f_war_fortress_deaths")?.value)||0));
- if(fortressDeaths===0){alert("En az bir kayıp sayısı girin.");return;}
- if(fortressDeaths>(s.fortressGarrison||0)){alert("Kale garnizonu kaybı mevcut kale garnizonundan fazla olamaz.");return;}
- const oldTotal=s.fortressGarrison||0;
- const totalDeaths=fortressDeaths;
- s.fortressGarrison-=fortressDeaths;
- s.garrisonWarDeaths=(s.garrisonWarDeaths||0)+totalDeaths;
- redistributeMapGarrisonsForStateIds([s.id]);
- addLog({stateId:s.id,stateName:s.name,action:`Savaş kaybı: Kale garnizonunda ${num(fortressDeaths)} asker öldü`,qty:totalDeaths,cost:0,unitName:"Kale Garnizonu",oldUnit:oldTotal,newUnit:oldTotal-totalDeaths});
+ 
+ const dPiyade = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_piyade")?.value)||0));
+ const dSuvari = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_suvari")?.value)||0));
+ const dNisanci = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_nisanci")?.value)||0));
+ const dGarrison = Math.max(0, Math.floor(Number(document.getElementById("f_war_death_garrison")?.value)||0));
+ 
+ const totalDeaths = dPiyade + dSuvari + dNisanci + dGarrison;
+ if(totalDeaths === 0){alert("En az bir kayıp sayısı girin.");return;}
+ 
+ if(dPiyade > (s.piyade||0)){alert("Ölen piyade sayısı mevcut piyadeden fazla olamaz!");return;}
+ if(dSuvari > (s.suvari||0)){alert("Ölen süvari sayısı mevcut süvariden fazla olamaz!");return;}
+ if(dNisanci > (s.nisanci||0)){alert("Ölen nişancı sayısı mevcut nişancıdan fazla olamaz!");return;}
+ if(dGarrison > (s.fortressGarrison||0)){alert("Ölen garnizon sayısı mevcut garnizondan fazla olamaz!");return;}
+ 
+ s.piyade -= dPiyade;
+ s.suvari -= dSuvari;
+ s.nisanci -= dNisanci;
+ s.fortressGarrison -= dGarrison;
+ 
+ s.population = Math.max(0, (s.population||0) - totalDeaths); // Toplam Nüfus'tan sil!
+ s.warCasualties = (s.warCasualties || 0) + totalDeaths; // Havuza dönmelerini engelle!
+ 
+ if(dGarrison > 0) redistributeMapGarrisonsForStateIds([s.id]);
+ 
+ addLog({stateId:s.id,stateName:s.name,action:`Savaş Kayıpları İşlendi: ${num(totalDeaths)} asker şehit düştü!`,qty:totalDeaths,cost:0});
  queueSave();
- toast(`${s.name}: ${num(totalDeaths)} garnizon askeri savaşta öldü.`);
+ toast(`${s.name}: ${num(totalDeaths)} asker kalıcı olarak silindi.`);
  openWarGarrisonModal();
  const selector=document.getElementById("war_state");
  if(selector){selector.value=s.id;renderWarGarrisonFields();}
