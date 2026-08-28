@@ -2904,14 +2904,14 @@ function calcPop(s)
   let eligRate = hap * 0.3;
   let maxElig = Math.floor(pop * (eligRate/100));
   
-  // SAVAŞ KAYIPLARI (Ölen askerlerin elverişli havuza dönmesini matematiksel olarak kalıcı engeller)
+  // SAVAŞ KAYIPLARI 
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
   let ghostEligible = Math.floor(totalDead * (1 - (eligRate/100)));
   
   let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
   
-  // DÜZELTİLEN KISIM BURASI: Artık sıradan halktan asker ölümü düşmeyecek!
-  let remCount = Math.max(0, pop - anarCount - armySize - availableElig);
+  // SENİN ORİJİNAL KODUN (ESKİ HALİNE DÖNDÜRDÜK)
+  let remCount = Math.max(0, pop - anarCount - Math.max(maxElig, armySize));
   
   const legacyEducated = Math.floor(remCount * (edu/100));
   const storedEducated = Number.isFinite(Number(s.educatedPopulation)) ? Math.max(0, Math.floor(Number(s.educatedPopulation))) : legacyEducated;
