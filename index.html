@@ -2904,14 +2904,14 @@ function calcPop(s)
   let eligRate = hap * 0.3;
   let maxElig = Math.floor(pop * (eligRate/100));
   
-  // SAVAŞ KAYIPLARI 
+  // SAVAŞ KAYIPLARI (Ölen askerlerin elverişli havuza dönmesini matematiksel olarak kalıcı engeller)
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
   let ghostEligible = Math.floor(totalDead * (1 - (eligRate/100)));
   
   let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
   
-  // SENİN ORİJİNAL KODUN (ESKİ HALİNE DÖNDÜRDÜK)
-  let remCount = Math.max(0, pop - anarCount - Math.max(maxElig, armySize));
+  // İŞTE O BÜYÜLÜ SATIR BURASI! (Buharlaşan köylüleri kurtaran formül)
+  let remCount = Math.max(0, pop - anarCount - armySize - availableElig);
   
   const legacyEducated = Math.floor(remCount * (edu/100));
   const storedEducated = Number.isFinite(Number(s.educatedPopulation)) ? Math.max(0, Math.floor(Number(s.educatedPopulation))) : legacyEducated;
@@ -2931,7 +2931,6 @@ function calcPop(s)
   if(debtYears>=3) availableElig=Math.floor(availableElig*0.9);
   
   return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, edu: eduCount, eduRate: edu, other: otherCount, remaining: remCount };
-  
 }
 
 
