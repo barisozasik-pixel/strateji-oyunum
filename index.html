@@ -2885,11 +2885,60 @@ function removePermLedgerItem(stateId, index) {
 
 function calcPop(s)
 {
-   
+  const adv = getAdvisorEffects(s);
+  let hap = (Number(s.happiness) || 0) + adv.happinessBonus;
+  let pop = Number(s.population) || 0;
+  let edu = Number(s.education) || 0;
   
+  const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
+  let anarRate = hap >= 60 ? 0 : Math.floor((59 - hap)/10)*10 + 10;
+  anarRate += Math.max(0, (taxRate - 50) * 0.5);
+  if(hap < 0) anarRate = 60; 
+  if(adv.stopAnarchy) anarRate = 0;
+  
+  let anarCount = Math.floor(pop * (anarRate/100));
+  
+  let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0) + (s.fortressGarrison||0);
+  if(db.settings.customItems) {
+     db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
+  }
+  
+  let eligRate = hap * 0.3;
+  let maxElig = Math.floor(pop * (eligRate/100));
+  
+  // SAVAŞ KAYIPLARI (Ölüler asker havuzundan kalıcı olarak düşülür)
+  let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
+  let ghostEligible = Math.floor(totalDead * (1 - (eligRate/100)));
+  
+  // BOŞTAKİ ASKER (Ordu veya ölü asker artarsa boş asker azalır)
+  let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
+  
+  // SIRADAN HALK (Savaşta asker ölse bile sıradan halkı sabit tutan o efsanevi formül)
+  let baseCivilian = Math.max(0, pop - anarCount - maxElig + ghostEligible);
+  if (armySize > maxElig - ghostEligible) {
+      baseCivilian = Math.max(0, baseCivilian - (armySize - (maxElig - ghostEligible)));
+  }
+  let remCount = baseCivilian;
+  
+  const legacyEducated = Math.floor(remCount * (edu/100));
+  const storedEducated = Number.isFinite(Number(s.educatedPopulation)) ? Math.max(0, Math.floor(Number(s.educatedPopulation))) : legacyEducated;
+  let eduCount = Math.min(remCount, storedEducated);
+  let otherCount = remCount - eduCount;
+  
+  const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
+  const bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
+  const bonusEdu = Math.max(0, Math.floor(Number(s.educatedPopulationBonus)||0));
+  
+  anarCount = Math.min(pop, anarCount + bonusAnar);
+  eduCount = Math.min(Math.max(0, pop - anarCount), eduCount + bonusEdu);
+  otherCount = Math.max(0, remCount - eduCount);
+  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize), availableElig + bonusElig);
+  
+  const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
+  if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
+  
+  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, edu: eduCount, eduRate: edu, other: otherCount, remaining: remCount };
 }
-  
-
 
 
 function calcIncome(s){
@@ -2905,45 +2954,30 @@ function calcPermIncome(s){
   if(s.permanentLedger && s.permanentLedger.length > 0) s.permanentLedger.forEach(item => { total += item.amount; });
   return total;
 }
-
- 
-function calcMilitaryUpkeep(s)
-{
+function calcMilitaryUpkeep(s){
   const adv = getAdvisorEffects(s);
   const discountFactor = Math.max(0, 1 - (adv.milUpkeepDiscount / 100));
   let raw = (s.piyade||0)*(db.settings.upkeep?.piyade||35)+(s.suvari||0)*(db.settings.upkeep?.suvari||55)+(s.nisanci||0)*(db.settings.upkeep?.nisanci||45);
   return Math.round(raw * discountFactor);
 }
-
- 
-function calcArtilleryUpkeep(s)
-{
+function calcArtilleryUpkeep(s){
   const adv = getAdvisorEffects(s);
   const discountFactor = Math.max(0, 1 - (adv.artUpkeepDiscount / 100));
   let raw = (s.kucuk_top||0)*(db.settings.upkeep?.kucuk_top||7500)+(s.orta_top||0)*(db.settings.upkeep?.orta_top||15000)+(s.buyuk_top||0)*(db.settings.upkeep?.buyuk_top||25000);
   return Math.round(raw * discountFactor);
 }
-
- 
-function calcNavyUpkeep(s)
-{
+function calcNavyUpkeep(s){
   const adv = getAdvisorEffects(s);
   const discountFactor = Math.max(0, 1 - (adv.navyUpkeepDiscount / 100));
   let raw = (s.kucuk_gemi||0)*(db.settings.upkeep?.kucuk_gemi||20000)+(s.orta_gemi||0)*(db.settings.upkeep?.orta_gemi||35000)+(s.buyuk_gemi||0)*(db.settings.upkeep?.buyuk_gemi||50000);
   return Math.round(raw * discountFactor);
 }
-
- 
-function calcCustomUpkeep(s)
-{
+function calcCustomUpkeep(s){
   let c = 0;
   if(db.settings.customItems) db.settings.customItems.forEach(item => { c += (s[item.id]||0) * (item.upkeep||0); });
   return c;
 }
-
- 
- function calcAdvisorExpenses(s)
- {
+function calcAdvisorExpenses(s){
   let total = 0;
   const hired = s.hiredAdvisors || [];
   if(hired.length > 0 && db.advisors) {
@@ -2953,24 +2987,15 @@ function calcCustomUpkeep(s)
   }
   return total;
 }
-
- 
-function calcFortressGarrisonExpense(s)
-{
+function calcFortressGarrisonExpense(s){
   return Math.max(0,Number(s.fortressGarrison)||0)*Math.max(0,Number(db.settings.garrisonUpkeep?.fortress)||0);
 }
-
- 
- function calcPopulationBuildingExpense(s)
- {
+function calcPopulationBuildingExpense(s){
   const upkeep=db.settings.populationBuildingUpkeep||{};
   return ["hastane","asevi","su_degirmeni","kervansaray","pazar"].reduce((total,key)=>
     total + Math.max(0,Number(s[key])||0)*Math.max(0,Number(upkeep[key])||0),0);
 }
-
- 
- function preferLocalChangedFields(base,local,remote)
- {
+function preferLocalChangedFields(base,local,remote){
  if(valuesEqual(local,base))return structuredClone(remote);
  if(valuesEqual(remote,base))return structuredClone(local);
  if(Array.isArray(local)||Array.isArray(remote)){
@@ -3002,35 +3027,18 @@ function calcFortressGarrisonExpense(s)
  Object.keys(local||{}).forEach(key=>{result[key]=preferLocalChangedFields(base?.[key],local[key],remote?.[key]);});
  return result;
 }
-
- 
-function calcInfrastructureExpense(s)
-{
+function calcInfrastructureExpense(s){
   const upkeep=db.settings.infrastructureUpkeep||{};
   return ["kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","istihbarat_binasi"]
     .reduce((total,key)=>total+Math.max(0,Number(s[key])||0)*Math.max(0,Number(upkeep[key])||0),0);
 }
-
-
-
-function calcExpenses(s)
-{
+function calcExpenses(s){
   const schoolExpense = Math.max(0, Number(s.okul)||0) * Math.max(0, Number(db.settings.schoolUpkeep)||0);
   return calcMilitaryUpkeep(s) + calcArtilleryUpkeep(s) + calcNavyUpkeep(s) + calcCustomUpkeep(s) + calcAdvisorExpenses(s) + calcFortressGarrisonExpense(s) + calcPopulationBuildingExpense(s) + calcInfrastructureExpense(s) + schoolExpense + Number(s.civilExpense||0);
 }
+function hasTreasuryDebt(s){return Number(s?.treasury||0)<0;}
+function rejectDebtPurchase(s){if(hasTreasuryDebt(s)){alert("Bu devlet borçlu olduğu için yeni alım veya inşa yapamaz.");return true;}return false;}
 
- 
-function hasTreasuryDebt(s)
-{
- return Number(s?.treasury||0)<0;
-}
- 
-function rejectDebtPurchase(s)
-{
- if(hasTreasuryDebt(s)){alert("Bu devlet borçlu olduğu için yeni alım veya inşa yapamaz.");return true;}return false;
-}
-
- 
 function addLog(data) {
     if(!db.purchaseLog) db.purchaseLog = [];
     const dateStr = new Date().toLocaleDateString("tr-TR") + " " + new Date().toLocaleTimeString("tr-TR", {hour:'2-digit', minute:'2-digit'});
@@ -3056,8 +3064,6 @@ function addLog(data) {
     });
     if(db.purchaseLog.length > 300) db.purchaseLog.pop();
 }
-
- 
 function mergePurchaseLogs(remoteLogs,localLogs){
  const result=[],seen=new Set();
  for(const log of [...(localLogs||[]),...(remoteLogs||[])]){
