@@ -2901,8 +2901,7 @@ function calcPop(s)
   let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0) + (s.fortressGarrison||0);
   if(db.settings.customItems) {
      db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
-  }
-  
+   
   let eligRate = hap * 0.3;
   let maxElig = Math.floor(pop * (eligRate/100));
   
@@ -2938,7 +2937,8 @@ function calcPop(s)
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
   
   return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, edu: eduCount, eduRate: edu, other: otherCount, remaining: remCount };
-}
+  }
+  
 
 
 function calcIncome(s){
