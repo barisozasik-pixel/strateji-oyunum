@@ -2885,6 +2885,22 @@ function removePermLedgerItem(stateId, index) {
 
 function calcPop(s)
 {
+  const adv = getAdvisorEffects(s);
+  let hap = (Number(s.happiness) || 0) + adv.happinessBonus;
+  let pop = Number(s.population) || 0;
+  let edu = Number(s.education) || 0;
+  
+  const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
+  let anarRate = hap >= 60 ? 0 : Math.floor((59 - hap)/10)*10 + 10;
+  anarRate += Math.max(0, (taxRate - 50) * 0.5);
+  if(hap < 0) anarRate = 60; 
+  if(adv.stopAnarchy) anarRate = 0;
+  
+  let anarCount = Math.floor(pop * (anarRate/100));
+  
+  let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0) + (s.fortressGarrison||0);
+  if(db.settings.customItems) {
+     db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
 
 }
   
