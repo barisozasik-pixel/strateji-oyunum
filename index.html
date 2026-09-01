@@ -622,7 +622,9 @@ async function loadEventAssets(){
   const byId=new Map(events.map(e=>[e.id,e]));
   db.pendingEvents=(db.pendingEvents||[]).map(p=>byId.has(p.eventId)?{...p,event:structuredClone(byId.get(p.eventId))}:p);
   return true;
- }catch(error){
+ }
+ catch(error)
+ {
   console.error('events-100.json yüklenemedi:',error);
   return false;
  }
@@ -974,6 +976,7 @@ async function showApp(session){
  document.getElementById("app").classList.remove("hidden");
  
  await loadDB();
+ await loadEventAssets();
  setupGameRealtime();
  renderTopActions();
  renderHome();
