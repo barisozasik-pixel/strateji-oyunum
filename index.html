@@ -1236,18 +1236,47 @@ async function handleRealtimeUpdate(payload)
          renderHome();
      }
    }
-   
+   else {
+     // Yerelde kaydedilmemiş değişiklikler var. 3-Way Merge ile birleştir!
+     const oldDb = structuredClone(db);
+     const oldYear = dbBaseSnapshot.gameYear;
+     const activeTab = document.querySelector('.hoi-tab.active')?.id?.replace('tab-btn-', '');
+     const scrollTop = window.scrollY;
+     
+     await loadDB(true);
+     
+     let conflicts = [];
+     db = mergeStateThreeWay(dbBaseSnapshot, oldDb, db, "root", conflicts);
+     dbBaseSnapshot = structuredClone(db);
+     
+     if(db.gameYear > oldYear && !isAdmin) {
+         showYearReportModal();
+     } else if (!document.getElementById('mapScreen')?.classList.contains('hidden')) {
+         if(typeof applyMapOwnership === 'function') applyMapOwnership();
+     } else if(currentId) {
+         openDetail(currentId); 
+         if(activeTab) { switchTab(activeTab); window.scrollTo(0, scrollTop); }
+     } else {
+         renderHome();
+     }
+   }
 }
+ 
 function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveDB,250)}
-async function saveMapDB(){
+
+async function saveMapDB()
+{
  const ok=await saveDB();
  if(ok)mapSyncChannel?.postMessage({type:"map-saved",owners:structuredClone(db.mapProvinceOwners||{}),details:structuredClone(db.mapProvinceDetails||{}),valuableRegions:structuredClone(db.valuableRegions||{})});
  return ok;
 }
+
 function queueMapSave(){mapSavePending=true;clearTimeout(mapSaveTimer);mapSaveTimer=setTimeout(()=>{mapSavePending=false;saveMapDB();},250)}
 
 const MAP_TURKISH_NAMES = {"Achaea":"Achaia","Adana":"Adana","Aden":"Aden","Agadir":"Agadir","Ajlun":"Ajlun","Aksaray":"Aksaray","Aleppo":"Halep","Alexandria":"İskenderiye","Ankara":"Ankara","Ancona":"Ankona","Antioch":"Antakya","Arbil":"Erbil","Ardabil":"Erdebil","Ardalan":"Erdelan","Ardakan":"Ardakan","Aydin":"Aydın","Baghdad":"Bağdat","Bursa":"Bursa","Cairo":"Kahire","Constantinople":"Konstantiniyye (İstanbul)","Damascus":"Şam","Edirne":"Edirne","Isfahan":"İsfahan","Jerusalem":"Kudüs","Konya":"Konya","Mecca":"Mekke","Medina":"Medine","Mosul":"Musul","Sivas":"Sivas","Tabriz":"Tebriz","Trebizond":"Trabzon","Urfa":"Urfa","Basra":"Basra","Smyrna":"İzmir","Smyrna/İzmir":"İzmir","Belgrade":"Belgrad","Gallipoli":"Gelibolu","Rhodes":"Rodos","Chios":"Sakız","Tunis":"Tunus","Karbala":"Kerbela","Najaf":"Necef","Trabzon":"Trabzon","Tokat":"Tokat","Kayseri":"Kayseri","Diyarbakir":"Diyarbakır","Damietta":"Dimyat","Suez":"Süveyş","Jeddah":"Cidde","Aqaba":"Akabe","Muscat":"Maskat","Hormuz":"Hürmüz","Kabul":"Kabil","Kandahar":"Kandahar","Samarkand":"Semerkant","Bukhara":"Buhara","Kashgar":"Kaşgar","Lahore":"Lahor","Multan":"Multan","Shiraz":"Şiraz","Yazd":"Yezd","Kerman":"Kirman","Kashan":"Kaşan","Herat":"Herat","Amasya":"Amasya","Hüdavendigar":"Hüdavendigar"};
-function getTurkishMapName(value){
+
+function getTurkishMapName(value)
+{
  const raw=String(value||'').replaceAll('_',' ').trim();
  if(MAP_TURKISH_NAMES[raw])return MAP_TURKISH_NAMES[raw];
  return raw
@@ -1257,6 +1286,7 @@ function getTurkishMapName(value){
    .replace(/\s{2,}/g,' ')
    .trim();
 }
+ 
 function normalizeMapName(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('tr-TR').replace(/[^a-z0-9]+/g,'')}
 function normalizeMapColor(value,fallback='#c5a059'){const v=String(value||'').trim();if(/^#[0-9a-f]{6}$/i.test(v))return v;if(/^#[0-9a-f]{3}$/i.test(v))return '#'+v.slice(1).split('').map(x=>x+x).join('');const m=v.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);if(m)return '#'+[m[1],m[2],m[3]].map(x=>Math.max(0,Math.min(255,Number(x))).toString(16).padStart(2,'0')).join('');return fallback;}
 function getProvinceDisplayColor(provinceId,detail={},owner=null)
@@ -1860,11 +1890,12 @@ function saveProvinceOwner(provinceId){
  const garrison=Math.max(0,Math.floor(Number(document.getElementById('f_province_garrison')?.value)||0));
  const color=document.getElementById('f_province_color')?.value||'';
  const applyAll=!!document.getElementById('province_apply_all')?.checked;
+ const isGloballyVisible = !!document.getElementById('province_global_visible')?.checked;
  const oldOwner=getState(db.mapProvinceOwners?.[provinceId]);
  db.mapProvinceOwners=db.mapProvinceOwners||{};
  db.mapProvinceDetails=db.mapProvinceDetails||{};
  if(newOwnerId)db.mapProvinceOwners[provinceId]=newOwnerId;else delete db.mapProvinceOwners[provinceId];
- if(countryName||garrison||color)db.mapProvinceDetails[provinceId]={countryName,garrison,color};else delete db.mapProvinceDetails[provinceId];
+ if(countryName||garrison||color||isGloballyVisible)db.mapProvinceDetails[provinceId]={countryName,garrison,color,isGloballyVisible};else delete db.mapProvinceDetails[provinceId];
  const newOwner=getState(newOwnerId);
  if(applyAll&&countryName){
    document.querySelectorAll('#gameMapCanvas path[id][d]').forEach(path=>{
@@ -1937,7 +1968,7 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     let safeImg = cleanUrl(imgUrl);
     
     const adv = getAdvisorEffects(s);
-    let disc = key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi" ? adv.infraDiscount : adv.recruitDiscount;
+    let disc = (isInfrastructure || key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi") ? adv.infraDiscount : adv.recruitDiscount;
     let actualPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
 
     const premiumStyle=isInfrastructure||usePremiumStyle;
@@ -2031,7 +2062,7 @@ function openDetail(id){
  const rulerImgClean = cleanUrl(s.rulerImage);
  const imgs = db.settings.images || {};
 
- const myLetters = (db.letters || []).filter(l => l.toStateId === s.id || l.fromStateId === s.id);
+ const myLetters = (db.letters || []).filter(l => (l.toStateId === s.id || l.fromStateId === s.id) && !(l.deletedBy || []).includes(s.id));
  const unreadCount = myLetters.filter(l => l.toStateId === s.id && !l.read).length;
 
  // 1. ASKERİYE SEKMESİ
@@ -2801,7 +2832,9 @@ function openLetterModal(fromStateId, defaultTargetId = null) {
  const attachments=isAdminLetter?"":`<div id="letter_attachments" class="full"><h4 style="margin:8px 0 4px; color:var(--border-gold); font-family:'Oswald';">EKLER (Yalnızca devlet kartı olan alıcılara)</h4><div class="formgrid"><div><label>Altın Gönder (Mevcut: ${money(sender.treasury)})</label><input id="letter_gold" type="number" min="0" value="0"></div><div><label>Piyade Gönder (Mevcut: ${num(sender.piyade||0)})</label><input id="letter_piyade" type="number" min="0" value="0"></div><div><label>Süvari Gönder (Mevcut: ${num(sender.suvari||0)})</label><input id="letter_suvari" type="number" min="0" value="0"></div><div><label>Nişancı Gönder (Mevcut: ${num(sender.nisanci||0)})</label><input id="letter_nisanci" type="number" min="0" value="0"></div></div><p class="sub">Harita devleti seçildiğinde ek gönderilemez; yalnızca diplomatik mektup kaydedilir.</p></div>`;
  modal(`<h2>✉️ DİPLOMATİK MEKTUP</h2><div class="formgrid">${senderField}<div><label>Alıcı Devlet</label><select id="letter_target">${targetOpts}</select></div><div class="full"><label>Mühür / Logo URL (İsteğe Bağlı)</label><input id="letter_seal" type="text" placeholder="https://.../muhur.png"></div><div class="full"><label>Mektup Metni</label><textarea id="letter_body" placeholder="Hükümdara iletmek istediğiniz diplomatik mesaj..."></textarea></div>${attachments}<div class="full actions" style="margin-top:12px"><button class="btn" onclick="${isAdminLetter?'openAdminLetters()':'closeModal()'}">İPTAL</button><button class="btn gold" onclick="sendLetter('${fromStateId}')">ULAKLA GÖNDER</button></div></div>`);
 }
-function sendLetter(fromStateId) {
+
+function sendLetter(fromStateId) 
+{
  const isAdminLetter=fromStateId==="__admin__";
  const sender=isAdminLetter?null:getState(fromStateId);
  if(!isAdminLetter&&!sender)return;
@@ -2827,9 +2860,9 @@ function sendLetter(fromStateId) {
  const oldSenderT=sender?.treasury||0,oldTargetT=target?.treasury||0,oldSenderP=sender?.piyade||0,oldTargetP=target?.piyade||0;
  if(sender&&target){
    if(gold>0){sender.treasury-=gold;target.treasury=(target.treasury||0)+gold;}
-   if(piyade>0){sender.piyade=Math.max(0,(sender.piyade||0)-piyade);target.piyade=(target.piyade||0)+piyade;}
-   if(suvari>0){sender.suvari=Math.max(0,(sender.suvari||0)-suvari);target.suvari=(target.suvari||0)+suvari;}
-   if(nisanci>0){sender.nisanci=Math.max(0,(sender.nisanci||0)-nisanci);target.nisanci=(target.nisanci||0)+nisanci;}
+   if(piyade>0){sender.piyade=Math.max(0,(sender.piyade||0)-piyade);target.piyade=(target.piyade||0)+piyade; sender.population -= piyade; target.population += piyade;}
+   if(suvari>0){sender.suvari=Math.max(0,(sender.suvari||0)-suvari);target.suvari=(target.suvari||0)+suvari; sender.population -= suvari; target.population += suvari;}
+   if(nisanci>0){sender.nisanci=Math.max(0,(sender.nisanci||0)-nisanci);target.nisanci=(target.nisanci||0)+nisanci; sender.population -= nisanci; target.population += nisanci;}
  }
  db.letters=db.letters||[];
  db.letters.unshift({id:crypto.randomUUID(),fromStateId:isAdminLetter?"__admin__":sender.id,fromStateName:isAdminLetter?"Devlet Yönetim Paneli":sender.name,senderTitle,toStateId:recipient.id,toStateName:recipient.name,toType:recipient.type,sealUrl,content,gold,piyade,suvari,nisanci,date:new Date().toLocaleDateString("tr-TR")+" "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}),read:false});
@@ -2839,15 +2872,29 @@ function sendLetter(fromStateId) {
  if(isAdminLetter){openAdminLetters();}else{closeModal();openDetail(sender.id);}
  toast(`Mektup ${recipient.name} için kaydedildi.`,true);
 }
-function openAdminLetters(){
+
+ 
+function openAdminLetters()
+{
  if(!isAdmin)return;
  const letters=db.letters||[];
  const list=letters.length?letters.map(letter=>`<div class="letter-box"><div class="letter-head"><b>${esc(letter.fromStateName||"Bilinmeyen")} → ${esc(letter.toStateName||"Bilinmeyen")}</b><span class="sub">${esc(letter.date||"")}</span></div><div class="sub" style="margin-bottom:6px;">${esc(letter.senderTitle||"")}${letter.toType==="map"?" • Harita Devleti":""}</div><div style="white-space:pre-wrap;">${esc(letter.content||"")}</div>${letter.gold||letter.piyade||letter.suvari||letter.nisanci?`<div class="sub" style="margin-top:7px;">Ekler: ${money(letter.gold||0)} • Piyade ${num(letter.piyade||0)} • Süvari ${num(letter.suvari||0)} • Nişancı ${num(letter.nisanci||0)}</div>`:""}</div>`).join(""):"<p class='sub'>Henüz gönderilmiş mektup yok.</p>";
  modal(`<h2>✉️ TÜM MEKTUPLAR</h2><div class="actions" style="margin:8px 0 12px;"><button class="btn gold" onclick="openLetterModal('__admin__')">✉️ YENİ YÖNETİCİ MEKTUBU</button><button class="btn" onclick="openAdmin()">← AYARLARA DÖN</button></div><div style="max-height:65vh;overflow:auto;">${list}</div>`);
 }
-function deleteLetter(letterId, currentStateId) {
+
+
+function deleteLetter(letterId, currentStateId) 
+{
  if(!confirm("Bu mektubu posta kutunuzdan silmek istediğinize emin misiniz?"))return;
- db.letters=(db.letters||[]).filter(letter=>letter.id!==letterId);
+ const letter = db.letters.find(l => l.id === letterId);
+ if(letter) {
+   letter.deletedBy = letter.deletedBy || [];
+   letter.deletedBy.push(currentStateId);
+   // Eğer her iki taraf da sildiyse veya sileyen kişi adminse veritabanından tamamen uçur
+   if((letter.deletedBy.includes(letter.fromStateId) && letter.deletedBy.includes(letter.toStateId)) || currentStateId === '__admin__') {
+      db.letters = db.letters.filter(l => l.id !== letterId);
+   }
+ }
  queueSave();openDetail(currentStateId);
 }
 
