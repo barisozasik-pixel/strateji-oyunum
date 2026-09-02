@@ -1,0 +1,193 @@
+// Ne işe yarar: Sabit ve tek seferlik giderleri, vergi gelirini, ordu/donanma bakım masraflarını hesaplar.
+
+function addLedgerItem(stateId) {
+    if(!isAdmin) return;
+    let s = getState(stateId);
+    let desc = document.getElementById('ledger_desc_'+stateId).value.trim();
+    let amt = Number(document.getElementById('ledger_amt_'+stateId).value) || 0;
+    let type = document.getElementById('ledger_type_'+stateId).value;
+    if(!desc) { alert("Açıklama yazmalısınız."); return; }
+    
+    if(type === 'perm') {
+        s.permanentLedger = s.permanentLedger || [];
+        s.permanentLedger.push({ desc, amount: amt });
+    } else {
+        s.customLedger = s.customLedger || [];
+        s.customLedger.push({ desc, amount: amt });
+    }
+    queueSave(); openDetail(stateId);
+}
+function removeLedgerItem(stateId, index) {
+    if(!isAdmin) return;
+    let s = getState(stateId);
+    if(!s || !s.customLedger) return;
+    s.customLedger.splice(index, 1);
+    queueSave(); openDetail(stateId);
+}
+function removePermLedgerItem(stateId, index) {
+    if(!isAdmin) return;
+    let s = getState(stateId);
+    if(!s || !s.permanentLedger) return;
+    s.permanentLedger.splice(index, 1);
+    queueSave(); openDetail(stateId);
+}
+
+function calcPop(s){
+  const adv = getAdvisorEffects(s);
+  let hap = (Number(s.happiness) || 0) + adv.happinessBonus;
+  let pop = Number(s.population) || 0;
+  let edu = Number(s.education) || 0;
+  
+  const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
+  let anarRate = hap >= 60 ? 0 : Math.floor((59 - hap)/10)*10 + 10;
+  anarRate += Math.max(0, (taxRate - 50) * 0.5);
+  if(hap < 0) anarRate = 60; 
+  if(adv.stopAnarchy) anarRate = 0;
+  
+  let anarCount = Math.floor(pop * (anarRate/100));
+  
+  let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0) + (s.fortressGarrison||0);
+  if(db.settings.customItems) {
+     db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
+  }
+ 
+  let eligRate = hap * 0.3;
+  let maxElig = Math.floor(pop * (eligRate/100));
+  
+  let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
+  let ghostEligible = Math.floor(totalDead * (1 - (eligRate/100)));
+  
+  let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
+  
+  let baseCivilian = Math.max(0, pop - anarCount - maxElig + ghostEligible);
+  if (armySize > maxElig - ghostEligible) {
+      baseCivilian = Math.max(0, baseCivilian - (armySize - (maxElig - ghostEligible)));
+  }
+   
+  let remCount = baseCivilian;
+  
+  const legacyEducated = Math.floor(remCount * (edu/100));
+  const storedEducated = Number.isFinite(Number(s.educatedPopulation)) ? Math.max(0, Math.floor(Number(s.educatedPopulation))) : legacyEducated;
+  let eduCount = Math.min(remCount, storedEducated);
+  let otherCount = remCount - eduCount;
+  
+  const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
+  const bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
+  const bonusEdu = Math.max(0, Math.floor(Number(s.educatedPopulationBonus)||0));
+  
+  anarCount = Math.min(pop, anarCount + bonusAnar);
+  eduCount = Math.min(Math.max(0, pop - anarCount), eduCount + bonusEdu);
+  otherCount = Math.max(0, remCount - eduCount);
+  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize), availableElig + bonusElig);
+  
+  const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
+  if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
+  
+  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, edu: eduCount, eduRate: edu, other: otherCount, remaining: remCount };
+}
+
+
+function calcIncome(s){
+  const p = calcPop(s);
+  const adv = getAdvisorEffects(s);
+  const baseTax = (Number(s.baseTaxPerPerson)||5) * (Math.max(0,Math.min(75,Number(s.tax)||0))/100);
+  const adjustedBaseTax = baseTax * (1 + (adv.taxBonus / 100));
+  const educatedMultiplier = Math.max(0, Number(db.settings.educatedTaxMultiplier ?? 1.5));
+  return Math.floor((p.elig * adjustedBaseTax) + (p.other * adjustedBaseTax) + (p.edu * adjustedBaseTax * educatedMultiplier));
+}
+ 
+function calcPermIncome(s){
+  let total = 0;
+  if(s.permanentLedger && s.permanentLedger.length > 0) s.permanentLedger.forEach(item => { total += item.amount; });
+  return total;
+}
+ 
+function calcMilitaryUpkeep(s){
+  const adv = getAdvisorEffects(s);
+  const discountFactor = Math.max(0, 1 - (adv.milUpkeepDiscount / 100));
+  let raw = (s.piyade||0)*(db.settings.upkeep?.piyade||35)+(s.suvari||0)*(db.settings.upkeep?.suvari||55)+(s.nisanci||0)*(db.settings.upkeep?.nisanci||45);
+  return Math.round(raw * discountFactor);
+}
+ 
+function calcArtilleryUpkeep(s){
+  const adv = getAdvisorEffects(s);
+  const discountFactor = Math.max(0, 1 - (adv.artUpkeepDiscount / 100));
+  let raw = (s.kucuk_top||0)*(db.settings.upkeep?.kucuk_top||7500)+(s.orta_top||0)*(db.settings.upkeep?.orta_top||15000)+(s.buyuk_top||0)*(db.settings.upkeep?.buyuk_top||25000);
+  return Math.round(raw * discountFactor);
+}
+ 
+function calcNavyUpkeep(s){
+  const adv = getAdvisorEffects(s);
+  const discountFactor = Math.max(0, 1 - (adv.navyUpkeepDiscount / 100));
+  let raw = (s.kucuk_gemi||0)*(db.settings.upkeep?.kucuk_gemi||20000)+(s.orta_gemi||0)*(db.settings.upkeep?.orta_gemi||35000)+(s.buyuk_gemi||0)*(db.settings.upkeep?.buyuk_gemi||50000);
+  return Math.round(raw * discountFactor);
+}
+ 
+function calcCustomUpkeep(s){
+  let c = 0;
+  if(db.settings.customItems) db.settings.customItems.forEach(item => { c += (s[item.id]||0) * (item.upkeep||0); });
+  return c;
+}
+ 
+function calcAdvisorExpenses(s){
+  let total = 0;
+  const hired = s.hiredAdvisors || [];
+  if(hired.length > 0 && db.advisors) {
+      db.advisors.forEach(a => {
+          if(hired.includes(a.id)) total += (Number(a.salary) || 0);
+      });
+  }
+  return total;
+}
+ 
+function calcFortressGarrisonExpense(s){
+  return Math.max(0,Number(s.fortressGarrison)||0)*Math.max(0,Number(db.settings.garrisonUpkeep?.fortress)||0);
+}
+ 
+function calcPopulationBuildingExpense(s){
+  const upkeep=db.settings.populationBuildingUpkeep||{};
+  return ["hastane","asevi","su_degirmeni","kervansaray","pazar"].reduce((total,key)=>
+    total + Math.max(0,Number(s[key])||0)*Math.max(0,Number(upkeep[key])||0),0);
+}
+
+function preferLocalChangedFields(base,local,remote){
+ if(valuesEqual(local,base))return structuredClone(remote);
+ if(valuesEqual(remote,base))return structuredClone(local);
+ if(Array.isArray(local)||Array.isArray(remote)){
+   const baseArr=Array.isArray(base)?base:[];
+   const localArr=Array.isArray(local)?local:[];
+   const remoteArr=Array.isArray(remote)?remote:[];
+   const keyOf=it=>(it&&typeof it==='object')?(it.id??it.uid??it.logId??it.stateId??JSON.stringify(it)):it;
+   const byKey=arr=>{const m=new Map();arr.forEach(it=>m.set(keyOf(it),it));return m;};
+   const baseMap=byKey(baseArr),localMap=byKey(localArr),remoteMap=byKey(remoteArr);
+   const order=[],seen=new Set();
+   [...remoteArr,...localArr].forEach(it=>{const k=keyOf(it);if(!seen.has(k)){seen.add(k);order.push(k);}});
+   const merged=[];
+   order.forEach(k=>{
+     const inLocal=localMap.has(k),inRemote=remoteMap.has(k),inBase=baseMap.has(k);
+     if(!inLocal&&!inRemote)return;
+     if(!inLocal&&inBase)return;
+     if(!inRemote&&inBase)return;
+     if(!inLocal){merged.push(structuredClone(remoteMap.get(k)));return;}
+     if(!inRemote){merged.push(structuredClone(localMap.get(k)));return;}
+     merged.push(preferLocalChangedFields(baseMap.get(k),localMap.get(k),remoteMap.get(k)));
+   });
+   return merged;
+ }
+ if(local===null||typeof local!=="object"||remote===null||typeof remote!=="object")return structuredClone(local);
+ const result=structuredClone(remote||{});
+ Object.keys(local||{}).forEach(key=>{result[key]=preferLocalChangedFields(base?.[key],local[key],remote?.[key]);});
+ return result;
+}
+
+function calcInfrastructureExpense(s){
+  const upkeep=db.settings.infrastructureUpkeep||{};
+  return ["kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","istihbarat_binasi"]
+    .reduce((total,key)=>total+Math.max(0,Number(s[key])||0)*Math.max(0,Number(upkeep[key])||0),0);
+}
+function calcExpenses(s){
+  const schoolExpense = Math.max(0, Number(s.okul)||0) * Math.max(0, Number(db.settings.schoolUpkeep)||0);
+  return calcMilitaryUpkeep(s) + calcArtilleryUpkeep(s) + calcNavyUpkeep(s) + calcCustomUpkeep(s) + calcAdvisorExpenses(s) + calcFortressGarrisonExpense(s) + calcPopulationBuildingExpense(s) + calcInfrastructureExpense(s) + schoolExpense + Number(s.civilExpense||0);
+}
+function hasTreasuryDebt(s){return Number(s?.treasury||0)<0;}
+function rejectDebtPurchase(s){if(hasTreasuryDebt(s)){alert("Bu devlet borçlu olduğu için yeni alım veya inşa yapamaz.");return true;}return false;}
