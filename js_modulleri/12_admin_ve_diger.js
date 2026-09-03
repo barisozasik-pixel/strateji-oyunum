@@ -1,54 +1,107 @@
 function openStateForm(id=null){
  if(!isAdmin) return;
  const populationBreakdown=calcPop(id?getState(id):{population:0,happiness:0,education:0});
- const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,educatedPopulationBonus:0,anarchistPopulationBonus:0,eligiblePopulationBonus:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0};
+ const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,educatedPopulationBonus:0,anarchistPopulationBonus:0,eligiblePopulationBonus:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0,hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0};
+ 
  let customFields = "";
  if(db.settings.customItems && db.settings.customItems.length > 0) {
-    customFields += `<div class="full"><h4 style="margin:8px 0 4px; border-bottom:1px solid var(--line); color:var(--border-gold);">ÖZEL ÜRÜNLER</h4></div>`;
+    customFields += `<div class="full"><h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">🌟 ÖZEL ÜRÜNLER</h4></div><div class="formgrid">`;
     db.settings.customItems.forEach(item => { customFields += field(item.id, item.name, s[item.id]||0, "number"); });
+    customFields += `</div>`;
  }
- modal(`<h2>${id?"DEVLET DÜZENLE":"YENİ DEVLET EKLE"}</h2><div class="formgrid">
- ${field("name","Devlet Adı",s.name,"text")}
- ${field("title","Unvan",s.title,"text")}
- ${field("ruler","Hükümdar İsmi",s.ruler,"text")}
- ${field("rulerImage","Hükümdar Portre URL",cleanUrl(s.rulerImage),"text")}
- ${field("bgImage","Arka Plan URL (İsteğe Bağlı)",cleanUrl(s.bgImage),"text")}
- ${field("color","Tema Rengi",s.color,"color")}
- <div class="full" style="background:rgba(231, 76, 60, 0.1); border:1px solid var(--red); padding:8px; border-radius:3px;">
-    ${field("ownerEmail","Oyuncu E-postası (Sahip)",s.ownerEmail||"","email")}
-    <p class="sub" style="color:#f1948a; margin:3px 0 0;">Devleti yönetecek kişinin sisteme kayıt olduğu e-posta adresini girin.</p>
- </div>
- ${field("treasury","Hazine",s.treasury,"number")}${field("population","Toplam Nüfus",s.population,"number")}${field("tax","Vergi %",s.tax,"number")}
- ${field("happiness","Mutluluk %",s.happiness,"number")}${field("education","Eski Eğitim %",s.education,"number")}${field("educatedPopulation","Eğitimli Nüfus (Kişi)",s.educatedPopulation??0,"number")}${field("baseTaxPerPerson","Kişi Başı Temel Vergi",s.baseTaxPerPerson,"number")}${field("civilExpense","Sivil Gider (Yıllık)",s.civilExpense,"number")}
- <div class="full" style="background:rgba(52,152,219,.1);border:1px solid var(--blue);padding:8px;border-radius:3px;"><b style="color:var(--blue);">EK NÜFUS BONUSLARI</b><div class="formgrid" style="margin-top:6px;">${field("educatedPopulationBonus","Ek Eğitimli Nüfus",s.educatedPopulationBonus||0,"number")}${field("anarchistPopulationBonus","Ek Anarşist Nüfus",s.anarchistPopulationBonus||0,"number")}${field("eligiblePopulationBonus","Ek Elverişli Nüfus",s.eligiblePopulationBonus||0,"number")}</div><p class="sub" style="margin:4px 0 0;">Otomatik hesaplamaya eklenir; toplam nüfus sınırı korunur.</p></div>
- 
- <div class="full" style="background:rgba(197, 160, 89, 0.15); border:1px solid var(--border-gold); padding:8px; border-radius:3px;">
-    ${field("advisorSlots","Divan Üyesi Kotası (Kaç Danışman Seçebilir?)",s.advisorSlots||3,"number")}
-    <p class="sub" style="color:var(--gold); margin:3px 0 0;">Bu devletin divanına en fazla kaç adet vezir / danışman atayabileceğini belirleyin.</p>
- </div>
 
- <div class="full"><h4 style="margin:8px 0 4px; border-bottom:1px solid var(--line); color:var(--border-gold);">TEMEL ORDU & ALTYAPI</h4></div>
- ${field("piyade","Piyade",s.piyade,"number")}${field("suvari","Süvari",s.suvari,"number")}${field("nisanci","Nişancı",s.nisanci,"number")}
- ${field("kucuk_top","Küçük Top",s.kucuk_top,"number")}${field("orta_top","Orta Top",s.orta_top,"number")}${field("buyuk_top","Büyük Top",s.buyuk_top,"number")}
- ${field("kucuk_gemi","Küçük Gemi",s.kucuk_gemi,"number")}${field("orta_gemi","Orta Gemi",s.orta_gemi,"number")}${field("buyuk_gemi","Büyük Gemi",s.buyuk_gemi,"number")}
- ${field("kucuk_liman","Küçük Liman",s.kucuk_liman,"number")}${field("orta_liman","Orta Liman",s.orta_liman,"number")}${field("buyuk_liman","Büyük Liman",s.buyuk_liman,"number")}
- ${field("kucuk_ocak","Küçük Top Ocağı",s.kucuk_ocak,"number")}${field("orta_ocak","Orta Top Ocağı",s.orta_ocak,"number")}${field("buyuk_ocak","Büyük Top Ocağı",s.buyuk_ocak,"number")}
- ${field("okul","Okul",s.okul,"number")}
- ${field("istihbarat_binasi","İstihbarat Dairesi (Bina Sayısı)",s.istihbarat_binasi||0,"number")}
- <div class="full"><h4 style="margin:8px 0 4px; border-bottom:1px solid var(--line); color:var(--border-gold);">NÜFUS BİNALARI</h4></div>
- ${field("hastane","Hastane",s.hastane||0,"number")}${field("asevi","Aşevi",s.asevi||0,"number")}
- ${field("su_degirmeni","Su Değirmeni",s.su_degirmeni||0,"number")}${field("kervansaray","Kervansaray",s.kervansaray||0,"number")}
- ${field("pazar","Pazar",s.pazar||0,"number")}
- ${customFields}
- <div class="full actions" style="margin-top:10px;"><button class="btn" onclick="closeModal()">VAZGEÇ</button><button class="btn green" onclick="saveState('${id||""}')">KAYDET</button>${id?`<button class="btn red" onclick="deleteState('${id}')">SİL</button>`:""}</div></div>`);
+ modal(`
+  <div style="position:relative;">
+    <button onclick="closeModal()" style="position:absolute; right:-10px; top:-10px; background:none; border:none; font-size:28px; color:var(--red); cursor:pointer; padding:5px; line-height:1;">&times;</button>
+    <h2 style="margin-top:0; border-bottom:2px solid var(--border-gold); padding-bottom:10px;">${id?"🛠 DEVLET DÜZENLE":"➕ YENİ DEVLET EKLE"}</h2>
+    
+    <h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">📌 GENEL BİLGİLER</h4>
+    <div class="formgrid">
+      ${field("name","Devlet Adı",s.name,"text")}
+      ${field("title","Unvan (İmparatorluk vb.)",s.title,"text")}
+      ${field("ruler","Hükümdar İsmi",s.ruler,"text")}
+      ${field("color","Tema Rengi",s.color,"color")}
+      ${field("rulerImage","Hükümdar Portre URL",cleanUrl(s.rulerImage),"text")}
+      ${field("bgImage","Arka Plan URL (İsteğe Bağlı)",cleanUrl(s.bgImage),"text")}
+      <div class="full" style="background:rgba(231, 76, 60, 0.1); border:1px solid var(--red); padding:10px; border-radius:5px;">
+         ${field("ownerEmail","Oyuncu E-postası (Sahip)",s.ownerEmail||"","email")}
+         <p class="sub" style="color:#f1948a; margin:5px 0 0;">Devleti yönetecek kişinin sisteme kayıt olduğu e-posta adresini girin.</p>
+      </div>
+    </div>
+
+    <h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">💰 EKONOMİ & HAZİNE</h4>
+    <div class="formgrid">
+      ${field("treasury","Hazine (Altın)",s.treasury,"number")}
+      ${field("tax","Vergi Oranı %",s.tax,"number")}
+      ${field("happiness","Mutluluk %",s.happiness,"number")}
+      ${field("baseTaxPerPerson","Kişi Başı Temel Vergi",s.baseTaxPerPerson,"number")}
+      ${field("civilExpense","Sivil Gider (Yıllık)",s.civilExpense,"number")}
+      ${field("education","Eski Eğitim %",s.education,"number")}
+      <div class="full" style="background:rgba(197, 160, 89, 0.15); border:1px solid var(--border-gold); padding:10px; border-radius:5px;">
+         ${field("advisorSlots","Divan Üyesi Kotası (Kaç Danışman Seçebilir?)",s.advisorSlots||3,"number")}
+      </div>
+    </div>
+
+    <h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">👥 NÜFUS YÖNETİMİ</h4>
+    <div class="formgrid">
+      ${field("population","Mevcut Toplam Nüfus",s.population,"number")}
+      <div style="background:rgba(46, 204, 113, 0.15); border:1px solid var(--green); padding:10px; border-radius:5px;">
+         <label style="color:var(--green); font-weight:bold;">⚡ Hızlı Nüfus Ekle/Çıkar (+ / -)</label>
+         <input id="f_pop_modifier" type="number" value="0" placeholder="Örn: 50000">
+         <p class="sub" style="color:var(--green); margin:5px 0 0;">Bitişik yaz! Buraya yazdığın sayı mevcuda eklenir (Eksi de yazabilirsin).</p>
+      </div>
+      ${field("educatedPopulation","Eğitimli Nüfus (Kişi)",s.educatedPopulation??0,"number")}
+    </div>
+    <div class="full" style="background:rgba(52,152,219,.1);border:1px solid var(--blue);padding:10px;border-radius:5px; margin-top:10px;">
+      <b style="color:var(--blue);">🛡 EK NÜFUS BONUSLARI (Kapasite)</b>
+      <div class="formgrid" style="margin-top:10px;">
+        ${field("educatedPopulationBonus","Ek Eğitimli Nüfus",s.educatedPopulationBonus||0,"number")}
+        ${field("anarchistPopulationBonus","Ek Anarşist Nüfus",s.anarchistPopulationBonus||0,"number")}
+        ${field("eligiblePopulationBonus","Ek Elverişli Asker",s.eligiblePopulationBonus||0,"number")}
+      </div>
+      <p class="sub" style="margin:6px 0 0;">Bu sayılar otomatik hesaplamalardaki havuz sınırlarına (kapasiteye) eklenir.</p>
+    </div>
+
+    <h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">⚔ TEMEL ORDU & ALTYAPI</h4>
+    <div class="formgrid">
+      ${field("piyade","Piyade",s.piyade,"number")}${field("suvari","Süvari",s.suvari,"number")}${field("nisanci","Nişancı",s.nisanci,"number")}
+      ${field("kucuk_top","Küçük Top",s.kucuk_top,"number")}${field("orta_top","Orta Top",s.orta_top,"number")}${field("buyuk_top","Büyük Top",s.buyuk_top,"number")}
+      ${field("kucuk_gemi","Küçük Gemi",s.kucuk_gemi,"number")}${field("orta_gemi","Orta Gemi",s.orta_gemi,"number")}${field("buyuk_gemi","Büyük Gemi",s.buyuk_gemi,"number")}
+      ${field("kucuk_liman","Küçük Liman",s.kucuk_liman,"number")}${field("orta_liman","Orta Liman",s.orta_liman,"number")}${field("buyuk_liman","Büyük Liman",s.buyuk_liman,"number")}
+      ${field("kucuk_ocak","Küçük Top Ocağı",s.kucuk_ocak,"number")}${field("orta_ocak","Orta Top Ocağı",s.orta_ocak,"number")}${field("buyuk_ocak","Büyük Top Ocağı",s.buyuk_ocak,"number")}
+      ${field("okul","Okul",s.okul,"number")}
+      ${field("istihbarat_binasi","İstihbarat Dairesi",s.istihbarat_binasi||0,"number")}
+    </div>
+
+    <h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">🏥 NÜFUS BİNALARI</h4>
+    <div class="formgrid">
+      ${field("hastane","Hastane",s.hastane||0,"number")}${field("asevi","Aşevi",s.asevi||0,"number")}
+      ${field("su_degirmeni","Su Değirmeni",s.su_degirmeni||0,"number")}${field("kervansaray","Kervansaray",s.kervansaray||0,"number")}
+      ${field("pazar","Pazar",s.pazar||0,"number")}
+    </div>
+    
+    ${customFields}
+
+    <div class="full actions" style="margin-top:20px; padding-top:15px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end;">
+      ${id?`<button class="btn red" style="margin-right:auto;" onclick="deleteState('${id}')">SİL</button>`:""}
+      <button class="btn" onclick="closeModal()">VAZGEÇ</button>
+      <button class="btn green" style="padding:10px 30px; font-weight:bold;" onclick="saveState('${id||""}')">KAYDET</button>
+    </div>
+  </div>
+ `);
 }
-function field(k,l,v,t="text"){return `<div><label>${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}"></div>`}
+function field(k,l,v,t="text"){return `<div><label style="font-weight:bold; margin-bottom:4px; display:block; color:var(--text);">${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}" style="width:100%; padding:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:4px;"></div>`}
 
 function saveState(id){
  const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","educatedPopulationBonus","anarchistPopulationBonus","eligiblePopulationBonus","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
  if(db.settings.customItems) { db.settings.customItems.forEach(item => keys.push(item.id)); }
  const o={};
  keys.forEach(k=>o[k]=["name","ownerEmail","ruler","rulerImage","bgImage","title","color"].includes(k)?document.getElementById("f_"+k).value:Number(document.getElementById("f_"+k).value||0));
+ 
+ // Nüfus Ekle/Çıkar İşlemi
+ const popModifier = Number(document.getElementById("f_pop_modifier")?.value || 0);
+ o.population += popModifier;
+
  if(!o.name){alert("Devlet adı gerekli.");return}
  o.ownerEmail = (o.ownerEmail || "").trim().toLowerCase();
  o.tax=Math.max(0,Math.min(75,Number(o.tax)||0));
