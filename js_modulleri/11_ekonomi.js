@@ -163,6 +163,14 @@ function calcPopulationBuildingExpense(s)
 function preferLocalChangedFields(base,local,remote){
  if(valuesEqual(local,base))return structuredClone(remote);
  if(valuesEqual(remote,base))return structuredClone(local);
+ 
+ // Sayılarda (örn: asker sayısı, para) anlık çakışmaları delta (fark) mantığıyla toplayarak çöz:
+ if(typeof base === "number" && typeof local === "number" && typeof remote === "number") {
+     const deltaLocal = local - base;
+     const deltaRemote = remote - base;
+     return base + deltaLocal + deltaRemote;
+ }
+ 
  if(Array.isArray(local)||Array.isArray(remote)){
    // ÖNEMLİ: Eskiden çakışma anında dizi alanlarındaki (örn. customItems)
    // yerel değişiklikler komple silinip remote'un aynısı döndürülüyordu.
