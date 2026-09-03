@@ -61,12 +61,8 @@ function calcPop(s)
   // BOŞTAKİ ASKER (Ordu veya ölü asker artarsa boş asker azalır)
   let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
   
-  // SIRADAN HALK (Savaşta asker ölse bile sıradan halkı sabit tutan o efsanevi formül)
-  let baseCivilian = Math.max(0, pop - anarCount - maxElig + ghostEligible);
-  if (armySize > maxElig - ghostEligible) 
-  {
-      baseCivilian = Math.max(0, baseCivilian - (armySize - (maxElig - ghostEligible)));
-  }
+  // SIRADAN HALK (Boştaki elverişli askerler de sıradan halkın bir parçasıdır)
+  let baseCivilian = Math.max(0, pop - anarCount - armySize);
    
   let remCount = baseCivilian;
   
