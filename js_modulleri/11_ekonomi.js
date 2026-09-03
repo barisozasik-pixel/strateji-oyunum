@@ -52,7 +52,8 @@ function calcPop(s)
   }
  
   let eligRate = hap * 0.3;
-  let maxElig = Math.floor(pop * (eligRate/100));
+  let bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
+  let maxElig = Math.floor(pop * (eligRate/100)) + bonusElig;
   
   // SAVAŞ KAYIPLARI (Ölüler asker havuzundan kalıcı olarak düşülür)
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
@@ -72,13 +73,12 @@ function calcPop(s)
   let otherCount = remCount - eduCount;
   
   const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
-  const bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
   const bonusEdu = Math.max(0, Math.floor(Number(s.educatedPopulationBonus)||0));
   
   anarCount = Math.min(pop, anarCount + bonusAnar);
   eduCount = Math.min(Math.max(0, pop - anarCount), eduCount + bonusEdu);
   otherCount = Math.max(0, remCount - eduCount);
-  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize), availableElig + bonusElig);
+  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize), availableElig);
   
   const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
