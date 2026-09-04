@@ -223,6 +223,14 @@ function mergeStateThreeWay(base,local,remote,path="",conflicts=[]){
  if(valuesEqual(local,base))return structuredClone(remote);
  if(valuesEqual(remote,base))return structuredClone(local);
  if(valuesEqual(local,remote))return structuredClone(local);
+
+ // Sayılarda (Örn: asker sayısı, hazine) anlık çakışmaları delta (fark) mantığıyla toplayarak çöz:
+ if(typeof base === "number" && typeof local === "number" && typeof remote === "number") {
+     const deltaLocal = local - base;
+     const deltaRemote = remote - base;
+     return base + deltaLocal + deltaRemote;
+ }
+
  if(Array.isArray(local)||Array.isArray(remote)){
    // ÖNEMLİ: Eskiden burada aynı id'ye sahip öğe hem local hem remote'da varsa
    // sadece remote'daki kopya tutulup local'deki değişiklik SESSİZCE siliniyordu.
