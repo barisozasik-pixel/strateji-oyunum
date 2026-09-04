@@ -212,7 +212,7 @@ function cleanUrl(u){
 function money(n){return Number(n||0).toLocaleString("tr-TR")+" TL"}
 function num(n){return Number(n||0).toLocaleString("tr-TR")}
 function getState(id){return db.states.find(s=>s.id===id)}
-function valuesEqual(a,b){return JSON.stringify(a)===JSON.stringify(b)}
+function valuesEqual(a,b){if(a===b)return true;if(a==null||b==null)return a===b;if(typeof a!==typeof b)return false;if(Array.isArray(a)){if(!Array.isArray(b)||a.length!==b.length)return false;for(let i=0;i<a.length;i++){if(!valuesEqual(a[i],b[i]))return false;}return true;}if(typeof a==='object'){const ka=Object.keys(a),kb=Object.keys(b);if(ka.length!==kb.length)return false;for(const k of ka){if(!valuesEqual(a[k],b[k]))return false;}return true;}return a===b;}
 function normalizeSettings(settings){
  const s={...defaultSettings,...(settings||{})};
  ["prices","capacity","upkeep","garrisonUpkeep","populationBuildingGrowth","populationBuildingCostPerPerson","populationBuildingUpkeep","infrastructureUpkeep","edictCost","campaignCost","images"].forEach(k=>{s[k]={...defaultSettings[k],...(s[k]||{})};});
