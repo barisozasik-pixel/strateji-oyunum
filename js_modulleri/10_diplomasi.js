@@ -12,17 +12,27 @@ function hireAdvisor(stateId, advId) {
     }
 
     if(s.hiredAdvisors.includes(advId)) return;
-    
+
+    if((s.treasury||0) < adv.salary) {
+        alert(`Hazinede yeterli altın yok! ${adv.name} için ${money(adv.salary)} gerekli.`);
+        return;
+    }
+
     s.hiredAdvisors.push(advId);
     s.advisorHiredYears = s.advisorHiredYears || {};
     s.advisorHiredYears[advId] = 0; // 0 yıl (yani henüz 1 yılını doldurmadı, kilitli)
     
+    const oldTreasury = s.treasury || 0;
+    s.treasury = oldTreasury - adv.salary;
+
     addLog({
         stateId: s.id,
         stateName: s.name,
         action: `Divana Atandı: ${adv.name} (${adv.role})`,
         cost: adv.salary,
-        qty: 1
+        qty: 1,
+        oldTreasury: oldTreasury,
+        newTreasury: s.treasury
     });
 
     queueSave();
@@ -219,9 +229,9 @@ function sendLetter(fromStateId)
  const oldSenderT=sender?.treasury||0,oldTargetT=target?.treasury||0,oldSenderP=sender?.piyade||0,oldTargetP=target?.piyade||0;
  if(sender&&target){
    if(gold>0){sender.treasury-=gold;target.treasury=(target.treasury||0)+gold;}
-   if(piyade>0){sender.piyade=Math.max(0,(sender.piyade||0)-piyade);target.piyade=(target.piyade||0)+piyade; sender.population -= piyade; target.population += piyade;}
-   if(suvari>0){sender.suvari=Math.max(0,(sender.suvari||0)-suvari);target.suvari=(target.suvari||0)+suvari; sender.population -= suvari; target.population += suvari;}
-   if(nisanci>0){sender.nisanci=Math.max(0,(sender.nisanci||0)-nisanci);target.nisanci=(target.nisanci||0)+nisanci; sender.population -= nisanci; target.population += nisanci;}
+    if(piyade>0){sender.piyade=Math.max(0,(sender.piyade||0)-piyade);target.piyade=(target.piyade||0)+piyade; sender.population=Math.max(0,(sender.population||0)-piyade); target.population=(target.population||0)+piyade;}
+    if(suvari>0){sender.suvari=Math.max(0,(sender.suvari||0)-suvari);target.suvari=(target.suvari||0)+suvari; sender.population=Math.max(0,(sender.population||0)-suvari); target.population=(target.population||0)+suvari;}
+    if(nisanci>0){sender.nisanci=Math.max(0,(sender.nisanci||0)-nisanci);target.nisanci=(target.nisanci||0)+nisanci; sender.population=Math.max(0,(sender.population||0)-nisanci); target.population=(target.population||0)+nisanci;}
  }
  db.letters=db.letters||[];
  db.letters.unshift({id:crypto.randomUUID(),fromStateId:isAdminLetter?"__admin__":sender.id,fromStateName:isAdminLetter?"Devlet Yönetim Paneli":sender.name,senderTitle,toStateId:recipient.id,toStateName:recipient.name,toType:recipient.type,sealUrl,content,gold,piyade,suvari,nisanci,date:new Date().toLocaleDateString("tr-TR")+" "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}),read:false});
