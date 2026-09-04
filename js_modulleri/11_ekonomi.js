@@ -156,46 +156,6 @@ function calcPopulationBuildingExpense(s)
   return ["hastane","asevi","su_degirmeni","kervansaray","pazar"].reduce((total,key)=>
     total + Math.max(0,Number(s[key])||0)*Math.max(0,Number(upkeep[key])||0),0);
 }
-function preferLocalChangedFields(base,local,remote){
- if(valuesEqual(local,base))return structuredClone(remote);
- if(valuesEqual(remote,base))return structuredClone(local);
- 
- // Sayılarda (örn: asker sayısı, para) anlık çakışmaları delta (fark) mantığıyla toplayarak çöz:
- if(typeof base === "number" && typeof local === "number" && typeof remote === "number") {
-     const deltaLocal = local - base;
-     const deltaRemote = remote - base;
-     return base + deltaLocal + deltaRemote;
- }
- 
- if(Array.isArray(local)||Array.isArray(remote)){
-   // ÖNEMLİ: Eskiden çakışma anında dizi alanlarındaki (örn. customItems)
-   // yerel değişiklikler komple silinip remote'un aynısı döndürülüyordu.
-   // Şimdi öğeler id/uid/logId/stateId'ye göre eşleştirilip yerel değişiklikler korunuyor.
-   const baseArr=Array.isArray(base)?base:[];
-   const localArr=Array.isArray(local)?local:[];
-   const remoteArr=Array.isArray(remote)?remote:[];
-   const keyOf=it=>(it&&typeof it==='object')?(it.id??it.uid??it.logId??it.stateId??JSON.stringify(it)):it;
-   const byKey=arr=>{const m=new Map();arr.forEach(it=>m.set(keyOf(it),it));return m;};
-   const baseMap=byKey(baseArr),localMap=byKey(localArr),remoteMap=byKey(remoteArr);
-   const order=[],seen=new Set();
-   [...remoteArr,...localArr].forEach(it=>{const k=keyOf(it);if(!seen.has(k)){seen.add(k);order.push(k);}});
-   const merged=[];
-   order.forEach(k=>{
-     const inLocal=localMap.has(k),inRemote=remoteMap.has(k),inBase=baseMap.has(k);
-     if(!inLocal&&!inRemote)return;
-     if(!inLocal&&inBase)return;
-     if(!inRemote&&inBase)return;
-     if(!inLocal){merged.push(structuredClone(remoteMap.get(k)));return;}
-     if(!inRemote){merged.push(structuredClone(localMap.get(k)));return;}
-     merged.push(preferLocalChangedFields(baseMap.get(k),localMap.get(k),remoteMap.get(k)));
-   });
-   return merged;
- }
- if(local===null||typeof local!=="object"||remote===null||typeof remote!=="object")return structuredClone(local);
- const result=structuredClone(remote||{});
- Object.keys(local||{}).forEach(key=>{result[key]=preferLocalChangedFields(base?.[key],local[key],remote?.[key]);});
- return result;
-}
 function calcInfrastructureExpense(s){
   const upkeep=db.settings.infrastructureUpkeep||{};
   return ["kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","istihbarat_binasi"]
