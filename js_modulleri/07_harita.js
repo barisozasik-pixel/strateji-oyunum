@@ -295,7 +295,7 @@ function finishMapBatch(){
  if(!mapBatchSelection.size){mapBatch=null;updateMapBatchUi();const s=document.getElementById('mapBrushStatus');if(s)s.textContent='Çoklu atama iptal edildi.';return;}
  db.mapProvinceOwners=db.mapProvinceOwners||{};db.mapProvinceDetails=db.mapProvinceDetails||{};
  const affectedStateIds=[mapBatch.ownerId];
- for(const id of mapBatchSelection){const previousOwnerId=db.mapProvinceOwners[id];if(previousOwnerId)affectedStateIds.push(previousOwnerId);db.mapProvinceOwners[id]=mapBatch.ownerId;db.mapProvinceDetails[id]={countryName:mapBatch.countryName,garrison:0,color:mapBatch.color};}
+ for(const id of mapBatchSelection){const previousOwnerId=db.mapProvinceOwners[id];if(previousOwnerId)affectedStateIds.push(previousOwnerId);db.mapProvinceOwners[id]=mapBatch.ownerId;const existing=db.mapProvinceDetails[id]||{};db.mapProvinceDetails[id]={...existing,countryName:mapBatch.countryName,garrison:0,color:mapBatch.color};}
  refreshMapFortressCounts();redistributeMapGarrisonsForStateIds(affectedStateIds);const count=mapBatchSelection.size,name=mapBatch.countryName,ownerId=mapBatch.ownerId;
  addLog({stateId:ownerId,stateName:name,action:`Harita çoklu atama: ${count} toprak → ${name}`,qty:count,cost:0});
  for(const id of mapBatchSelection)removeBatchProvinceLabel(id);mapBatch=null;mapBatchSelection.clear();queueMapSave();applyMapOwnership();updateMapBatchUi();
@@ -345,7 +345,7 @@ function paintProvinceWithBrush(provinceId){
  db.mapProvinceOwners=db.mapProvinceOwners||{};db.mapProvinceDetails=db.mapProvinceDetails||{};
  const previousOwnerId=db.mapProvinceOwners[provinceId]||'';
  if(mapBrush.ownerId)db.mapProvinceOwners[provinceId]=mapBrush.ownerId;else delete db.mapProvinceOwners[provinceId];
- db.mapProvinceDetails[provinceId]={countryName:mapBrush.countryName,garrison:mapBrush.garrison,color:mapBrush.color};
+ const existing=db.mapProvinceDetails[provinceId]||{};db.mapProvinceDetails[provinceId]={...existing,countryName:mapBrush.countryName,garrison:mapBrush.garrison,color:mapBrush.color};
  addLog({stateId:mapBrush.ownerId,stateName:mapBrush.countryName,action:`Harita fırçası: ${getTurkishMapName(provinceId)} boyandı`,qty:1,cost:0});
  refreshMapFortressCounts();redistributeMapGarrisonsForStateIds([previousOwnerId,mapBrush.ownerId]);queueMapSave();applyMapOwnership();toast(`${getTurkishMapName(provinceId)} → ${mapBrush.countryName}`,true);
 }
@@ -618,7 +618,7 @@ function saveProvinceOwner(provinceId){
  db.mapProvinceOwners=db.mapProvinceOwners||{};
  db.mapProvinceDetails=db.mapProvinceDetails||{};
  if(newOwnerId)db.mapProvinceOwners[provinceId]=newOwnerId;else delete db.mapProvinceOwners[provinceId];
- if(countryName||garrison||color||isGloballyVisible)db.mapProvinceDetails[provinceId]={countryName,garrison,color,isGloballyVisible};else delete db.mapProvinceDetails[provinceId];
+ if(countryName||garrison||color||isGloballyVisible){const existing=db.mapProvinceDetails[provinceId]||{};db.mapProvinceDetails[provinceId]={...existing,countryName,garrison,color,isGloballyVisible};}else delete db.mapProvinceDetails[provinceId];
  const newOwner=getState(newOwnerId);
  if(applyAll&&countryName){
    document.querySelectorAll('#gameMapCanvas path[id][d]').forEach(path=>{
