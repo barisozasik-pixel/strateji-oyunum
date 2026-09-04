@@ -30,14 +30,6 @@ function getAdvisorEffects(s) {
     return eff;
 }
 
-function restoreOriginalAdvisorEffects(){
- if(db.advisorEffectVersion===3)return;
- const effectKeys=['taxBonus','milUpkeepDiscount','navyUpkeepDiscount','artUpkeepDiscount','recruitDiscount','infraDiscount','happinessBonus','stopAnarchy','spyAccuracyBonus','buff','debuff'];
- (db.advisors||[]).forEach(a=>{const original=DEFAULT_45_ADVISORS.find(x=>x.id===a.id);if(original)effectKeys.forEach(key=>a[key]=structuredClone(original[key]));});
- db.advisorEffectVersion=3;
- delete db.advisorStarBalanceVersion;
-}
-
 async function init(){
  try{
   
