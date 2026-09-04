@@ -431,7 +431,7 @@ function showYearReportModal() {
     const yr = db.settings.lastYearReport;
     if(!yr) return;
  
-    localStorage.setItem('lastSeenYearReport', yr.year);
+    localStorage.setItem('lastSeenYearReport_' + (currentUserEmail || 'guest'), yr.year);
  
     let statesToShow = [];
     if(isAdmin) {
