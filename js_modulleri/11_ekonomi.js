@@ -93,7 +93,7 @@ function calcIncome(s){
   const baseTax = (Number(s.baseTaxPerPerson)||5) * (Math.max(0,Math.min(75,Number(s.tax)||0))/100);
   const adjustedBaseTax = baseTax * (1 + (adv.taxBonus / 100));
   const educatedMultiplier = Math.max(0, Number(db.settings.educatedTaxMultiplier ?? 1.5));
-  return Math.floor((p.elig * adjustedBaseTax) + (p.other * adjustedBaseTax) + (p.edu * adjustedBaseTax * educatedMultiplier));
+  return Math.floor((p.other * adjustedBaseTax) + (p.edu * adjustedBaseTax * educatedMultiplier));
 }
  
 function calcPermIncome(s)
