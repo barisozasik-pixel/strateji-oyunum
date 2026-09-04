@@ -1,3 +1,20 @@
+window.switchAdminTab = function(tabId) {
+    document.querySelectorAll('.adm-tab').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.adm-tab-btn').forEach(el => {
+        el.style.background = 'transparent';
+        el.style.color = 'var(--text)';
+        el.style.borderBottom = 'none';
+    });
+    const target = document.getElementById('adm-tab-' + tabId);
+    if(target) target.style.display = 'block';
+    const activeBtn = document.getElementById('adm-tab-btn-' + tabId);
+    if(activeBtn){
+       activeBtn.style.background = 'var(--bg-lighter)';
+       activeBtn.style.color = 'var(--gold)';
+       activeBtn.style.borderBottom = '2px solid var(--gold)';
+    }
+};
+
 function openStateForm(id=null){
  if(!isAdmin) return;
  const populationBreakdown=calcPop(id?getState(id):{population:0,happiness:0,education:0});
@@ -14,24 +31,6 @@ function openStateForm(id=null){
   <div style="position:relative;">
     <button onclick="closeModal()" style="position:absolute; right:-10px; top:-10px; background:none; border:none; font-size:28px; color:var(--red); cursor:pointer; padding:5px; line-height:1;">&times;</button>
     <h2 style="margin-top:0; border-bottom:2px solid var(--border-gold); padding-bottom:10px;">${id?"🛠 DEVLET DÜZENLE":"➕ YENİ DEVLET EKLE"}</h2>
-    
-    <script>
-      window.switchAdminTab = function(tabId) {
-          document.querySelectorAll('.adm-tab').forEach(el => el.style.display = 'none');
-          document.querySelectorAll('.adm-tab-btn').forEach(el => {
-              el.style.background = 'transparent';
-              el.style.color = 'var(--text)';
-              el.style.borderBottom = 'none';
-          });
-          document.getElementById('adm-tab-' + tabId).style.display = 'block';
-          const activeBtn = document.getElementById('adm-tab-btn-' + tabId);
-          if(activeBtn){
-             activeBtn.style.background = 'var(--bg-lighter)';
-             activeBtn.style.color = 'var(--gold)';
-             activeBtn.style.borderBottom = '2px solid var(--gold)';
-          }
-      }
-    </script>
     
     <div style="display:flex; border-bottom:1px solid var(--line); margin-bottom:15px; overflow-x:auto;">
       <button type="button" class="adm-tab-btn" id="adm-tab-btn-genel" onclick="switchAdminTab('genel')" style="flex:1; padding:10px; background:var(--bg-lighter); color:var(--gold); border:none; border-bottom:2px solid var(--gold); cursor:pointer; font-weight:bold;">Genel & Ekonomi</button>
