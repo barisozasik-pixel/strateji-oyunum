@@ -38,9 +38,9 @@ function calcPop(s)
   let edu = Number(s.education) || 0;
   
   const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
-  let anarRate = hap >= 60 ? 0 : Math.floor((59 - hap)/10)*10 + 10;
+  let anarRate = hap >= 60 ? 0 : (60 - hap);
   anarRate += Math.max(0, (taxRate - 50) * 0.5);
-  if(hap < 0) anarRate = 60; 
+  if(anarRate > 100) anarRate = 100;
   if(adv.stopAnarchy) anarRate = 0;
   
   let anarCount = Math.floor(pop * (anarRate/100));
