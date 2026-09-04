@@ -674,7 +674,9 @@ function openDetail(id){
 function saveCountryManagement(stateId){
  const s=getState(stateId); if(!s)return;
  if(!isAdmin && s.ownerEmail!==currentUserEmail)return;
- const fortressGarrison=Math.max(0,Math.floor(Number(document.getElementById("f_country_fortressGarrison").value)||0));
+ const garrisonEl=document.getElementById("f_country_fortressGarrison");
+ if(!garrisonEl){toast("Garnizon alanı bulunamadı.");return;}
+ const fortressGarrison=Math.max(0,Math.floor(Number(garrisonEl.value)||0));
  const oldTotal=s.fortressGarrison||0;
  const newTotal=fortressGarrison;
  const added=newTotal-oldTotal;
