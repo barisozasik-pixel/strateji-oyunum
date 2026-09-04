@@ -1,4 +1,4 @@
-window.switchAdminTab = function(tabId) {
+window.switchStateEditTab = function(tabId) {
     document.querySelectorAll('.adm-tab').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.adm-tab-btn').forEach(el => {
         el.style.background = 'transparent';
@@ -33,9 +33,9 @@ function openStateForm(id=null){
     <h2 style="margin-top:0; border-bottom:2px solid var(--border-gold); padding-bottom:10px;">${id?"🛠 DEVLET DÜZENLE":"➕ YENİ DEVLET EKLE"}</h2>
     
     <div style="display:flex; border-bottom:1px solid var(--line); margin-bottom:15px; overflow-x:auto;">
-      <button type="button" class="adm-tab-btn" id="adm-tab-btn-genel" onclick="switchAdminTab('genel')" style="flex:1; padding:10px; background:var(--bg-lighter); color:var(--gold); border:none; border-bottom:2px solid var(--gold); cursor:pointer; font-weight:bold;">Genel & Ekonomi</button>
-      <button type="button" class="adm-tab-btn" id="adm-tab-btn-nufus" onclick="switchAdminTab('nufus')" style="flex:1; padding:10px; background:transparent; color:var(--text); border:none; cursor:pointer; font-weight:bold;">Nüfus Yönetimi</button>
-      <button type="button" class="adm-tab-btn" id="adm-tab-btn-ordu" onclick="switchAdminTab('ordu')" style="flex:1; padding:10px; background:transparent; color:var(--text); border:none; cursor:pointer; font-weight:bold;">Ordu & Altyapı</button>
+      <button type="button" class="adm-tab-btn" id="adm-tab-btn-genel" onclick="switchStateEditTab('genel')" style="flex:1; padding:10px; background:var(--bg-lighter); color:var(--gold); border:none; border-bottom:2px solid var(--gold); cursor:pointer; font-weight:bold;">Genel & Ekonomi</button>
+      <button type="button" class="adm-tab-btn" id="adm-tab-btn-nufus" onclick="switchStateEditTab('nufus')" style="flex:1; padding:10px; background:transparent; color:var(--text); border:none; cursor:pointer; font-weight:bold;">Nüfus Yönetimi</button>
+      <button type="button" class="adm-tab-btn" id="adm-tab-btn-ordu" onclick="switchStateEditTab('ordu')" style="flex:1; padding:10px; background:transparent; color:var(--text); border:none; cursor:pointer; font-weight:bold;">Ordu & Altyapı</button>
     </div>
 
     <div id="adm-tab-genel" class="adm-tab" style="display:block;">
