@@ -60,6 +60,11 @@ async function saveDB(){
  if(saveInFlight){saveQueued=true;return false;}
  saveInFlight=true;
  
+ // ✅ FIX: Snapshot'ı asenkron işlemler BAŞLAMADAN ÖNCE al.
+ // Böylece Promise.all çalışırken db değişse bile, snapshot
+ // yalnızca kaydetmeye başladığımız anın verilerini tutar.
+ const snapshotBeforeSave = structuredClone(db);
+ 
  try{
    const promises = [];
    // 1. SADECE DEĞİŞEN DEVLETLERİ KAYDET
@@ -139,7 +144,10 @@ async function saveDB(){
        await Promise.all(promises);
        toast("Kaydedildi " + new Date().toLocaleTimeString("tr-TR"), true);
    }
-   dbBaseSnapshot = structuredClone(db);
+   // ✅ FIX: Kayıt başarılı olduktan sonra, save BAŞLAMADAN önceki
+   // snapshot'ı kullan — save sırasında db'ye yapılan değişiklikler
+   // bir sonraki save'de doğru şekilde tespit edilecek.
+   dbBaseSnapshot = snapshotBeforeSave;
    return true;
  }catch(error){
    console.error(error);
