@@ -22,7 +22,7 @@ function openStateForm(id=null){
  
  let customFields = "";
  if(db.settings.customItems && db.settings.customItems.length > 0) {
-    customFields += `<div class="full"><h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">🌟 ÖZEL ÜRÜNLER</h4></div><div class="formgrid">`;
+    customFields += `<div class="full"><h4 style="margin:20px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); color:var(--border-gold);">🌟 ÖZEL BİRİMLER</h4></div><div class="formgrid">`;
     db.settings.customItems.forEach(item => { customFields += field(item.id, item.name, s[item.id]||0, "number"); });
     customFields += `</div>`;
  }
