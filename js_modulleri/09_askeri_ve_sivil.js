@@ -105,7 +105,7 @@ function calcCampCost(id) {
         let max = Number(el.max) || 0;
         if(val > max) { val = max; el.value = max; }
         if(val < 0) { val = 0; el.value = 0; }
-        let cost = db.settings.campaignCost[k] !== undefined ? db.settings.campaignCost[k] : ((db.settings.customItems||[]).find(x=>x.id===k)?.campCost || 0);
+        let cost = (db.settings.campaignCost||{})[k] !== undefined ? (db.settings.campaignCost||{})[k] : ((db.settings.customItems||[]).find(x=>x.id===k)?.campCost || 0);
         total += val * cost;
     });
     document.getElementById('campTotalCost').innerHTML = money(total);
@@ -146,8 +146,8 @@ function startCampaign(id) {
         let k = el.id.replace('camp_','');
         let val = Number(el.value) || 0;
         if(val > 0) {
-            let cost = db.settings.campaignCost[k] !== undefined ? db.settings.campaignCost[k] : ((db.settings.customItems||[]).find(x=>x.id===k)?.campCost || 0);
-            let name = db.settings.campaignCost[k] !== undefined ? k.replace('_',' ') : ((db.settings.customItems||[]).find(x=>x.id===k)?.name);
+            let cost = (db.settings.campaignCost||{})[k] !== undefined ? (db.settings.campaignCost||{})[k] : ((db.settings.customItems||[]).find(x=>x.id===k)?.campCost || 0);
+            let name = (db.settings.campaignCost||{})[k] !== undefined ? k.replace('_',' ') : ((db.settings.customItems||[]).find(x=>x.id===k)?.name);
             total += val * cost; details.push(`${num(val)} ${name}`); 
         }
     });
