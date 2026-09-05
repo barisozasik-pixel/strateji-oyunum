@@ -23,16 +23,21 @@ function refreshMapFortressCounts(){db.states.forEach(s=>{const next=Math.max(0,
 function redistributeMapGarrisonsForStateIds(stateIds){for(const stateId of new Set(stateIds)){const s=getState(stateId);if(s&&getOwnedMapProvinceIds(s.id).length)distributeFortressGarrisonToMap(s,s.fortressGarrison||0);}}
 function distributeFortressGarrisonToMap(s,total){const ids=getOwnedMapProvinceIds(s.id),safeTotal=Math.max(0,Math.floor(Number(total)||0));s.fortressCount=ids.length;s.fortressGarrison=safeTotal;db.mapProvinceDetails=db.mapProvinceDetails||{};const base=ids.length?Math.floor(safeTotal/ids.length):0,remainder=ids.length?safeTotal%ids.length:0;ids.forEach((id,index)=>{const old=db.mapProvinceDetails[id]||{};db.mapProvinceDetails[id]={...old,countryName:s.name,garrison:base+(index<remainder?1:0),color:old.color||s.color||'#c5a059'};});return {count:ids.length,base,remainder};}
 
+let _mapAssetsLoading=false;
 async function loadMapAssets(){
  if(mapSvgCache&&mapConfigCache)return;
- const [svgResponse,configResponse]=await Promise.all([
-   fetch('MapChart_Map.svg?v=57',{cache:'no-store'}),
-   fetch('map-config.json?v=57',{cache:'no-store'})
- ]);
- if(!svgResponse.ok)throw new Error('MapChart_Map.svg yüklenemedi: HTTP '+svgResponse.status);
- if(!configResponse.ok)throw new Error('map-config.json yüklenemedi: HTTP '+configResponse.status);
- mapSvgCache=await svgResponse.text();
- mapConfigCache=await configResponse.json();
+ if(_mapAssetsLoading)return;
+ _mapAssetsLoading=true;
+ try{
+  const [svgResponse,configResponse]=await Promise.all([
+    fetch('MapChart_Map.svg?v=57',{cache:'no-store'}),
+    fetch('map-config.json?v=57',{cache:'no-store'})
+  ]);
+  if(!svgResponse.ok)throw new Error('MapChart_Map.svg yüklenemedi: HTTP '+svgResponse.status);
+  if(!configResponse.ok)throw new Error('map-config.json yüklenemedi: HTTP '+configResponse.status);
+  mapSvgCache=await svgResponse.text();
+  mapConfigCache=await configResponse.json();
+ }finally{ _mapAssetsLoading=false; }
 }
 
 function initializeMapOwnersFromConfig(){
@@ -208,36 +213,7 @@ function applyMapOwnership()
  if(mapStrategicView){renderStrategicRegionStickers();}
 }
  
-function renderStrategicMapLabels(){
- const canvas=document.getElementById('gameMapCanvas'),svg=canvas?.querySelector('svg');if(!canvas||!svg)return;
- canvas.querySelectorAll('.strategic-country-label,.strategic-country-clip').forEach(node=>node.remove());
- const countries=new Map();
- canvas.querySelectorAll('path[id][d]').forEach(path=>{
-   const owner=getState(db.mapProvinceOwners?.[path.id]),detail=db.mapProvinceDetails?.[path.id],name=owner?.name||detail?.countryName||'';if(!name)return;
-   const key=owner?.id||normalizeMapName(name);try{const b=path.getBBox(),area=Math.max(.1,b.width*b.height),item={b,area,x:b.x+b.width/2,y:b.y+b.height/2,pathId:path.id};if(!countries.has(key))countries.set(key,{name,items:[]});countries.get(key).items.push(item);}catch(_){}
- });
- const bboxGap=(a,b)=>{const dx=Math.max(0,Math.max(a.x,b.x)-Math.min(a.x+a.width,b.x+b.width)),dy=Math.max(0,Math.max(a.y,b.y)-Math.min(a.y+a.height,b.y+b.height));return Math.hypot(dx,dy);};
- countries.forEach(country=>{
-   const items=country.items,n=items.length,parent=items.map((_,i)=>i),find=i=>parent[i]===i?i:(parent[i]=find(parent[i])),join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[b]=a;};
-   for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const scale=Math.max(1,Math.min(4,(Math.sqrt(items[i].area)+Math.sqrt(items[j].area))*.18));if(bboxGap(items[i].b,items[j].b)<=scale)join(i,j);}
-   const components=new Map();items.forEach((item,i)=>{const root=find(i);if(!components.has(root))components.set(root,[]);components.get(root).push(item);});
-   // Ülkenin tüm topraklarını tek etiket alanı olarak kullan.
-   components.clear();components.set(0,items);
-   components.forEach((points,componentIndex)=>{
-     const anchor=points.slice().sort((a,b)=>b.area-a.area)[0];
-     const cx=anchor.x,cy=anchor.y;
-     let xx=0,yy=0,xy=0;points.forEach(p=>{const dx=p.x-cx,dy=p.y-cy;xx+=p.area*dx*dx;yy+=p.area*dy*dy;xy+=p.area*dx*dy;});
-     let angle=0;
-     const rad=angle*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);let along=0,cross=0;
-     points.forEach(p=>[[p.b.x,p.b.y],[p.b.x+p.b.width,p.b.y],[p.b.x,p.b.y+p.b.height],[p.b.x+p.b.width,p.b.y+p.b.height]].forEach(([x,y])=>{const dx=x-cx,dy=y-cy;along=Math.max(along,Math.abs(dx*cos+dy*sin));cross=Math.max(cross,Math.abs(-dx*sin+dy*cos));}));
-     const usableLength=Math.max(2,anchor.b.width*.82),usableHeight=Math.max(2,anchor.b.height*.72);let fontSize=Math.max(3,Math.min(28,usableLength/Math.max(3,country.name.length*.66),usableHeight*.72));
-     let defs=svg.querySelector('defs');if(!defs){defs=document.createElementNS('http://www.w3.org/2000/svg','defs');svg.insertBefore(defs,svg.firstChild);}
-     const clipId=`strategic-country-${String(country.name).replace(/[^a-z0-9]/gi,'-')}-${componentIndex}-${Math.random().toString(36).slice(2,7)}`;
-     const clip=document.createElementNS('http://www.w3.org/2000/svg','clipPath');clip.setAttribute('id',clipId);clip.setAttribute('class','strategic-country-clip');points.forEach(point=>{const use=document.createElementNS('http://www.w3.org/2000/svg','use');use.setAttribute('href','#'+point.pathId);clip.appendChild(use);});defs.appendChild(clip);
-     const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('class','strategic-country-label');t.setAttribute('x',cx);t.setAttribute('y',cy);t.setAttribute('transform',`rotate(${angle} ${cx} ${cy})`);t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');t.setAttribute('font-family','Georgia, serif');t.setAttribute('font-size',fontSize);t.setAttribute('font-weight','800');t.setAttribute('letter-spacing',Math.max(.03,fontSize*.055));t.setAttribute('textLength',Math.max(2,usableLength*.9));t.setAttribute('lengthAdjust','spacingAndGlyphs');t.setAttribute('fill','#f4ead2');t.setAttribute('stroke','#111');t.setAttribute('stroke-width',Math.max(.08,Math.min(1.5,fontSize*.14)));t.setAttribute('paint-order','stroke');t.setAttribute('pointer-events','none');t.textContent=country.name.toLocaleUpperCase('tr-TR');svg.appendChild(t);for(let i=0;i<12;i++){const tb=t.getBBox();if(tb.width<=usableLength&&tb.height<=usableHeight)break;fontSize*=.88;t.setAttribute('font-size',fontSize);}
-   });
- });
-}
+// renderStrategicMapLabels silindi (ölü kod — hiçbir yerden çağrılmıyordu)
 function toggleStrategicMapView(){mapStrategicView=!mapStrategicView;const btn=document.getElementById('mapStrategicBtn');if(btn){btn.textContent=mapStrategicView?'✕ STRATEJİK GÖRÜNÜM':'🧭 STRATEJİK GÖRÜNÜM';btn.className=mapStrategicView?'btn red':'btn blue';}applyMapOwnership();}
 
 async function openGameMap()
