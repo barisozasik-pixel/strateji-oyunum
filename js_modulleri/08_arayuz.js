@@ -45,6 +45,13 @@ function switchTab(tabId) {
     const activeLabel=document.getElementById('mobile-active-tab');
     if(activeLabel&&btn) activeLabel.textContent=btn.textContent.trim();
     document.getElementById('player-tabs')?.classList.remove('mobile-open');
+    // ✅ FIX: Mektuplar sekmesi açılınca okundu işaretle
+    if(tabId === 'mektup' && currentId) {
+        const letters = db.letters || [];
+        let changed = false;
+        letters.forEach(l => { if(l.toStateId === currentId && !l.read) { l.read = true; changed = true; } });
+        if(changed) { queueSave(); if(btn) { const badge = btn.querySelector('.badge-count'); if(badge) badge.remove(); } }
+    }
 }
 
 function toggleMobileTabs(){
@@ -411,8 +418,7 @@ function openDetail(id){
             </div>` : ''}
         </div>`;
     }).join('');
-    myLetters.forEach(l => { if(l.toStateId === s.id) l.read = true; });
-    queueSave();
+    // ✅ FIX: Mektupları burada okundu işaretleme — switchTab('mektup') içinde yapılacak
  } else {
     mektupHtml += `<p class="sub">Gelen veya gönderilen mektup bulunmuyor.</p>`;
  }
