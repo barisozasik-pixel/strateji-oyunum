@@ -51,9 +51,26 @@ async function loadDB(silent = false){
    });
    dbBaseSnapshot = structuredClone(db);
    if(!silent) toast("Yeni Sistem Aktif", true);
+   
+   // ✅ Eski logları temizle (300'den fazlasını veritabanından sil)
+   cleanupOldLogs();
  } catch(e) {
    toast("Yükleme hatası: " + e.message);
  }
+}
+
+async function cleanupOldLogs(){
+ try{
+   if(!sb || !db.purchaseLog || db.purchaseLog.length < 300) return;
+   // En eski korunan logun tarihini al
+   const oldestKept = db.purchaseLog[db.purchaseLog.length - 1];
+   if(!oldestKept?.logId) return;
+   // Bu logdan daha eski olanları veritabanından sil
+   const { error } = await sb.from('game_logs')
+     .delete()
+     .lt('created_at', oldestKept.created_at || new Date(0).toISOString());
+   if(!error) console.log("Eski loglar temizlendi.");
+ }catch(e){ console.warn("Log temizleme hatası:", e); }
 }
 async function saveDB(){
  if(!sb)return false;
