@@ -55,9 +55,9 @@ function calcPop(s)
   let bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
   let maxElig = Math.floor(pop * (eligRate/100)) + bonusElig;
   
-  // SAVAŞ KAYIPLARI (Ölüler asker havuzundan kalıcı olarak düşülür)
+  // SAVAŞ KAYIPLARI (Ölen her asker elverişli havuzdan alınmıştı → 1 ölü = 1 elverişli kayıp)
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
-  let ghostEligible = Math.floor(totalDead * (1 - (eligRate/100)));
+  let ghostEligible = totalDead;
   
   // BOŞTAKİ ASKER (Ordu veya ölü asker artarsa boş asker azalır)
   let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
