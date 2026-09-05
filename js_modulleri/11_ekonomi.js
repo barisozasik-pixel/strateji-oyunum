@@ -19,6 +19,7 @@ function removeLedgerItem(stateId, index) {
     if(!isAdmin) return;
     let s = getState(stateId);
     if(!s || !s.customLedger) return;
+    if(index < 0 || index >= s.customLedger.length) return;
     s.customLedger.splice(index, 1);
     queueSave(); openDetail(stateId);
 }
@@ -26,6 +27,7 @@ function removePermLedgerItem(stateId, index) {
     if(!isAdmin) return;
     let s = getState(stateId);
     if(!s || !s.permanentLedger) return;
+    if(index < 0 || index >= s.permanentLedger.length) return;
     s.permanentLedger.splice(index, 1);
     queueSave(); openDetail(stateId);
 }
