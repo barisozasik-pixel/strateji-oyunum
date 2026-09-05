@@ -115,7 +115,7 @@ async function showApp(session){
  renderHome();
         // Oyuna ilk girildiğinde veya çevrimdışıyken atlanan yıl raporunu patlatma
  if(db.settings && db.settings.lastYearReport) {
-   let lastSeenYear = Number(localStorage.getItem('lastSeenYearReport_' + (currentUserEmail || 'guest'))) || 0;
+    let lastSeenYear = 0; try { lastSeenYear = Number(localStorage.getItem('lastSeenYearReport_' + (currentUserEmail || 'guest'))) || 0; } catch(e) {}
    if(db.settings.lastYearReport.year > lastSeenYear && !isAdmin) {
    showYearReportModal();
      }
