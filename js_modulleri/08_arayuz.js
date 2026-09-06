@@ -63,7 +63,8 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     let safeImg = cleanUrl(imgUrl);
     
     const adv = getAdvisorEffects(s);
-    let disc = (isInfrastructure || key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi") ? adv.infraDiscount : adv.recruitDiscount;
+    const tech = typeof getTechBonus === 'function' ? getTechBonus(s) : {buildDiscount:0, recruitDiscount:0};
+    let disc = (isInfrastructure || key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi") ? (adv.infraDiscount + tech.buildDiscount) : (adv.recruitDiscount + tech.recruitDiscount);
     let actualPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
 
     const premiumStyle=isInfrastructure||usePremiumStyle;
@@ -509,6 +510,8 @@ function openDetail(id){
    <div class="unit-grid population-building-grid">${populationBuildingsHtml}</div>
  </div>`;
 
+ let techHtml = typeof renderTechTree === 'function' ? renderTechTree(s) : `<p class="sub">Teknoloji ağacı modülü yüklenemedi.</p>`;
+
  const detailStateKey = `${s.id||''} ${s.name||''}`.toLocaleLowerCase('tr-TR');
  const isOttomanDetail = detailStateKey.includes('osmanlı') || detailStateKey.includes('osmanli') || detailStateKey.includes('osmalı') || detailStateKey.includes('osmali') || detailStateKey.includes('ottoman');
  const isCrimeaDetail = detailStateKey.includes('kırım') || detailStateKey.includes('kirim') || detailStateKey.includes('crimea');
@@ -582,6 +585,7 @@ function openDetail(id){
             ${(s.istihbarat_binasi || 0) > 0 ? `<div class="hoi-tab" id="tab-btn-intel" onclick="switchTab('intel')">🕵️ İstihbarat</div>` : ''}
             <div class="hoi-tab" id="tab-btn-eylem" onclick="switchTab('eylem')">Siyaset</div>
             <div class="hoi-tab" id="tab-btn-country" onclick="switchTab('country')">Ülke Yönetimi</div>
+            <div class="hoi-tab" id="tab-btn-tech" onclick="switchTab('tech')">🌲 Teknoloji Ağacı</div>
         </div>
         
         <div class="tab-content active" id="tab-content-asker">
@@ -611,6 +615,9 @@ function openDetail(id){
         </div>
         <div class="tab-content" id="tab-content-country">
             ${countryManagementHtml}
+        </div>
+        <div class="tab-content" id="tab-content-tech">
+            ${techHtml}
         </div>
     </div>
  </div>
