@@ -4,7 +4,7 @@
 const GEMINI_API_KEY = "BURAYA_API_ANAHTARINIZI_YAZIN";
 
 async function callGeminiAPI(promptText) {
-    if (GEMINI_API_KEY === "BURAYA_API_ANAHTARINIZI_YAZIN" || !GEMINI_API_KEY) {
+    if (GEMINI_API_KEY === "AQ.Ab8RN6LMWG30vjlsG0ORdxdhhHE0Z0eZOF7ttV24Ao2I_jqrFg" || !GEMINI_API_KEY) {
         console.error("Lütfen 14_savas_botu.js dosyasındaki GEMINI_API_KEY değişkenine kendi API anahtarınızı yapıştırın.");
         return null;
     }
