@@ -9,8 +9,8 @@ async function callGeminiAPI(promptText) {
         return null;
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
     const payload = {
         contents: [{
             parts: [{ text: promptText }]
