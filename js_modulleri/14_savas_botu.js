@@ -5,17 +5,21 @@
 // AI Studio'dan (aistudio.google.com/apikey) aldığınız anahtarı TAM ve eksiksiz buraya yapıştırın.
 const GEMINI_API_KEY = "AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ"; // <-- kendi tam anahtarınızla değiştirin
 
-// Güncel model adı. Diğer seçenekler için: https://ai.google.dev/gemini-api/docs/models
-const MODEL_NAME = "gemini-flash-latest";
+// "-latest" alias'ı her zaman en yeni (dolayısıyla en yoğun talep gören) modele yönlendirdiği için
+// 503 riskini artırıyor. Bunun yerine kararlı, biraz daha "sakin" bir modele sabitliyoruz.
+// Diğer seçenekler için: https://ai.google.dev/gemini-api/docs/models
+const MODEL_NAME = "gemini-3.5-flash";
+// Birincil model tüm denemelere rağmen 503 verirse geçilecek yedek model.
+const FALLBACK_MODEL_NAME = "gemini-2.5-flash-lite";
 
-async function callGeminiAPI(promptText, retryCount = 0) {
+async function callGeminiAPI(promptText, modelName = MODEL_NAME, retryCount = 0) {
     if (!GEMINI_API_KEY) {
         console.error("Lütfen 14_savas_botu.js dosyasındaki GEMINI_API_KEY değişkenine kendi API anahtarınızı yapıştırın.");
         return null;
     }
 
-    const MAX_RETRIES = 4;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
+    const MAX_RETRIES = 3;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
     const payload = {
         contents: [{
