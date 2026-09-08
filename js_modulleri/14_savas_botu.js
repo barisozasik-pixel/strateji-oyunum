@@ -1,7 +1,12 @@
 // js_modulleri/14_savas_botu.js
 
 // DİKKAT: Bu API anahtarı sadece test amaçlıdır. Canlıya alırken Supabase Edge Functions'a taşınmalıdır.
-const GEMINI_API_KEY = "AQ.Ab8RN6JkzqvOWl9jucgvfZEDMDhCQiUz1b2hzLQ0vlzyu1qXgw";
+// Not: Google artık "AQ." ile başlayan yeni Authorization (auth) key formatını kullanıyor.
+// AI Studio'dan (aistudio.google.com/apikey) aldığınız anahtarı TAM ve eksiksiz buraya yapıştırın.
+const GEMINI_API_KEY = "AQ.Ab8RN6JkzqvOWl9jucgvfZEDMDhCQiUz1b2hzLQ0vlzyu1qXgw"; // <-- kendi tam anahtarınızla değiştirin
+
+// Güncel model adı. Diğer seçenekler için: https://ai.google.dev/gemini-api/docs/models
+const MODEL_NAME = "gemini-flash-latest";
 
 async function callGeminiAPI(promptText) {
     if (!GEMINI_API_KEY) {
@@ -9,8 +14,8 @@ async function callGeminiAPI(promptText) {
         return null;
     }
 
-    
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
+
     const payload = {
         contents: [{
             parts: [{ text: promptText }]
@@ -24,7 +29,10 @@ async function callGeminiAPI(promptText) {
         const response = await fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                // Yeni auth key'ler için Google'ın önerdiği yöntem: key'i header'da gönder,
+                // query parametresinde (?key=) değil.
+                "x-goog-api-key": GEMINI_API_KEY
             },
             body: JSON.stringify(payload)
         });
