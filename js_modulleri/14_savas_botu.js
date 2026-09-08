@@ -48,10 +48,16 @@ async function callGeminiAPI(promptText, modelName = MODEL_NAME, retryCount = 0)
             // 503 (model yoğun) veya 429 (rate limit) gelirse, kısa bir bekleme sonrası tekrar dene.
             const geciciHata = response.status === 503 || response.status === 429;
             if (geciciHata && retryCount < MAX_RETRIES) {
-                const bekleMs = 1000 * Math.pow(2, retryCount); // 1s, 2s, 4s, 8s
+                const bekleMs = 1000 * Math.pow(2, retryCount); // 1s, 2s, 4s
                 console.warn(`Model şu an meşgul (${response.status}). ${bekleMs / 1000}sn sonra tekrar denenecek... (deneme ${retryCount + 1}/${MAX_RETRIES})`);
                 await new Promise(resolve => setTimeout(resolve, bekleMs));
-                return callGeminiAPI(promptText, retryCount + 1);
+                return callGeminiAPI(promptText, modelName, retryCount + 1);
+            }
+
+            // Birincil model tüm denemelere rağmen hâlâ meşgulse (503), bir kereliğine yedek modeli dene.
+            if (geciciHata && modelName !== FALLBACK_MODEL_NAME) {
+                console.warn(`"${modelName}" yoğun, yedek model "${FALLBACK_MODEL_NAME}" deneniyor...`);
+                return callGeminiAPI(promptText, FALLBACK_MODEL_NAME, 0);
             }
 
             console.error("Gemini API Hatası:", errorData);
