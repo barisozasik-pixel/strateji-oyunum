@@ -1,16 +1,15 @@
 // js_modulleri/14_savas_botu.js
 
 // DİKKAT: Bu API anahtarı sadece test amaçlıdır. Canlıya alırken Supabase Edge Functions'a taşınmalıdır.
-const GEMINI_API_KEY = "AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ";
+const GEMINI_API_KEY = "AQ.Ab8RN6JkzqvOWl9jucgvfZEDMDhCQiUz1b2hzLQ0vlzyu1qXgw";
 
 async function callGeminiAPI(promptText) {
-    if (!GEMINI_API_KEY === "AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ") 
-    {
+    if (!GEMINI_API_KEY) {
         console.error("Lütfen 14_savas_botu.js dosyasındaki GEMINI_API_KEY değişkenine kendi API anahtarınızı yapıştırın.");
         return null;
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const payload = {
         contents: [{
