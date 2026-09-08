@@ -1,7 +1,7 @@
 // js_modulleri/14_savas_botu.js
 
 // DİKKAT: Bu API anahtarı sadece test amaçlıdır. Canlıya alırken Supabase Edge Functions'a taşınmalıdır.
-const GEMINI_API_KEY = "BURAYA_API_ANAHTARINIZI_YAZIN";
+const GEMINI_API_KEY = "AQ.Ab8RN6LMWG30vjlsG0ORdxdhhHE0Z0eZOF7ttV24Ao2I_jqrFg";
 
 async function callGeminiAPI(promptText) {
     if (GEMINI_API_KEY === "AQ.Ab8RN6LMWG30vjlsG0ORdxdhhHE0Z0eZOF7ttV24Ao2I_jqrFg" || !GEMINI_API_KEY) {
