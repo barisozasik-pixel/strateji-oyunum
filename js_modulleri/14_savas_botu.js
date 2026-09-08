@@ -3,7 +3,7 @@
 // DİKKAT: Bu API anahtarı sadece test amaçlıdır. Canlıya alırken Supabase Edge Functions'a taşınmalıdır.
 // Not: Google artık "AQ." ile başlayan yeni Authorization (auth) key formatını kullanıyor.
 // AI Studio'dan (aistudio.google.com/apikey) aldığınız anahtarı TAM ve eksiksiz buraya yapıştırın.
-const GEMINI_API_KEY = "AQ.Ab8RN6JkzqvOWl9jucgvfZEDMDhCQiUz1b2hzLQ0vlzyu1qXgw"; // <-- kendi tam anahtarınızla değiştirin
+const GEMINI_API_KEY = "AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ"; // <-- kendi tam anahtarınızla değiştirin
 
 // Güncel model adı. Diğer seçenekler için: https://ai.google.dev/gemini-api/docs/models
 const MODEL_NAME = "gemini-flash-latest";
