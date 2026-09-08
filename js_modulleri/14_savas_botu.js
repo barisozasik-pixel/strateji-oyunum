@@ -3,17 +3,18 @@
 // DİKKAT: Bu API anahtarı sadece test amaçlıdır. Canlıya alırken Supabase Edge Functions'a taşınmalıdır.
 // Not: Google artık "AQ." ile başlayan yeni Authorization (auth) key formatını kullanıyor.
 // AI Studio'dan (aistudio.google.com/apikey) aldığınız anahtarı TAM ve eksiksiz buraya yapıştırın.
-const GEMINI_API_KEY = "AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ"; // <-- kendi tam anahtarınızla değiştirin
+const GEMINI_API_KEY = "AQ.AQ.Ab8RN6IiXEhxkf5-Eg3X_iwI78PVt3paqwt9XiuCXp1-1iLvcQ"; // <-- kendi tam anahtarınızla değiştirin
 
 // Güncel model adı. Diğer seçenekler için: https://ai.google.dev/gemini-api/docs/models
 const MODEL_NAME = "gemini-flash-latest";
 
-async function callGeminiAPI(promptText) {
+async function callGeminiAPI(promptText, retryCount = 0) {
     if (!GEMINI_API_KEY) {
         console.error("Lütfen 14_savas_botu.js dosyasındaki GEMINI_API_KEY değişkenine kendi API anahtarınızı yapıştırın.");
         return null;
     }
 
+    const MAX_RETRIES = 4;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
 
     const payload = {
@@ -39,6 +40,16 @@ async function callGeminiAPI(promptText) {
 
         if (!response.ok) {
             const errorData = await response.json();
+
+            // 503 (model yoğun) veya 429 (rate limit) gelirse, kısa bir bekleme sonrası tekrar dene.
+            const geciciHata = response.status === 503 || response.status === 429;
+            if (geciciHata && retryCount < MAX_RETRIES) {
+                const bekleMs = 1000 * Math.pow(2, retryCount); // 1s, 2s, 4s, 8s
+                console.warn(`Model şu an meşgul (${response.status}). ${bekleMs / 1000}sn sonra tekrar denenecek... (deneme ${retryCount + 1}/${MAX_RETRIES})`);
+                await new Promise(resolve => setTimeout(resolve, bekleMs));
+                return callGeminiAPI(promptText, retryCount + 1);
+            }
+
             console.error("Gemini API Hatası:", errorData);
             return null;
         }
