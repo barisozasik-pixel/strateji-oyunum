@@ -19,7 +19,25 @@ function getProvinceDisplayColor(provinceId,detail={},owner=null)
   return normalizeMapColor(rawColor);
 }
 function getOwnedMapProvinceIds(stateId){return Object.entries(db.mapProvinceOwners||{}).filter(([,ownerId])=>ownerId===stateId).map(([provinceId])=>provinceId);}
-function refreshMapFortressCounts(){db.states.forEach(s=>{const next=Math.max(0,getOwnedMapProvinceIds(s.id).length);const applied=Math.max(0,Math.floor(Number(s.fortressPopulationCount)||0));const fortressDelta=next-applied;if(fortressDelta)s.population=Math.max(0,(Number(s.population)||0)+(fortressDelta*30000));s.fortressPopulationCount=next;s.fortressCount=next;});}
+function refreshMapFortressCounts(){
+ const popBuildings = ["hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ db.states.forEach(s=>{
+   const next=Math.max(0,getOwnedMapProvinceIds(s.id).length);
+   const applied=Math.max(0,Math.floor(Number(s.fortressPopulationCount)||0));
+   const fortressDelta=next-applied;
+   if(fortressDelta)s.population=Math.max(0,(Number(s.population)||0)+(fortressDelta*30000));
+   s.fortressPopulationCount=next;
+   s.fortressCount=next;
+   // ✅ FIX #3: Toprak kaybedildiğinde binalar da toprak sayısına kırpılsın
+   popBuildings.forEach(key=>{
+     if((s[key]||0) > next) {
+       const lost = s[key] - next;
+       s[key] = next;
+       addLog({stateId:s.id, stateName:s.name, action:`Toprak kaybı: ${lost} adet ${key} kaybedildi (kota: ${next} toprak)`, qty:lost, cost:0});
+     }
+   });
+ });
+}
 function redistributeMapGarrisonsForStateIds(stateIds){for(const stateId of new Set(stateIds)){const s=getState(stateId);if(s&&getOwnedMapProvinceIds(s.id).length)distributeFortressGarrisonToMap(s,s.fortressGarrison||0);}}
 function distributeFortressGarrisonToMap(s,total){const ids=getOwnedMapProvinceIds(s.id),safeTotal=Math.max(0,Math.floor(Number(total)||0));s.fortressCount=ids.length;s.fortressGarrison=safeTotal;db.mapProvinceDetails=db.mapProvinceDetails||{};const base=ids.length?Math.floor(safeTotal/ids.length):0,remainder=ids.length?safeTotal%ids.length:0;ids.forEach((id,index)=>{const old=db.mapProvinceDetails[id]||{};db.mapProvinceDetails[id]={...old,countryName:s.name,garrison:base+(index<remainder?1:0),color:old.color||s.color||'#c5a059'};});return {count:ids.length,base,remainder};}
 
