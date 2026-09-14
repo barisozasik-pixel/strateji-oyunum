@@ -444,7 +444,7 @@ window.checkAutoReferee = async function() {
 };
 
 // --- 4. GEMINI ENTEGRASYONU ---
-window.evaluateTurnWithGemini = async function() {
+window.evaluateTurnWithGemini = async function(retryCount = 0) {
     const apiKey = localStorage.getItem("OSMOYUN_GEMINI_KEY");
     if(!apiKey) return; // Zaten lobiye girmeden alınmış olması lazım
     if(!currentBattleData) return;
@@ -454,11 +454,16 @@ window.evaluateTurnWithGemini = async function() {
     const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
     let chatHistoryText = msgs.map(m => `${m.gonderen}: ${m.mesaj}`).join("\n");
     
+    const attName = currentBattleData.saldiran_id;
+    const defName = currentBattleData.savunan_id;
+
     const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin.
 KURAL 1: Taktikler ve arazi, ham gücü +%30 veya -%30 etkileyebilir.
-KURAL 2: EĞER bir taraf saldırmamışsa ve sadece izliyorsa, (agresif hamle yoksa) o tarafın kayıplarını KESİNLİKLE 0 olarak belirle.
+KURAL 2: EĞER bir taraf saldırmamışsa ve sadece izliyorsa veya sadece savunuyorsa, (agresif/farklı bir hamlesi yoksa) kesinlikle onun adına taktik uydurma.
 KURAL 3: Hangi birliğin (Piyade, Süvari, Topçu) çatışmaya girdiğine dikkat et. Sadece savaşan birliklerden asker ölür!
-KURAL 4: Sadece JSON ver. Metin yazma. Başlangıç verilerinden yola çıkarak ölen ve kalan asker sayılarını NET TAM SAYI olarak hesapla.
+KURAL 4: Sadece JSON ver. Başlangıç verilerinden yola çıkarak ölen ve kalan asker sayılarını NET TAM SAYI olarak hesapla.
+KURAL 5: Taraf isimlerini KESİNLİKLE uydurma. Saldıran taraf "${attName}", Savunan taraf "${defName}". Başka bir devlet ismi kullanma.
+KURAL 6: Sohbette yazılmayan hiçbir hamleyi uydurma. Eğer bir taraf hamle yazmamışsa pas geçmiş veya beklemiş sayılır.
 
 Format:
 {
@@ -473,18 +478,24 @@ Format:
     "kazanan": "Durum"
 }`;
 
-    const userPrompt = `[Bölge: ${currentBattleData.bolge}]\nSaldıran (${currentBattleData.saldiran_id}) Ordusu: ${JSON.stringify(currentBattleData.saldiran_ordu)}\nSavunan (${currentBattleData.savunan_id}) Ordusu: ${JSON.stringify(currentBattleData.savunan_ordu)}\n[SOHBET VE HAMLELER]\n${chatHistoryText}`;
+    const userPrompt = `[Bölge: ${currentBattleData.bolge}]\nSaldıran (${attName}) Ordusu: ${JSON.stringify(currentBattleData.saldiran_ordu)}\nSavunan (${defName}) Ordusu: ${JSON.stringify(currentBattleData.savunan_ordu)}\n[SOHBET VE HAMLELER]\n${chatHistoryText}`;
 
     const requestBody = {
-        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
+        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }],
+        generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1
+        }
     };
     
     try {
-        await supabaseClient.from('savas_mesajlari').insert([{
-            savas_id: currentActiveBattleId,
-            gonderen: 'Sistem',
-            mesaj: `⏳ Game Master (Gemini) değerlendiriyor...`
-        }]);
+        if(retryCount === 0) {
+            await supabaseClient.from('savas_mesajlari').insert([{
+                savas_id: currentActiveBattleId,
+                gonderen: 'Sistem',
+                mesaj: `⏳ Game Master (Gemini) değerlendiriyor...`
+            }]);
+        }
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`, {
             method: "POST",
@@ -496,8 +507,12 @@ Format:
         });
         
         if (!response.ok) {
-            await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
-            throw new Error(`HTTP Error ${response.status}`);
+            if(response.status === 503 && retryCount < 3) {
+                console.warn(\`Gemini 503 hatası, tekrar deneniyor... (\${retryCount + 1}. deneme)\`);
+                await new Promise(r => setTimeout(r, 2000));
+                return window.evaluateTurnWithGemini(retryCount + 1);
+            }
+            throw new Error(\`HTTP Error \${response.status}\`);
         }
         
         const data = await response.json();
@@ -508,7 +523,7 @@ Format:
         
         // Sadece odanın geçici hafızasını güncelle (2. tur için), global db'ye DOKUNMA!
         try {
-            let cleanStr2 = rawResponse.replace(/```json/gi, "").replace(/```/gi, "").trim();
+            let cleanStr2 = rawResponse.replace(/\`\`\`json/gi, "").replace(/\`\`\`/gi, "").trim();
             let obj2 = JSON.parse(cleanStr2);
             if(obj2.saldiran_kalan && obj2.savunan_kalan) {
                 let sK = obj2.saldiran_kalan;
@@ -520,7 +535,12 @@ Format:
         } catch(ex) {}
         
     } catch(e) {
-        // Hata chat ekranına basılmaz, sessiz kalır
+        await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
+        await supabaseClient.from('savas_mesajlari').insert([{ 
+            savas_id: currentActiveBattleId, 
+            gonderen: 'Sistem', 
+            mesaj: \`❌ Hata oluştu: \${e.message}. Lütfen hamlenizi tekrar yazın veya bir süre bekleyin.\` 
+        }]);
         console.error("Savaş Botu Hatası: ", e);
     }
 };
