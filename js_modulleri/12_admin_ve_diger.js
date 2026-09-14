@@ -18,7 +18,7 @@ window.switchStateEditTab = function(tabId) {
 function openStateForm(id=null){
  if(!isAdmin) return;
  const populationBreakdown=calcPop(id?getState(id):{population:0,happiness:0,education:0});
- const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,educatedPopulationBonus:0,anarchistPopulationBonus:0,eligiblePopulationBonus:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0,hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0};
+ const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,anarchistPopulationBonus:0,eligiblePopulationBonus:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0,hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0};
  
  let customFields = "";
  if(db.settings.customItems && db.settings.customItems.length > 0) {
@@ -81,7 +81,6 @@ function openStateForm(id=null){
       <div class="full" style="background:rgba(52,152,219,.1);border:1px solid var(--blue);padding:10px;border-radius:5px; margin-top:10px;">
         <b style="color:var(--blue);">🛡 EK NÜFUS BONUSLARI (Kapasite)</b>
         <div class="formgrid" style="margin-top:10px;">
-          ${field("educatedPopulationBonus","Ek Eğitimli Nüfus",s.educatedPopulationBonus||0,"number")}
           ${field("anarchistPopulationBonus","Ek Anarşist Nüfus",s.anarchistPopulationBonus||0,"number")}
           ${field("eligiblePopulationBonus","Ek Elverişli Asker",s.eligiblePopulationBonus||0,"number")}
         </div>
@@ -122,7 +121,7 @@ function openStateForm(id=null){
 function field(k,l,v,t="text"){return `<div><label style="font-weight:bold; margin-bottom:4px; display:block; color:var(--text);">${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}" style="width:100%; padding:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:4px;"></div>`}
 
 function saveState(id){
- const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","educatedPopulationBonus","anarchistPopulationBonus","eligiblePopulationBonus","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","anarchistPopulationBonus","eligiblePopulationBonus","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
  if(db.settings.customItems) { db.settings.customItems.forEach(item => keys.push(item.id)); }
  const o={};
  keys.forEach(k=>o[k]=["name","ownerEmail","ruler","rulerImage","bgImage","title","color"].includes(k)?document.getElementById("f_"+k).value:Number(document.getElementById("f_"+k).value||0));
@@ -324,7 +323,16 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
-        // ADIM 3: NÜFUS ARTIŞI VE PATLAMA KORUMASI
+        // ADIM 3: NÜFUS, RÜŞT, DOĞUMLAR VE DOĞAL ÖLÜMLER
+        // 1. ÖNCE BÜYÜME: Geçen yıldan devreden çocukların %20'si rüştüne erip yetişkin mükellef olur
+        let currentChildren = Math.max(0, Math.floor(Number(s.children)||0));
+        let maturing = Math.floor(currentChildren * 0.20);
+        if(maturing > 0) {
+            s.children = Math.max(0, currentChildren - maturing);
+            rpt.events.push(`🌱 Genç Nesil: +${num(maturing)} genç rüştüne erip yetişkin mükellef oldu`);
+        }
+
+        // 2. YENİ DOĞUMLAR: O yıl doğan bebekler çocuk havuzuna eklenir (o yıl hemen yetişkin olamazlar)
         let totalGrowthPercent = 0;
         ["hastane", "asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
@@ -335,24 +343,29 @@ function passOneYear(){
             }
         });
         
-
         let newPop = Number(s.population || 0);
         if (totalGrowthPercent > 0) {
             let growthMultiplier = 1 + (totalGrowthPercent / 100);
             let calculatedPop = Math.floor(newPop * growthMultiplier);
             let extraPeople = calculatedPop - newPop;
           
-            // ✅ FIX C: Nüfus tavanı — toprak sayısı × 50.000 (sınırsız büyüme engellendi)
-            const ownedLands = getOwnedMapProvinceIds(s.id).length;
-            const popCap = Math.max(50000, ownedLands * 50000);
-            const cappedPop = Math.min(newPop + extraPeople, popCap);
-            extraPeople = cappedPop - newPop;
-            
             if(extraPeople > 0) {
-                s.population = cappedPop;
-                rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
-            } else if(newPop >= popCap) {
-                rpt.events.push(`Nüfus tavanına ulaşıldı (${num(popCap)})`);
+                s.population = newPop + extraPeople;
+                // Yeni doğanlar çocuk havuzuna eklenir (hemen vergi vermez, askere alınmaz)
+                s.children = (Number(s.children) || 0) + extraPeople;
+                rpt.events.push(`👶 Doğumlar: +${num(extraPeople)} yeni çocuk nüfusa katıldı`);
+            }
+        }
+
+        // DOĞAL ÖLÜM (Ecel ve Yaşlılık: Yetişkinlerin %1.5'i, Hastaneler ölüm oranını düşürür)
+        let currentAdults = Math.max(0, (Number(s.population)||0) - (Number(s.children)||0));
+        if(currentAdults > 0) {
+            const hospitalCount = Number(s.hastane)||0;
+            const deathRate = Math.max(0.004, 0.015 - (hospitalCount * 0.002));
+            const naturalDeaths = Math.floor(currentAdults * deathRate);
+            if(naturalDeaths > 0) {
+                s.population = Math.max(0, (Number(s.population)||0) - naturalDeaths);
+                rpt.events.push(`🕊️ Doğal Vefatlar: -${num(naturalDeaths)} kişi (Ecel ve yaşlılık)`);
             }
         }
         
@@ -371,11 +384,15 @@ function passOneYear(){
                     db.mapProvinceDetails[randomProv] = { countryName: "İsyancılar (" + s.name + " Karşıtı)", color: "#000000", garrison: 5000 + Math.floor(Math.random() * 5000) };
                     rpt.rebellions.push(`${getTurkishMapName(randomProv)} bölgesinde İSYAN çıktı ve kontrol kaybedildi!`);
                     // ✅ FIX D TAM: İsyanda garnizon ve binalar güncelle + garnizonu kırp
+                    const oldLandCount = myProvinces.length;
                     refreshMapFortressCounts();
                     const remainingLands = getOwnedMapProvinceIds(s.id).length;
                     if(remainingLands === 0) {
                         s.fortressGarrison = 0;
                     } else if((s.fortressGarrison||0) > 0) {
+                        const lostGarrison = Math.min(s.fortressGarrison, Math.ceil(s.fortressGarrison / oldLandCount));
+                        s.fortressGarrison = Math.max(0, s.fortressGarrison - lostGarrison);
+                        if(lostGarrison > 0) rpt.rebellions.push(`İsyanda kaledeki ${num(lostGarrison)} garnizon askeri kaybedildi.`);
                         redistributeMapGarrisonsForStateIds([s.id]);
                     }
                 }
