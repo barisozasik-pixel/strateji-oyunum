@@ -126,7 +126,7 @@ window.openBattleRoom = async function(savasId) {
     const supabaseClient = (window.sb || sb);
     currentActiveBattleId = savasId;
     
-    const { data: bData, error: bErr } = await supabaseClient.from('savaslar').eq('id', savasId).single();
+    const { data: bData, error: bErr } = await supabaseClient.from('savaslar').select('*').eq('id', savasId).single();
     if(bErr) return alert("Savaş odası bulunamadı!");
     currentBattleData = bData;
 
