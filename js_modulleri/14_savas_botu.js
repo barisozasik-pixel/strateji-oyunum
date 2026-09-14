@@ -222,22 +222,37 @@ window.openBattleRoom = async function(savasId) {
                        : myStateName === bData.savunan_id ? 'savunan'
                        : null;
     const isParticipant = currentBattleRole !== null;
+    
+    // Global isAdmin değişkenini kullan (01_degiskenler_ve_durum.js'den gelir)
+    const isGameMaster = typeof isAdmin !== 'undefined' ? isAdmin : false;
 
-    // Sadece savaşan taraflar yazabilir; izleyiciler için giriş kutusu yerine bilgi mesajı gösterilir.
-    const chatInputHtml = isParticipant
-        ? `<div style="display:flex; gap:5px; margin-top:10px;">
+    let chatInputHtml = "";
+    if (isParticipant) {
+        chatInputHtml += `
+            <div style="display:flex; gap:5px; margin-top:10px;">
                 <input type="text" id="chat_input" placeholder="Gizli hamleni yaz..." style="flex:1;" onkeypress="if(event.key==='Enter') sendBattleMessage()">
                 <button class="btn blue" onclick="sendBattleMessage()">Emri İlet</button>
-                <button class="btn green" onclick="evaluateTurnWithGemini()" title="İki taraf da emrini verdikten sonra savaşı değerlendirir">⚔️ Turu Değerlendir (GM)</button>
-           </div>`
-        : `<div style="margin-top:10px; text-align:center; color:var(--muted); font-size:12px; padding:8px; border:1px dashed var(--line); border-radius:4px;">
-                👁️ İzleyicisin — bu savaşa sadece <b>${bData.saldiran_id}</b> ve <b>${bData.savunan_id}</b> mesaj yazabilir.
-           </div>`;
+            </div>`;
+    } else {
+        chatInputHtml += `
+            <div style="margin-top:10px; text-align:center; color:var(--muted); font-size:12px; padding:8px; border:1px dashed var(--line); border-radius:4px;">
+                👁️ İzleyici modundasın. Sadece savaşan taraflar emir verebilir.
+            </div>`;
+    }
+
+    // Admin kontrolleri (Sadece admin görebilir)
+    if (isGameMaster) {
+        chatInputHtml += `
+            <div style="margin-top:10px; padding:10px; background:rgba(46, 204, 113, 0.1); border:1px solid #2ecc71; border-radius:4px;">
+                <label style="color:#2ecc71; font-size:11px; font-weight:bold; display:block; margin-bottom:5px;">🛡️ YÖNETİCİ KONTROLLERİ</label>
+                <button class="btn green" style="width:100%; margin-bottom:5px;" onclick="evaluateTurnWithGemini()" title="Turu Değerlendirir">⚔️ Turu Değerlendir (Yapay Zeka)</button>
+            </div>`;
+    }
 
     let html = `
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2 style="margin:0;">📍 ${bData.bolge} Savaş Odası</h2>
-            <button class="btn red" onclick="endBattle('${savasId}')">SAVAŞI BİTİR</button>
+            ${isGameMaster ? `<button class="btn red" onclick="endBattle('${savasId}')">SAVAŞI BİTİR</button>` : ``}
         </div>
         <div id="own_army_info" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
         
