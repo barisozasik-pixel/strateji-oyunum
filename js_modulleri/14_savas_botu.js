@@ -1,58 +1,74 @@
-
 // --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI) ---
 
 let currentBattleSubscription = null;
 
-// --- GLOBAL SAVAŞ DİNLEYİCİ (KIRIM GİBİ DEVLETLERE OTOMATİK EKRAN AÇMAK İÇİN) ---
+// --- GLOBAL SAVAŞ DİNLEYİCİ ---
 window.initGlobalBattleListener = function() {
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     if(!supabaseClient) {
-        setTimeout(window.initGlobalBattleListener, 2000); // 2 saniye sonra tekrar dene
+        setTimeout(window.initGlobalBattleListener, 2000);
         return;
     }
     
     supabaseClient.channel('public-savaslar-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'savaslar' }, payload => {
             const b = payload.new;
-            
-            // Hangi devleti yönettiğimi bul
             let myStateName = null;
-            if(window.db && window.db.states && typeof currentUserEmail !== 'undefined' && currentUserEmail) {
-                let myState = window.db.states.find(s => s.ownerEmail === currentUserEmail);
+            if(typeof db !== 'undefined' && db.states && typeof currentUserEmail !== 'undefined' && currentUserEmail) {
+                let myState = db.states.find(s => s.ownerEmail === currentUserEmail);
                 if(myState) myStateName = myState.name;
             }
-            
-            // Eğer savaşa girenlerden biri bensem, savaş ekranını ZORLA aç!
             if(myStateName && (b.saldiran_id === myStateName || b.savunan_id === myStateName)) {
-                alert(`⚔️ DİKKAT! Devletin (${myStateName}) savaşa girdi! Hedef: ${b.bolge}`);
+                alert(`⚔️ DİKKAT! Devletin (${myStateName}) savaşa girdi! Hedef: ${b.bolge}\n(Lütfen hamleni chat'e yaz)`);
                 openBattleRoom(b.id);
             }
         })
         .subscribe();
 };
-setTimeout(window.initGlobalBattleListener, 3000); // Oyun yüklendikten sonra dinlemeye başla
-
+setTimeout(window.initGlobalBattleListener, 3000);
 
 // --- GEMİNİ API KONTROLÜ ---
-window.getGeminiApiKey = function() {
-    let key = localStorage.getItem("OSMOYUN_GEMINI_KEY");
-    if (!key) { // Hatalı şifre koruması
-        key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Gerçek bir anahtar 'AIza' ile başlar. Github'a yüklenmez.)");
-        if (key && key.trim() !== "") {
-            localStorage.setItem("OSMOYUN_GEMINI_KEY", key.trim());
-        }
-    }
-    return key;
-};
-
 window.clearGeminiApiKey = function() {
     localStorage.removeItem("OSMOYUN_GEMINI_KEY");
-    alert("Kayıtlı API Anahtarı silindi. Bir sonraki savaşta sistem yeniden soracaktır.");
+    alert("Kayıtlı API Anahtarı silindi.");
+    openBattleLobby();
+};
+
+window.saveAndVerifyLobbyKey = async function() {
+    const val = document.getElementById('lobby_api_key').value.trim();
+    if(!val) return alert("Lütfen anahtarı girin!");
+    
+    const btn = document.getElementById('btn_verify_key');
+    btn.innerText = "⏳ Doğrulanıyor...";
+    btn.disabled = true;
+    
+    try {
+        // Küçük bir deneme isteği atarak şifrenin gerçekten çalışıp çalışmadığını test ediyoruz
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${val}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({contents: [{parts: [{text: "merhaba"}]}]})
+        });
+        
+        if(!response.ok) {
+            throw new Error("Reddedildi (Geçersiz veya Hatalı Anahtar)");
+        }
+        
+        // Eğer 200 OK dönerse, şifre kesinlikle doğrudur. Kaydediyoruz.
+        localStorage.setItem("OSMOYUN_GEMINI_KEY", val);
+        alert("✅ Başarılı! API Anahtarı doğrulandı ve kabul edildi.");
+        openBattleLobby(); // Lobiyi yeniden yükle (Artık savaş butonu görünecek)
+        
+    } catch(e) {
+        alert("❌ Hata: " + e.message);
+        btn.innerText = "Doğrula ve Kaydet";
+        btn.disabled = false;
+    }
 };
 
 // --- 1. SAVAŞ LOBİSİ ---
 window.openBattleLobby = async function() {
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     if(!supabaseClient) return alert("Veritabanı bağlantısı bulunamadı!");
 
     let { data: battles, error } = await supabaseClient
@@ -71,22 +87,42 @@ window.openBattleLobby = async function() {
                     <h4 style="margin:0; color:var(--gold);">📍 ${b.bolge}</h4>
                     <small>${b.saldiran_id} ⚔️ ${b.savunan_id}</small>
                 </div>
-                <button class="btn blue" onclick="openBattleRoom('${b.id}')">Savaşa Katıl (İzle/Yaz)</button>
+                <button class="btn blue" onclick="openBattleRoom('${b.id}')">Savaşa Katıl</button>
             </div>
         `).join('');
     } else {
         listHtml = `<p class="sub" style="text-align:center;">Şu an aktif bir savaş bulunmuyor.</p>`;
     }
 
-    let html = `
-        <h2>⚔️ SAVAŞ LOBİSİ</h2>
-        <div style="max-height: 300px; overflow-y:auto; margin-bottom:15px;">
-            ${listHtml}
-        </div>
-        <div class="actions">
+    let savedKey = localStorage.getItem("OSMOYUN_GEMINI_KEY");
+    
+    // Eğer şifre yoksa Savaş Oluşturmayı engelle ve şifre kutusu çıkart
+    let actionsHtml = "";
+    if(!savedKey) {
+        actionsHtml = `
+            <div style="background:rgba(231,76,60,0.1); padding:10px; margin-bottom:15px; border-radius:4px; border:1px solid #e74c3c;">
+                <label style="color:#e74c3c; font-weight:bold; display:block; text-align:center;">⚠️ YZ Hakem İçin API Anahtarı Eksik</label>
+                <p style="font-size:11px; margin:5px 0; text-align:center;">Savaş başlatabilmek için önce geçerli bir Gemini şifresi girmelisin.</p>
+                <input type="text" id="lobby_api_key" placeholder="AIza..." style="width:100%; margin-bottom:5px;">
+                <button id="btn_verify_key" class="btn green" style="width:100%;" onclick="saveAndVerifyLobbyKey()">Doğrula ve Kaydet</button>
+            </div>
+            <button class="btn" style="width:100%;" onclick="closeModal()">KAPAT</button>
+        `;
+    } else {
+        actionsHtml = `
             <button class="btn red" style="width:100%; margin-bottom:5px;" onclick="openCreateBattleModal()">🔥 YENİ SAVAŞ OLUŞTUR (ADMIN)</button>
             <button class="btn" style="width:100%;" onclick="closeModal()">KAPAT</button>
             <button class="btn" style="width:100%; margin-top:5px; border:1px solid var(--gold); color:var(--gold);" onclick="clearGeminiApiKey()">🔑 API ANAHTARI SIFIRLA</button>
+        `;
+    }
+
+    let html = `
+        <h2>⚔️ SAVAŞ LOBİSİ</h2>
+        <div style="max-height: 250px; overflow-y:auto; margin-bottom:15px;">
+            ${listHtml}
+        </div>
+        <div class="actions">
+            ${actionsHtml}
         </div>
     `;
     modal(html);
@@ -94,12 +130,13 @@ window.openBattleLobby = async function() {
 
 // --- 2. YENİ SAVAŞ OLUŞTURMA ---
 window.openCreateBattleModal = function() {
-    let stateOptions = (db.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    let stateOptions = (typeof db !== 'undefined' && db.states ? db.states : []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     
-    let mapProvinces = Object.keys(db.mapProvinceOwners || {}).sort();
+    let mapProvinces = Object.keys(typeof db !== 'undefined' && db.mapProvinceOwners ? db.mapProvinceOwners : {}).sort();
     let locInput = mapProvinces.length > 0 
         ? `<select id="cb_location" style="width:100%;"><option value="">-- Haritadan Bölge Seç --</option>${mapProvinces.map(p => `<option value="${p}">${p}</option>`).join('')}</select>`
         : `<input type="text" id="cb_location" placeholder="Örn: Viyana Kuşatması" style="width:100%;">`;
+
     let html = `
         <h2>🔥 YENİ SAVAŞ OLUŞTUR</h2>
         <label>Hedef / Bölge Adı</label>
@@ -132,7 +169,7 @@ window.createBattleSubmit = async function() {
     const attState = getState(attId);
     const defState = getState(defId);
     
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     const { data, error } = await supabaseClient.from('savaslar').insert([{
         bolge: loc,
         saldiran_id: attState.name,
@@ -148,7 +185,7 @@ window.createBattleSubmit = async function() {
         await supabaseClient.from('savas_mesajlari').insert([{
             savas_id: data[0].id,
             gonderen: 'Sistem',
-            mesaj: `⚔️ Savaş Başladı! ${attState.name} orduları ${loc} bölgesinde ${defState.name} ile karşı karşıya!`
+            mesaj: `⚔️ Savaş Başladı! ${attState.name} orduları ${loc} bölgesinde ${defState.name} ile karşı karşıya! (Komutanlar, lütfen hamlelerinizi chat'e yazın)`
         }]);
         openBattleRoom(data[0].id);
     }
@@ -159,7 +196,7 @@ let currentActiveBattleId = null;
 let currentBattleData = null;
 
 window.openBattleRoom = async function(savasId) {
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     currentActiveBattleId = savasId;
     
     const { data: bData, error: bErr } = await supabaseClient.from('savaslar').select('*').eq('id', savasId).single();
@@ -169,9 +206,12 @@ window.openBattleRoom = async function(savasId) {
     let html = `
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2 style="margin:0;">📍 ${bData.bolge} Savaş Odası</h2>
-            <button class="btn red" onclick="endBattle('${savasId}')">SAVAŞI BİTİR (Sil)</button>
+            <button class="btn red" onclick="endBattle('${savasId}')">SAVAŞI BİTİR</button>
         </div>
-        <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">${bData.saldiran_id} vs ${bData.savunan_id}</div>
+        <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">
+            <span style="color:#e74c3c">Saldıran (${bData.saldiran_id})</span>: 🧍${bData.saldiran_ordu.Piyade} 🐎${bData.saldiran_ordu["Süvari"]} 💣${bData.saldiran_ordu["Topçu"]} | 
+            <span style="color:#3498db">Savunan (${bData.savunan_id})</span>: 🧍${bData.savunan_ordu.Piyade} 🐎${bData.savunan_ordu["Süvari"]} 💣${bData.savunan_ordu["Topçu"]}
+        </div>
         
         <div id="live_chat_box" style="background:var(--panel-light); border:1px solid var(--line); border-radius:4px; height:350px; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px;">
             <div style="text-align:center; color:var(--gold); font-size:11px;">Bağlanıyor...</div>
@@ -183,8 +223,7 @@ window.openBattleRoom = async function(savasId) {
         </div>
         
         <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--line); display:flex; gap:5px;">
-            
-            <button class="btn" style="width:80px;" onclick="openBattleLobby()">ÇIKIŞ</button>
+            <button class="btn" style="width:100%;" onclick="openBattleLobby()">ÇIKIŞ</button>
         </div>
     `;
     modal(html);
@@ -194,16 +233,14 @@ window.openBattleRoom = async function(savasId) {
 };
 
 window.fetchAndRenderMessages = async function(savasId) {
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     const { data: msgs, error } = await supabaseClient.from('savas_mesajlari').select('*').eq('savas_id', savasId).order('gonderilme_tarihi', { ascending: true });
     
     const chatBox = document.getElementById('live_chat_box');
     if(!chatBox) return;
     chatBox.innerHTML = "";
     
-    if(msgs) {
-        msgs.forEach(msg => appendMessageToChat(msg));
-    }
+    if(msgs) msgs.forEach(msg => appendMessageToChat(msg));
     chatBox.scrollTop = chatBox.scrollHeight;
 };
 
@@ -245,7 +282,20 @@ window.formatGeminiResponse = function(raw) {
         out += `<b>♟️ Taktik:</b> ${obj.adim_2_taktik_carpismasi}<br><br>`;
         out += `<b>⚖️ Güç Değişimi:</b> ${obj.adim_3_guc_degisimi}<br><br>`;
         out += `<i>${obj.savas_raporu}</i><br><br>`;
-        out += `<b>Kayıplar:</b> Saldıran: %${obj.a_takimi_kayip_yuzdesi} | Savunan: %${obj.b_takimi_kayip_yuzdesi}<br>`;
+        
+        let attO = obj.saldiran_oluler || {piyade:0, suvari:0, topcu:0};
+        let attK = obj.saldiran_kalan || {piyade:0, suvari:0, topcu:0};
+        let defO = obj.savunan_oluler || {piyade:0, suvari:0, topcu:0};
+        let defK = obj.savunan_kalan || {piyade:0, suvari:0, topcu:0};
+
+        out += `<div style="background:rgba(231,76,60,0.1); padding:5px; border-left:3px solid #e74c3c; margin-bottom:5px;">`;
+        out += `<b>Saldıran Kayıpları:</b> 💀${attO.piyade} Piyade, 💀${attO.suvari} Süvari, 💀${attO.topcu} Topçu<br>`;
+        out += `<small style="color:#e74c3c">Kalan Ordu: 🧍${attK.piyade} | 🐎${attK.suvari} | 💣${attK.topcu}</small></div>`;
+
+        out += `<div style="background:rgba(52,152,219,0.1); padding:5px; border-left:3px solid #3498db; margin-bottom:10px;">`;
+        out += `<b>Savunan Kayıpları:</b> 💀${defO.piyade} Piyade, 💀${defO.suvari} Süvari, 💀${defO.topcu} Topçu<br>`;
+        out += `<small style="color:#3498db">Kalan Ordu: 🧍${defK.piyade} | 🐎${defK.suvari} | 💣${defK.topcu}</small></div>`;
+
         out += `<b style="color:var(--border-gold);">Durum/Kazanan: ${obj.kazanan}</b>`;
         return out;
     } catch(e) {
@@ -261,7 +311,7 @@ window.sendBattleMessage = async function() {
     input.value = "";
     input.disabled = true;
     
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     const currentUser = (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail.split('@')[0] : 'Misafir';
     
     await supabaseClient.from('savas_mesajlari').insert([{
@@ -272,11 +322,13 @@ window.sendBattleMessage = async function() {
     
     input.disabled = false;
     input.focus();
+    
+    // Mesaj gittikten sonra Oto-Hakem'i kontrol et
     checkAutoReferee();
 };
 
 window.setupRealtimeSubscription = function(savasId) {
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     if(currentBattleSubscription) supabaseClient.removeChannel(currentBattleSubscription);
     
     currentBattleSubscription = supabaseClient.channel(`room_${savasId}`)
@@ -289,84 +341,14 @@ window.setupRealtimeSubscription = function(savasId) {
 window.endBattle = async function(savasId) {
     if(!confirm("Savaşı bitirmek ve BÜTÜN chat geçmişini sonsuza dek silmek istediğine emin misin? (Veritabanı temizliği için önerilir)")) return;
     
-    const supabaseClient = (window.sb || sb);
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     await supabaseClient.from('savaslar').delete().eq('id', savasId);
     alert("Savaş ve tüm geçmişi silindi.");
     if(currentBattleSubscription) supabaseClient.removeChannel(currentBattleSubscription);
     openBattleLobby();
 };
 
-// --- 4. GEMINI ENTEGRASYONU ---
-window.evaluateTurnWithGemini = async function() {
-    const apiKey = getGeminiApiKey();
-    if(!apiKey) return alert("Lütfen geçerli bir API anahtarı girin.");
-    if(!currentBattleData) return;
-
-    const supabaseClient = (window.sb || sb);
-    
-    // Mesajları çek
-    const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
-    let chatHistoryText = msgs.map(m => `${m.gonderen}: ${m.mesaj}`).join("\n");
-    
-    const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin.
-KURAL 1: Sadece JSON formatında cevap ver. Metin yazma.
-KURAL 2: Mantıksal çıkarım yap.
-
-Format:
-{
-    "adim_1_arazi_analizi": "Arazinin avantajı",
-    "adim_2_taktik_carpismasi": "Taktik durumu",
-    "adim_3_guc_degisimi": "Güç dengesi",
-    "savas_raporu": "Destansı savaş raporu.",
-    "a_takimi_kayip_yuzdesi": 45,
-    "b_takimi_kayip_yuzdesi": 80,
-    "kazanan": "Durum"
-}`;
-
-    const userPrompt = `[Bölge: ${currentBattleData.bolge}]\nSaldıran (${currentBattleData.saldiran_id}): ${JSON.stringify(currentBattleData.saldiran_ordu)}\nSavunan (${currentBattleData.savunan_id}): ${JSON.stringify(currentBattleData.savunan_ordu)}\n[SOHBET VE HAMLELER]\n${chatHistoryText}`;
-
-    const requestBody = {
-        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
-    };
-    
-    try {
-        await supabaseClient.from('savas_mesajlari').insert([{
-            savas_id: currentActiveBattleId,
-            gonderen: 'Sistem',
-            mesaj: `⏳ Game Master (Gemini) değerlendiriyor...`
-        }]);
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            // Hatalı mesajı temizle
-            await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
-            
-            if (response.status === 400) throw new Error("Google API Hatası 400. API Anahtarınız hatalı veya geçersiz olabilir!");
-            throw new Error(`HTTP Error ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const rawResponse = data.candidates[0].content.parts[0].text;
-        
-        // Hatalı mesajı sil ve gerçek yanıtı yaz
-        await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
-        await supabaseClient.from('savas_mesajlari').insert([{ savas_id: currentActiveBattleId, gonderen: 'Game Master (Gemini)', mesaj: rawResponse }]);
-        
-    } catch(e) {
-        alert("Savaş Botu Hatası: " + e.message);
-    }
-};
-
-window.addEventListener('beforeunload', () => {
-    const supabaseClient = (window.sb || sb);
-    if(currentBattleSubscription && supabaseClient) supabaseClient.removeChannel(currentBattleSubscription);
-});
-
+// --- OTOMATİK HAKEM (GERÇEK ZAMANLI) ---
 window.checkAutoReferee = async function() {
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     if(!supabaseClient || !currentActiveBattleId) return;
@@ -396,5 +378,84 @@ window.checkAutoReferee = async function() {
     // 2 farklı kişi mesaj attıysa otomatik değerlendir
     if (uniqueSenders.length >= 2) {
         evaluateTurnWithGemini();
+    }
+};
+
+// --- 4. GEMINI ENTEGRASYONU ---
+window.evaluateTurnWithGemini = async function() {
+    const apiKey = localStorage.getItem("OSMOYUN_GEMINI_KEY");
+    if(!apiKey) return; // Zaten lobiye girmeden alınmış olması lazım
+    if(!currentBattleData) return;
+
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
+    
+    const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
+    let chatHistoryText = msgs.map(m => `${m.gonderen}: ${m.mesaj}`).join("\n");
+    
+    const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin.
+KURAL 1: Taktikler ve arazi, ham gücü +%30 veya -%30 etkileyebilir.
+KURAL 2: EĞER bir taraf saldırmamışsa ve sadece izliyorsa, (agresif hamle yoksa) o tarafın kayıplarını KESİNLİKLE 0 olarak belirle.
+KURAL 3: Hangi birliğin (Piyade, Süvari, Topçu) çatışmaya girdiğine dikkat et. Sadece savaşan birliklerden asker ölür!
+KURAL 4: Sadece JSON ver. Metin yazma. Başlangıç verilerinden yola çıkarak ölen ve kalan asker sayılarını NET TAM SAYI olarak hesapla.
+
+Format:
+{
+    "adim_1_arazi_analizi": "Arazinin avantajı",
+    "adim_2_taktik_carpismasi": "Taktik durumu",
+    "adim_3_guc_degisimi": "Güç dengesi",
+    "savas_raporu": "Destansı savaş raporu.",
+    "saldiran_oluler": {"piyade": 100, "suvari": 0, "topcu": 0},
+    "savunan_oluler": {"piyade": 50, "suvari": 10, "topcu": 0},
+    "saldiran_kalan": {"piyade": 9900, "suvari": 5000, "topcu": 200},
+    "savunan_kalan": {"piyade": 4950, "suvari": 1990, "topcu": 40},
+    "kazanan": "Durum"
+}`;
+
+    const userPrompt = `[Bölge: ${currentBattleData.bolge}]\nSaldıran (${currentBattleData.saldiran_id}) Ordusu: ${JSON.stringify(currentBattleData.saldiran_ordu)}\nSavunan (${currentBattleData.savunan_id}) Ordusu: ${JSON.stringify(currentBattleData.savunan_ordu)}\n[SOHBET VE HAMLELER]\n${chatHistoryText}`;
+
+    const requestBody = {
+        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
+    };
+    
+    try {
+        await supabaseClient.from('savas_mesajlari').insert([{
+            savas_id: currentActiveBattleId,
+            gonderen: 'Sistem',
+            mesaj: `⏳ Game Master (Gemini) değerlendiriyor...`
+        }]);
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
+            throw new Error(`HTTP Error ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const rawResponse = data.candidates[0].content.parts[0].text;
+        
+        await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
+        await supabaseClient.from('savas_mesajlari').insert([{ savas_id: currentActiveBattleId, gonderen: 'Game Master (Gemini)', mesaj: rawResponse }]);
+        
+        // Sadece odanın geçici hafızasını güncelle (2. tur için), global db'ye DOKUNMA!
+        try {
+            let cleanStr2 = rawResponse.replace(/```json/gi, "").replace(/```/gi, "").trim();
+            let obj2 = JSON.parse(cleanStr2);
+            if(obj2.saldiran_kalan && obj2.savunan_kalan) {
+                let sK = obj2.saldiran_kalan;
+                let dK = obj2.savunan_kalan;
+                let attUpdate = {"Piyade": sK.piyade, "Süvari": sK.suvari, "Topçu": sK.topcu};
+                let defUpdate = {"Piyade": dK.piyade, "Süvari": dK.suvari, "Topçu": dK.topcu};
+                await supabaseClient.from('savaslar').update({saldiran_ordu: attUpdate, savunan_ordu: defUpdate}).eq('id', currentActiveBattleId);
+            }
+        } catch(ex) {}
+        
+    } catch(e) {
+        // Hata chat ekranına basılmaz, sessiz kalır
+        console.error("Savaş Botu Hatası: ", e);
     }
 };
