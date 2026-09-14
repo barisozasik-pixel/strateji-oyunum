@@ -16,7 +16,7 @@ window.clearGeminiApiKey = function() {
 };
 
 window.openPvPWarRoomModal = function() {
-    let stateOptions = (window.db.states || []).map(s => `<option value="${s.id}">${s.name} (${s.ownerEmail || 'NPC'})</option>`).join('');
+    let stateOptions = (db.states || []).map(s => `<option value="${s.id}">${s.name} (${s.ownerEmail || 'NPC'})</option>`).join('');
     
     let html = `
     <h2>⚔️ PVP SAVAŞ ODASI (Game Master)</h2>
