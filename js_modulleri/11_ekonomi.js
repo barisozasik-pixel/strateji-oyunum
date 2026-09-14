@@ -47,7 +47,8 @@ function calcPop(s)
   
   let anarCount = Math.floor(pop * (anarRate/100));
   
-  let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0) + (s.fortressGarrison||0);
+  // ✅ FIX #5: Garnizon toplam askerden ÇIKARILDI (garnizon ayrı gösterilecek)
+  let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0);
   if(db.settings.customItems) 
   {
      db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
@@ -57,35 +58,34 @@ function calcPop(s)
   let bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
   let maxElig = Math.floor(pop * (eligRate/100)) + bonusElig;
   
-  // SAVAŞ KAYIPLARI (Ölen her asker elverişli havuzdan alınmıştı → 1 ölü = 1 elverişli kayıp)
+  // SAVAŞ KAYIPLARI
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
   let ghostEligible = totalDead;
   
-  // BOŞTAKİ ASKER (Ordu veya ölü asker artarsa boş asker azalır)
-  let availableElig = Math.max(0, maxElig - armySize - ghostEligible);
+  // BOŞTAKİ ASKER
+  let availableElig = Math.max(0, maxElig - armySize - (s.fortressGarrison||0) - ghostEligible);
   
-  // SIRADAN HALK (Boştaki elverişli askerler de sıradan halkın bir parçasıdır)
-  let baseCivilian = Math.max(0, pop - anarCount - armySize);
-   
+  // ✅ FIX #1: Anarşist bonusu halktan düşsün
+  const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
+  anarCount = Math.min(pop, anarCount + bonusAnar);
+  
+  // SIRADAN HALK (anarşistler ve askerler düşüldükten sonra kalan)
+  let baseCivilian = Math.max(0, pop - anarCount - armySize - (s.fortressGarrison||0));
   let remCount = baseCivilian;
   
-  const legacyEducated = Math.floor(remCount * (edu/100));
-  const storedEducated = Number.isFinite(Number(s.educatedPopulation)) ? Math.max(0, Math.floor(Number(s.educatedPopulation))) : legacyEducated;
-  let eduCount = Math.min(remCount, storedEducated);
-  let otherCount = remCount - eduCount;
-  
-  const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
+  // ✅ FIX #6: Eğitimli halk = eğitim oranı × toplam nüfus
+  let eduCount = Math.floor(pop * (edu / 100));
   const bonusEdu = Math.max(0, Math.floor(Number(s.educatedPopulationBonus)||0));
+  eduCount = Math.min(remCount, eduCount + bonusEdu);
+  let otherCount = Math.max(0, remCount - eduCount);
   
-  anarCount = Math.min(pop, anarCount + bonusAnar);
-  eduCount = Math.min(Math.max(0, pop - anarCount), eduCount + bonusEdu);
-  otherCount = Math.max(0, remCount - eduCount);
-  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize), availableElig);
+  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize - (s.fortressGarrison||0)), availableElig);
   
   const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
   
-  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, edu: eduCount, eduRate: edu, other: otherCount, remaining: remCount };
+  // ✅ FIX #2: eduTotal ve garrison eklendi (eğitimli/toplam nüfus gösterimi için)
+  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, garrison: s.fortressGarrison||0, edu: eduCount, eduTotal: pop, eduRate: edu, other: otherCount, remaining: remCount };
 }
 
 
