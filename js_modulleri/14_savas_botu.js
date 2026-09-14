@@ -1,12 +1,43 @@
+
 // --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI) ---
 
 let currentBattleSubscription = null;
 
+// --- GLOBAL SAVAŞ DİNLEYİCİ (KIRIM GİBİ DEVLETLERE OTOMATİK EKRAN AÇMAK İÇİN) ---
+window.initGlobalBattleListener = function() {
+    const supabaseClient = (window.sb || sb);
+    if(!supabaseClient) {
+        setTimeout(window.initGlobalBattleListener, 2000); // 2 saniye sonra tekrar dene
+        return;
+    }
+    
+    supabaseClient.channel('public-savaslar-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'savaslar' }, payload => {
+            const b = payload.new;
+            
+            // Hangi devleti yönettiğimi bul
+            let myStateName = null;
+            if(window.db && window.db.states && typeof currentUserEmail !== 'undefined' && currentUserEmail) {
+                let myState = window.db.states.find(s => s.ownerEmail === currentUserEmail);
+                if(myState) myStateName = myState.name;
+            }
+            
+            // Eğer savaşa girenlerden biri bensem, savaş ekranını ZORLA aç!
+            if(myStateName && (b.saldiran_id === myStateName || b.savunan_id === myStateName)) {
+                alert(`⚔️ DİKKAT! Devletin (${myStateName}) savaşa girdi! Hedef: ${b.bolge}`);
+                openBattleRoom(b.id);
+            }
+        })
+        .subscribe();
+};
+setTimeout(window.initGlobalBattleListener, 3000); // Oyun yüklendikten sonra dinlemeye başla
+
+
 // --- GEMİNİ API KONTROLÜ ---
 window.getGeminiApiKey = function() {
     let key = localStorage.getItem("OSMOYUN_GEMINI_KEY");
-    if (!key) {
-        key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Bu anahtar GITHUB'a yüklenmez, sadece sizin bilgisayarınızın tarayıcı hafızasına güvenli kaydedilir.)");
+    if (!key || key.startsWith("AQ.")) { // Hatalı şifre koruması
+        key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Gerçek bir anahtar 'AIza' ile başlar. Github'a yüklenmez.)");
         if (key && key.trim() !== "") {
             localStorage.setItem("OSMOYUN_GEMINI_KEY", key.trim());
         }
@@ -19,7 +50,7 @@ window.clearGeminiApiKey = function() {
     alert("Kayıtlı API Anahtarı silindi. Bir sonraki savaşta sistem yeniden soracaktır.");
 };
 
-// --- 1. SAVAŞ LOBİSİ (Aktif Savaşları Listeleme) ---
+// --- 1. SAVAŞ LOBİSİ ---
 window.openBattleLobby = async function() {
     const supabaseClient = (window.sb || sb);
     if(!supabaseClient) return alert("Veritabanı bağlantısı bulunamadı!");
@@ -55,14 +86,15 @@ window.openBattleLobby = async function() {
         <div class="actions">
             <button class="btn red" style="width:100%; margin-bottom:5px;" onclick="openCreateBattleModal()">🔥 YENİ SAVAŞ OLUŞTUR (ADMIN)</button>
             <button class="btn" style="width:100%;" onclick="closeModal()">KAPAT</button>
+            <button class="btn" style="width:100%; margin-top:5px; border:1px solid var(--gold); color:var(--gold);" onclick="clearGeminiApiKey()">🔑 API ANAHTARI SIFIRLA</button>
         </div>
     `;
     modal(html);
 };
 
-// --- 2. YENİ SAVAŞ OLUŞTURMA EKRANI ---
+// --- 2. YENİ SAVAŞ OLUŞTURMA ---
 window.openCreateBattleModal = function() {
-    let stateOptions = (db.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    let stateOptions = (window.db.states || window.dbBaseSnapshot?.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     let html = `
         <h2>🔥 YENİ SAVAŞ OLUŞTUR</h2>
         <label>Hedef / Bölge Adı</label>
@@ -103,11 +135,10 @@ window.createBattleSubmit = async function() {
         saldiran_ordu: {Piyade: attState.piyade||0, Süvari: attState.suvari||0, Topçu: (attState.kucuk_top||0)+(attState.buyuk_top||0)},
         savunan_ordu: {Piyade: defState.piyade||0, Süvari: defState.suvari||0, Topçu: (defState.kucuk_top||0)+(defState.buyuk_top||0)},
         durum: 'aktif'
-    }]).select();
+    }]).select('*');
 
     if(error) return alert("Hata: " + error.message);
     
-    // Otomatik ilk sistem mesajı
     if(data && data[0]) {
         await supabaseClient.from('savas_mesajlari').insert([{
             savas_id: data[0].id,
@@ -118,7 +149,7 @@ window.createBattleSubmit = async function() {
     }
 };
 
-// --- 3. CANLI SAVAŞ ODASI (CHAT) ---
+// --- 3. CANLI SAVAŞ ODASI ---
 let currentActiveBattleId = null;
 let currentBattleData = null;
 
@@ -187,7 +218,7 @@ window.appendMessageToChat = function(msg) {
     
     let align = isSystem ? "center" : "left";
     
-    let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>');
+    let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     if(isGM) safeMsg = formatGeminiResponse(msg.mesaj);
 
     const html = `
@@ -201,6 +232,7 @@ window.appendMessageToChat = function(msg) {
 };
 
 window.formatGeminiResponse = function(raw) {
+    if(raw.includes('Değerlendiriyor') || raw.includes('değerlendiriyor')) return raw;
     try {
         let cleanStr = raw.replace(/```json/gi, "").replace(/```/gi, "").trim();
         let obj = JSON.parse(cleanStr);
@@ -212,7 +244,7 @@ window.formatGeminiResponse = function(raw) {
         out += `<b style="color:var(--border-gold);">Durum/Kazanan: ${obj.kazanan}</b>`;
         return out;
     } catch(e) {
-        return raw.replace(/\\n/g, '<br>');
+        return raw.replace(/\n/g, '<br>');
     }
 }
 
@@ -225,7 +257,7 @@ window.sendBattleMessage = async function() {
     input.disabled = true;
     
     const supabaseClient = (window.sb || sb);
-    const currentUser = (window.currentUserEmail ? window.currentUserEmail.split('@')[0] : 'Misafir');
+    const currentUser = (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail.split('@')[0] : 'Misafir';
     
     await supabaseClient.from('savas_mesajlari').insert([{
         savas_id: currentActiveBattleId,
@@ -261,55 +293,41 @@ window.endBattle = async function(savasId) {
 // --- 4. GEMINI ENTEGRASYONU ---
 window.evaluateTurnWithGemini = async function() {
     const apiKey = getGeminiApiKey();
-    if(!apiKey) return alert("API Anahtarı eksik.");
+    if(!apiKey || apiKey.startsWith("AQ.")) return alert("Geçersiz API Anahtarı! Lütfen Lobideki API SIFIRLA butonuna basıp gerçek AIza... anahtarını girin.");
     if(!currentBattleData) return;
 
     const supabaseClient = (window.sb || sb);
-    const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
     
+    // Mesajları çek
+    const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
     let chatHistoryText = msgs.map(m => `${m.gonderen}: ${m.mesaj}`).join("\n");
     
-    const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin (Game Master).
-Savaş canlı ve çok turludur. Sana oyuncuların savaş boyunca aralarında yaptığı sohbet/hamle geçmişi (Savaş Geçmişi) verilecek.
-
-KURAL 1: Taktikler ve arazi, ham gücü en fazla +%30 veya -%30 etkileyebilir.
+    const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin.
+KURAL 1: Sadece JSON formatında cevap ver. Metin yazma.
 KURAL 2: Mantıksal çıkarım yap.
-KURAL 3: Tüm chat geçmişini oku, özellikle oyuncuların SON hamlelerine odaklan. Sonuca göre iki tarafın kayıplarını belirle.
-KURAL 4: Cevabını SADECE JSON formatında ver. Başka metin yazma.
 
-Döndüreceğin format TAM OLARAK şu olmalıdır:
+Format:
 {
-    "adim_1_arazi_analizi": "Arazinin avantajı/dezavantajı",
-    "adim_2_taktik_carpismasi": "Kimin taktiği işe yaradı?",
-    "adim_3_guc_degisimi": "Güç dengesi kime kaydı?",
-    "savas_raporu": "Destansı savaş raporu (Bu Tur İçin).",
+    "adim_1_arazi_analizi": "Arazinin avantajı",
+    "adim_2_taktik_carpismasi": "Taktik durumu",
+    "adim_3_guc_degisimi": "Güç dengesi",
+    "savas_raporu": "Destansı savaş raporu.",
     "a_takimi_kayip_yuzdesi": 45,
     "b_takimi_kayip_yuzdesi": 80,
-    "kazanan": "Saldıran / Savunan / Savaş Devam Ediyor"
+    "kazanan": "Durum"
 }`;
 
-    const userPrompt = `
-[BAŞLANGIÇ VERİLERİ]
-Bölge: ${currentBattleData.bolge}
-Saldıran (${currentBattleData.saldiran_id}) Ordusu: ${JSON.stringify(currentBattleData.saldiran_ordu)}
-Savunan (${currentBattleData.savunan_id}) Ordusu: ${JSON.stringify(currentBattleData.savunan_ordu)}
-
-[SAVAŞ GEÇMİŞİ VE HAMLELER (CHAT)]
-${chatHistoryText}
-
-Lütfen son hamleleri değerlendirerek bilanço raporunu oluştur.`;
+    const userPrompt = `[Bölge: ${currentBattleData.bolge}]\nSaldıran (${currentBattleData.saldiran_id}): ${JSON.stringify(currentBattleData.saldiran_ordu)}\nSavunan (${currentBattleData.savunan_id}): ${JSON.stringify(currentBattleData.savunan_ordu)}\n[SOHBET VE HAMLELER]\n${chatHistoryText}`;
 
     const requestBody = {
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: userPrompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }]
     };
     
     try {
         await supabaseClient.from('savas_mesajlari').insert([{
             savas_id: currentActiveBattleId,
             gonderen: 'Sistem',
-            mesaj: `⏳ Game Master (Gemini) cephedeki son durumu değerlendiriyor...`
+            mesaj: `⏳ Game Master (Gemini) değerlendiriyor...`
         }]);
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
@@ -318,19 +336,23 @@ Lütfen son hamleleri değerlendirerek bilanço raporunu oluştur.`;
             body: JSON.stringify(requestBody)
         });
         
-        if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+        if (!response.ok) {
+            // Hatalı mesajı temizle
+            await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
+            
+            if (response.status === 400) throw new Error("Google API Hatası 400. API Anahtarınız hatalı veya geçersiz olabilir!");
+            throw new Error(`HTTP Error ${response.status}`);
+        }
         
         const data = await response.json();
         const rawResponse = data.candidates[0].content.parts[0].text;
         
-        await supabaseClient.from('savas_mesajlari').insert([{
-            savas_id: currentActiveBattleId,
-            gonderen: 'Game Master (Gemini)',
-            mesaj: rawResponse
-        }]);
+        // Hatalı mesajı sil ve gerçek yanıtı yaz
+        await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (Gemini) değerlendiriyor%').eq('savas_id', currentActiveBattleId);
+        await supabaseClient.from('savas_mesajlari').insert([{ savas_id: currentActiveBattleId, gonderen: 'Game Master (Gemini)', mesaj: rawResponse }]);
         
     } catch(e) {
-        alert("Bağlantı hatası: " + e.message);
+        alert("Savaş Botu Hatası: " + e.message);
     }
 };
 
