@@ -36,7 +36,7 @@ setTimeout(window.initGlobalBattleListener, 3000); // Oyun yüklendikten sonra d
 // --- GEMİNİ API KONTROLÜ ---
 window.getGeminiApiKey = function() {
     let key = localStorage.getItem("OSMOYUN_GEMINI_KEY");
-    if (!key || key.startsWith("AQ.")) { // Hatalı şifre koruması
+    if (!key) { // Hatalı şifre koruması
         key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Gerçek bir anahtar 'AIza' ile başlar. Github'a yüklenmez.)");
         if (key && key.trim() !== "") {
             localStorage.setItem("OSMOYUN_GEMINI_KEY", key.trim());
@@ -299,7 +299,7 @@ window.endBattle = async function(savasId) {
 // --- 4. GEMINI ENTEGRASYONU ---
 window.evaluateTurnWithGemini = async function() {
     const apiKey = getGeminiApiKey();
-    if(!apiKey || apiKey.startsWith("AQ.")) return alert("Geçersiz API Anahtarı! Lütfen Lobideki API SIFIRLA butonuna basıp gerçek AIza... anahtarını girin.");
+    if(!apiKey) return alert("Lütfen geçerli bir API anahtarı girin.");
     if(!currentBattleData) return;
 
     const supabaseClient = (window.sb || sb);
