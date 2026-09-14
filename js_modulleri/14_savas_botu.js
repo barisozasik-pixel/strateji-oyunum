@@ -187,8 +187,8 @@ window.createBattleSubmit = async function() {
         bolge: loc,
         saldiran_id: attState.name,
         savunan_id: defState.name,
-        saldiran_ordu: {Piyade: attState.piyade||0, Süvari: attState.suvari||0, Topçu: (attState.kucuk_top||0)+(attState.buyuk_top||0)},
-        savunan_ordu: {Piyade: defState.piyade||0, Süvari: defState.suvari||0, Topçu: (defState.kucuk_top||0)+(defState.buyuk_top||0)},
+        saldiran_ordu: {Piyade: attState.piyade||0, Okçu: attState.okcu||0, Süvari: attState.suvari||0, Topçu: (attState.kucuk_top||0)+(attState.buyuk_top||0)},
+        savunan_ordu: {Piyade: defState.piyade||0, Okçu: defState.okcu||0, Süvari: defState.suvari||0, Topçu: (defState.kucuk_top||0)+(defState.buyuk_top||0)},
         durum: 'aktif'
     }]).select('*');
 
@@ -262,10 +262,10 @@ window.renderOwnArmyInfo = function() {
 
     if(currentBattleRole === 'saldiran') {
         const o = currentBattleData.saldiran_ordu;
-        el.innerHTML = `<span style="color:#e74c3c">🗡️ Kendi Ordun (${currentBattleData.saldiran_id})</span>: 🧍${o.Piyade} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
+        el.innerHTML = `<span style="color:#e74c3c">🗡️ Kendi Ordun (${currentBattleData.saldiran_id})</span>: 🧍${o.Piyade} 🏹${o["Okçu"]||0} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
     } else if(currentBattleRole === 'savunan') {
         const o = currentBattleData.savunan_ordu;
-        el.innerHTML = `<span style="color:#3498db">🛡️ Kendi Ordun (${currentBattleData.savunan_id})</span>: 🧍${o.Piyade} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
+        el.innerHTML = `<span style="color:#3498db">🛡️ Kendi Ordun (${currentBattleData.savunan_id})</span>: 🧍${o.Piyade} 🏹${o["Okçu"]||0} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
     } else {
         el.innerHTML = `<span style="color:var(--muted)">👁️ İzleyici modundasın — ordu sayıları gizli.</span>`;
     }
@@ -287,8 +287,10 @@ window.appendMessageToChat = function(msg) {
     const chatBox = document.getElementById('live_chat_box');
     if(!chatBox) return;
     
+    const currentUser = (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail.split('@')[0] : 'Misafir';
     let isSystem = msg.gonderen === 'Sistem';
     let isGM = msg.gonderen.includes('Game Master');
+    let isMe = msg.gonderen === currentUser;
     
     let color = "var(--text)";
     let bg = "rgba(0,0,0,0.3)";
@@ -300,6 +302,12 @@ window.appendMessageToChat = function(msg) {
     let align = isSystem ? "center" : "left";
     
     let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    
+    // Düşmanın yazdığı taktikleri gizle! (Sadece GM bilsin)
+    if(!isSystem && !isGM && !isMe) {
+        safeMsg = "<i style='color:var(--muted);'>Gizli bir hamle emri verdi...</i>";
+    }
+
     if(isGM) safeMsg = formatGeminiResponse(msg.mesaj);
 
     const html = `
@@ -322,18 +330,21 @@ window.formatGeminiResponse = function(raw) {
         out += `<b>⚖️ Güç Değişimi:</b> ${obj.adim_3_guc_degisimi}<br><br>`;
         out += `<i>${obj.savas_raporu}</i><br><br>`;
         
-        let attO = obj.saldiran_oluler || {piyade:0, suvari:0, topcu:0};
-        let attK = obj.saldiran_kalan || {piyade:0, suvari:0, topcu:0};
-        let defO = obj.savunan_oluler || {piyade:0, suvari:0, topcu:0};
-        let defK = obj.savunan_kalan || {piyade:0, suvari:0, topcu:0};
+        let attO = obj.saldiran_oluler || {piyade:0, okcu:0, suvari:0, topcu:0};
+        let attK = obj.saldiran_kalan || {piyade:0, okcu:0, suvari:0, topcu:0};
+        let defO = obj.savunan_oluler || {piyade:0, okcu:0, suvari:0, topcu:0};
+        let defK = obj.savunan_kalan || {piyade:0, okcu:0, suvari:0, topcu:0};
+
+        let attName = currentBattleData ? currentBattleData.saldiran_id : "Saldıran";
+        let defName = currentBattleData ? currentBattleData.savunan_id : "Savunan";
 
         out += `<div style="background:rgba(231,76,60,0.1); padding:5px; border-left:3px solid #e74c3c; margin-bottom:5px;">`;
-        out += `<b>Saldıran Kayıpları:</b> 💀${attO.piyade} Piyade, 💀${attO.suvari} Süvari, 💀${attO.topcu} Topçu<br>`;
-        out += `<small style="color:#e74c3c">Kalan Ordu: 🧍${attK.piyade} | 🐎${attK.suvari} | 💣${attK.topcu}</small></div>`;
+        out += `<b>${attName} Kayıpları:</b> 💀${attO.piyade} Piyade, 💀${attO.okcu||0} Okçu, 💀${attO.suvari} Süvari, 💀${attO.topcu} Topçu<br>`;
+        out += `<small style="color:#e74c3c">Kalan Ordu: 🧍${attK.piyade} | 🏹${attK.okcu||0} | 🐎${attK.suvari} | 💣${attK.topcu}</small></div>`;
 
         out += `<div style="background:rgba(52,152,219,0.1); padding:5px; border-left:3px solid #3498db; margin-bottom:10px;">`;
-        out += `<b>Savunan Kayıpları:</b> 💀${defO.piyade} Piyade, 💀${defO.suvari} Süvari, 💀${defO.topcu} Topçu<br>`;
-        out += `<small style="color:#3498db">Kalan Ordu: 🧍${defK.piyade} | 🐎${defK.suvari} | 💣${defK.topcu}</small></div>`;
+        out += `<b>${defName} Kayıpları:</b> 💀${defO.piyade} Piyade, 💀${defO.okcu||0} Okçu, 💀${defO.suvari} Süvari, 💀${defO.topcu} Topçu<br>`;
+        out += `<small style="color:#3498db">Kalan Ordu: 🧍${defK.piyade} | 🏹${defK.okcu||0} | 🐎${defK.suvari} | 💣${defK.topcu}</small></div>`;
 
         out += `<b style="color:var(--border-gold);">Durum/Kazanan: ${obj.kazanan}</b>`;
         return out;
@@ -460,9 +471,9 @@ window.evaluateTurnWithGemini = async function(retryCount = 0) {
     const systemPrompt = `Sen tarihi bir strateji oyununun Oyun Yöneticisi ve Savaş Hakemisin.
 KURAL 1: Taktikler ve arazi, ham gücü +%30 veya -%30 etkileyebilir.
 KURAL 2: EĞER bir taraf saldırmamışsa ve sadece izliyorsa veya sadece savunuyorsa, (agresif/farklı bir hamlesi yoksa) kesinlikle onun adına taktik uydurma.
-KURAL 3: Hangi birliğin (Piyade, Süvari, Topçu) çatışmaya girdiğine dikkat et. Sadece savaşan birliklerden asker ölür!
+KURAL 3: Hangi birliğin (Piyade, Okçu, Süvari, Topçu) çatışmaya girdiğine dikkat et. Sadece savaşan birliklerden asker ölür!
 KURAL 4: Sadece JSON ver. Başlangıç verilerinden yola çıkarak ölen ve kalan asker sayılarını NET TAM SAYI olarak hesapla.
-KURAL 5: Taraf isimlerini KESİNLİKLE uydurma. Saldıran taraf "${attName}", Savunan taraf "${defName}". Başka bir devlet ismi kullanma.
+KURAL 5: Taraf isimlerini KESİNLİKLE uydurma. Saldıran taraf: ${attName}, Savunan taraf: ${defName}. Savaş raporunda Güneş Devleti veya benzeri uydurma isimler ASLA kullanma. Sadece ${attName} ve ${defName} isimlerini kullan!
 KURAL 6: Sohbette yazılmayan hiçbir hamleyi uydurma. Eğer bir taraf hamle yazmamışsa pas geçmiş veya beklemiş sayılır.
 
 Format:
@@ -471,10 +482,10 @@ Format:
     "adim_2_taktik_carpismasi": "Taktik durumu",
     "adim_3_guc_degisimi": "Güç dengesi",
     "savas_raporu": "Destansı savaş raporu.",
-    "saldiran_oluler": {"piyade": 100, "suvari": 0, "topcu": 0},
-    "savunan_oluler": {"piyade": 50, "suvari": 10, "topcu": 0},
-    "saldiran_kalan": {"piyade": 9900, "suvari": 5000, "topcu": 200},
-    "savunan_kalan": {"piyade": 4950, "suvari": 1990, "topcu": 40},
+    "saldiran_oluler": {"piyade": 100, "okcu": 50, "suvari": 0, "topcu": 0},
+    "savunan_oluler": {"piyade": 50, "okcu": 20, "suvari": 10, "topcu": 0},
+    "saldiran_kalan": {"piyade": 9900, "okcu": 1950, "suvari": 5000, "topcu": 200},
+    "savunan_kalan": {"piyade": 4950, "okcu": 980, "suvari": 1990, "topcu": 40},
     "kazanan": "Durum"
 }`;
 
@@ -528,8 +539,8 @@ Format:
             if(obj2.saldiran_kalan && obj2.savunan_kalan) {
                 let sK = obj2.saldiran_kalan;
                 let dK = obj2.savunan_kalan;
-                let attUpdate = {"Piyade": sK.piyade, "Süvari": sK.suvari, "Topçu": sK.topcu};
-                let defUpdate = {"Piyade": dK.piyade, "Süvari": dK.suvari, "Topçu": dK.topcu};
+                let attUpdate = {"Piyade": sK.piyade, "Okçu": sK.okcu, "Süvari": sK.suvari, "Topçu": sK.topcu};
+                let defUpdate = {"Piyade": dK.piyade, "Okçu": dK.okcu, "Süvari": dK.suvari, "Topçu": dK.topcu};
                 await supabaseClient.from('savaslar').update({saldiran_ordu: attUpdate, savunan_ordu: defUpdate}).eq('id', currentActiveBattleId);
             }
         } catch(ex) {}
