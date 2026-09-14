@@ -34,12 +34,12 @@ function buyBulk(id,key, labelName)
  
  s.treasury -= totalCost; 
  s[key] = oldUnitCount + qty;
- if(key==="okul") {
-   const currentEducated = calcPop(s).edu;
-   const capacity = Math.max(0, Math.floor(Number(db.settings.schoolCapacityPerBuilding)||0));
-   s.educatedPopulation = Math.min(Math.max(0, Number(s.population)||0), currentEducated + (capacity * qty));
-   s.education = Math.max(0, Math.min(100, (s.educatedPopulation / Math.max(1, Number(s.population)||0)) * 100));
- }
+  if(key==="okul") {
+    // ✅ FIX B: Sadece education oranını güncelle — calcPop zaten pop × (edu/100) hesaplıyor
+    const capacity = Math.max(0, Math.floor(Number(db.settings.schoolCapacityPerBuilding)||0));
+    const newEducated = Math.min(Math.max(0, Number(s.population)||0), calcPop(s).edu + (capacity * qty));
+    s.education = Math.max(0, Math.min(100, (newEducated / Math.max(1, Number(s.population)||0)) * 100));
+  }
  
  addLog({
      stateId: s.id,
