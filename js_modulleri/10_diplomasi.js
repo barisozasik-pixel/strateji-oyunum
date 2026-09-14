@@ -238,21 +238,38 @@ function sendLetter(fromStateId)
     if(suvari>0){sender.suvari=Math.max(0,(sender.suvari||0)-suvari);target.suvari=(target.suvari||0)+suvari;}
     if(nisanci>0){sender.nisanci=Math.max(0,(sender.nisanci||0)-nisanci);target.nisanci=(target.nisanci||0)+nisanci;}
   }
- db.letters=db.letters||[];
- db.letters.unshift({id:crypto.randomUUID(),fromStateId:isAdminLetter?"__admin__":sender.id,fromStateName:isAdminLetter?"Devlet Yönetim Paneli":sender.name,senderTitle,toStateId:recipient.id,toStateName:recipient.name,toType:recipient.type,sealUrl,content,gold,piyade,suvari,nisanci,date:new Date().toLocaleDateString("tr-TR")+" "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}),read:false});
-  const troopDetails = [piyade>0?`${num(piyade)} Piyade`:null, suvari>0?`${num(suvari)} Süvari`:null, nisanci>0?`${num(nisanci)} Nişancı`:null].filter(Boolean).join(', ');
-  if(sender)addLog({stateId:sender.id,stateName:sender.name,action:`Mektup & Yardım Gönderildi -> ${recipient.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldSenderT,newTreasury:sender.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
-  if(target)addLog({stateId:target.id,stateName:target.name,action:`Mektup & Yardım Alındı <- ${isAdminLetter?"Yönetim Paneli":sender.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldTargetT,newTreasury:target.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
- queueSave();
- if(isAdminLetter){openAdminLetters();}else{closeModal();openDetail(sender.id);}
- toast(`Mektup ${recipient.name} için kaydedildi.`,true);
+  db.letters=db.letters||[];
+  db.letters.unshift({id:crypto.randomUUID(),timestamp:Date.now(),year:Number(db.gameYear)||1453,fromStateId:isAdminLetter?"__admin__":sender.id,fromStateName:isAdminLetter?"Devlet Yönetim Paneli":sender.name,senderTitle,toStateId:recipient.id,toStateName:recipient.name,toType:recipient.type,sealUrl,content,gold,piyade,suvari,nisanci,date:new Date().toLocaleDateString("tr-TR")+" "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}),read:false});
+   const troopDetails = [piyade>0?`${num(piyade)} Piyade`:null, suvari>0?`${num(suvari)} Süvari`:null, nisanci>0?`${num(nisanci)} Nişancı`:null].filter(Boolean).join(', ');
+   if(sender)addLog({stateId:sender.id,stateName:sender.name,action:`Mektup & Yardım Gönderildi -> ${recipient.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldSenderT,newTreasury:sender.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
+   if(target)addLog({stateId:target.id,stateName:target.name,action:`Mektup & Yardım Alındı <- ${isAdminLetter?"Yönetim Paneli":sender.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldTargetT,newTreasury:target.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
+  queueSave();
+  if(isAdminLetter){openAdminLetters();}else{closeModal();openDetail(sender.id);}
+  toast(`Mektup ${recipient.name} için kaydedildi.`,true);
 }
 
  
+function getLetterTimestamp(l) {
+ if(!l) return 0;
+ if(typeof l.timestamp === 'number' && l.timestamp > 0) return l.timestamp;
+ if(l.date && typeof l.date === 'string') {
+   const parts = l.date.trim().split(' ');
+   if(parts.length >= 2) {
+     const d = parts[0].split('.');
+     const t = parts[1].split(':');
+     if(d.length === 3) {
+       const ts = new Date(Number(d[2]), Number(d[1])-1, Number(d[0]), Number(t[0]||0), Number(t[1]||0)).getTime();
+       if(!isNaN(ts)) return ts;
+     }
+   }
+ }
+ return 0;
+}
+
 function openAdminLetters()
 {
  if(!isAdmin)return;
- const letters=db.letters||[];
+ const letters=(db.letters||[]).slice().sort((a,b)=>getLetterTimestamp(b)-getLetterTimestamp(a));
  const list=letters.length?letters.map(letter=>`<div class="letter-box"><div class="letter-head"><b>${esc(letter.fromStateName||"Bilinmeyen")} → ${esc(letter.toStateName||"Bilinmeyen")}</b><span class="sub">${esc(letter.date||"")}</span></div><div class="sub" style="margin-bottom:6px;">${esc(letter.senderTitle||"")}${letter.toType==="map"?" • Harita Devleti":""}</div><div style="white-space:pre-wrap;">${esc(letter.content||"")}</div>${letter.gold||letter.piyade||letter.suvari||letter.nisanci?`<div class="sub" style="margin-top:7px;">Ekler: ${money(letter.gold||0)} • Piyade ${num(letter.piyade||0)} • Süvari ${num(letter.suvari||0)} • Nişancı ${num(letter.nisanci||0)}</div>`:""}</div>`).join(""):"<p class='sub'>Henüz gönderilmiş mektup yok.</p>";
  modal(`<h2>✉️ TÜM MEKTUPLAR</h2><div class="actions" style="margin:8px 0 12px;"><button class="btn gold" onclick="openLetterModal('__admin__')">✉️ YENİ YÖNETİCİ MEKTUBU</button><button class="btn" onclick="openAdmin()">← AYARLARA DÖN</button></div><div style="max-height:65vh;overflow:auto;">${list}</div>`);
 }

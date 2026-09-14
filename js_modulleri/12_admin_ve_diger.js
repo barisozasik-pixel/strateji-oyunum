@@ -165,46 +165,7 @@ function deduct(id){
 
  closeModal();queueSave();openDetail(id)
 }
-function openTransfer(id){
- const s = getState(id);
- if(!isAdmin && s.ownerEmail !== currentUserEmail) return;
- const opts=db.states.filter(x=>x.id!==id).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
- modal(`<h2>PARA AKTARIMI</h2><label>Hedef Devlet</label><select id="transferTarget">${opts}</select><label>Tutar</label><input id="transferAmt" type="number" min="0"><label>Açıklama</label><textarea id="transferDesc"></textarea><div class="actions" style="margin-top:10px"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn blue" onclick="transfer('${id}')">AKTAR</button></div>`)
-}
-function transfer(id){
- let s=getState(id);
- let t=getState(document.getElementById("transferTarget").value),a=Number(document.getElementById("transferAmt").value||0),d=document.getElementById("transferDesc").value.trim();
- if(!t||a<=0||a>s.treasury) return;
- if(rejectDebtPurchase(s))return;
- 
- const oldST = s.treasury;
- const oldTT = t.treasury;
- 
- s.treasury -= a;
- t.treasury += a; 
- 
- addLog({
-     stateId: s.id,
-     stateName: s.name,
-     action: `Transfer Gönderildi -> ${t.name} (${d})`,
-     cost: a,
-     qty: 1,
-     oldTreasury: oldST,
-     newTreasury: s.treasury
- });
 
- addLog({
-     stateId: t.id,
-     stateName: t.name,
-     action: `Transfer Alındı <- ${s.name} (${d})`,
-     cost: a,
-     qty: 1,
-     oldTreasury: oldTT,
-     newTreasury: t.treasury
- });
-
- closeModal();queueSave();openDetail(id)
-}
 
 function openPurchaseLogs(){
     const myState = currentId ? getState(currentId) : null;
@@ -277,6 +238,20 @@ function passOneYear(){
     db.timerSeconds = 0;
     db.timerRunning = false;
     db.gameYear = (Number(db.gameYear) || 1453) + 1;
+    
+    // ---------------- 2 YILDA BİR ESKİ MEKTUPLARI TEMİZLEME ----------------
+    if(Array.isArray(db.letters) && db.letters.length > 0) {
+        const curYr = Number(db.gameYear) || 1453;
+        const initialCount = db.letters.length;
+        db.letters = db.letters.filter(l => {
+            const letterYear = Number(l.year) || (curYr - 1);
+            return (curYr - letterYear) < 2;
+        });
+        const cleanedCount = initialCount - db.letters.length;
+        if(cleanedCount > 0) {
+            console.log(`🧹 ${cleanedCount} adet 2 yıldan eski mektup veritabanından temizlendi.`);
+        }
+    }
     
     // Veritabanına Yıl Sonu Raporunu Kaydetmek için Hazırlık
     db.settings.lastYearReport = { year: db.gameYear, states: {} };
@@ -455,6 +430,7 @@ function passOneYear(){
         s.hiredAdvisors = survivingHired;
     });
     
+    queueSave();
     queueMapSave();
     if(currentId) openDetail(currentId); else renderHome();
     showYearReportModal();

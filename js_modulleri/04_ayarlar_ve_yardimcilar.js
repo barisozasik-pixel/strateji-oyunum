@@ -36,7 +36,11 @@ async function init(){
   initSupabase();
   const {data:{session},error}=await sb.auth.getSession();
   if(error) throw error;
-  sb.auth.onAuthStateChange((_e,s)=>{if(s) showApp(s); else showAuth()});
+  sb.auth.onAuthStateChange((event, s) => {
+    if (event === 'TOKEN_REFRESHED') return;
+    if (s) showApp(s);
+    else showAuth();
+  });
   if(session) showApp(session); else showAuth();
   
   // Arka Planda 3 Saatlik Sayaç Döngüsü (Sadece Admin için canlı artar)
@@ -117,7 +121,11 @@ async function showApp(session){
  await loadEventAssets();
  setupGameRealtime();
  renderTopActions();
- renderHome();
+  if (currentId) {
+    openDetail(currentId);
+  } else {
+    renderHome();
+  }
         // Oyuna ilk girildiğinde veya çevrimdışıyken atlanan yıl raporunu patlatma
  if(db.settings && db.settings.lastYearReport) {
     let lastSeenYear = 0; try { lastSeenYear = Number(localStorage.getItem('lastSeenYearReport_' + (currentUserEmail || 'guest'))) || 0; } catch(e) {}
@@ -188,4 +196,22 @@ document.getElementById("authBtn").onclick=async()=>{
 };
 
 async function logout(){await sb.auth.signOut()}
+
+function getLetterTimestamp(l) {
+    if(!l) return 0;
+    if(typeof l.timestamp === 'number' && l.timestamp > 0) return l.timestamp;
+    if(l.date && typeof l.date === 'string') {
+        const parts = l.date.trim().split(' ');
+        if(parts.length >= 2) {
+            const d = parts[0].split('.');
+            const t = parts[1].split(':');
+            if(d.length === 3) {
+                const ts = new Date(Number(d[2]), Number(d[1])-1, Number(d[0]), Number(t[0]||0), Number(t[1]||0)).getTime();
+                if(!isNaN(ts)) return ts;
+            }
+        }
+    }
+    return 0;
+}
+
 

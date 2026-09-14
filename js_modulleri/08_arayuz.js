@@ -69,7 +69,7 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     const premiumStyle=isInfrastructure||usePremiumStyle;
     const isMilitary = !isInfrastructure && !key.includes("liman") && !key.includes("ocak") && key !== "okul" && key !== "istihbarat_binasi";
     const disbandBtn = isMilitary && count > 0 
-        ? `<button type="button" class="btn red small" style="margin-left:4px; padding:3px 6px; font-size:11px;" title="Terhis Et (Bakım Masrafını Düşür)" onclick="${isCustom ? `disbandCustomUnit('${s.id}','${key}','${esc(name)}')` : `disbandUnit('${s.id}','${key}','${esc(name)}')`}">TERHİS</button>` 
+        ? `<button type="button" class="btn population-disband-btn" title="Terhis Et (Bakım Masrafını Düşür)" onclick="${isCustom ? `disbandCustomUnit('${s.id}','${key}','${esc(name)}')` : `disbandUnit('${s.id}','${key}','${esc(name)}')`}">⚔ TERHİS</button>` 
         : '';
     const actionsHtml = canManage && premiumStyle
     ? `<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="Alınacak adet" oninput="document.getElementById('tot_${s.id}_${key}').innerText='Toplam: '+money(${actualPrice}*(this.value||0))"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">${isInfrastructure?'🔨 İNŞA ET':'⚔ AL'}</button>${disbandBtn}</div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(actualPrice)}</div>`
@@ -162,7 +162,10 @@ function openDetail(id){
  const rulerImgClean = cleanUrl(s.rulerImage);
  const imgs = db.settings.images || {};
 
- const myLetters = (db.letters || []).filter(l => (l.toStateId === s.id || l.fromStateId === s.id) && !(l.deletedBy || []).includes(s.id));
+  const myLetters = (db.letters || [])
+    .filter(l => (l.toStateId === s.id || l.fromStateId === s.id) && !(l.deletedBy || []).includes(s.id))
+    .slice()
+    .sort((a, b) => getLetterTimestamp(b) - getLetterTimestamp(a));
  const unreadCount = myLetters.filter(l => l.toStateId === s.id && !l.read).length;
 
  // 1. ASKERİYE SEKMESİ
@@ -462,12 +465,10 @@ function openDetail(id){
  // 7. SİYASET / EYLEMLER SEKMESİ
  let eylemHtml = `<div>`;
  let tActs = ``;
- if (isAdmin) tActs = `<button class="btn red" style="flex:1; padding:10px;" onclick="openCampaign('${s.id}')">⚔️ SEFER HAZIRLIĞI</button>
-                       <button class="btn gold" style="flex:1; padding:10px;" onclick="openAdminGrantModal('${s.id}')">💸 PARA GÖNDER</button>
-                       <button class="btn red" style="flex:1; padding:10px;" onclick="openDeduct('${s.id}')">💰 HAZİNEDEN KES</button>
-                       <button class="btn blue" style="flex:1; padding:10px;" onclick="openTransfer('${s.id}')">✉️ PARA AKTAR</button>`;
- else if (isOwner) tActs = `<button class="btn red" style="flex:1; padding:10px;" onclick="openCampaign('${s.id}')">⚔️ SEFER HAZIRLIĞI</button>
-                            <button class="btn blue" style="flex:1; padding:10px;" onclick="openTransfer('${s.id}')">✉️ PARA AKTAR</button>`;
+  if (isAdmin) tActs = `<button class="btn red" style="flex:1; padding:10px;" onclick="openCampaign('${s.id}')">⚔️ SEFER HAZIRLIĞI</button>
+                        <button class="btn gold" style="flex:1; padding:10px;" onclick="openAdminGrantModal('${s.id}')">💸 PARA GÖNDER</button>
+                        <button class="btn red" style="flex:1; padding:10px;" onclick="openDeduct('${s.id}')">💰 HAZİNEDEN KES</button>`;
+  else if (isOwner) tActs = `<button class="btn red" style="flex:1; padding:10px;" onclick="openCampaign('${s.id}')">⚔️ SEFER HAZIRLIĞI</button>`;
  
  eylemHtml += `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">${tActs}</div>`;
  eylemHtml += `<h4 style="color:var(--border-gold); margin:0 0 8px; font-family:'Oswald';">📜 FERMANLAR (Halk Mutluluğu)</h4><div class="unit-grid">`;
@@ -509,10 +510,33 @@ function openDetail(id){
      Kale garnizonu asker başı yıllık gider: <b>${money(db.settings.garrisonUpkeep.fortress)}</b><br>
      Mevcut kale garnizonu gideri: <b style="color:var(--red)">-${money(fortressGarrisonExpense)}</b>
    </div>
-   ${canManage?`<button class="btn green" style="width:100%;margin-top:10px;" onclick="saveCountryManagement('${s.id}')">ÜLKE YÖNETİMİNİ KAYDET</button>`:'<p class="sub">Bu devleti düzenleme yetkiniz yok.</p>'}
-   <h4 style="color:var(--border-gold);margin:18px 0 8px;font-family:'Oswald';">🏗️ NÜFUSU GELİŞTİREN BİNALAR</h4>
-   <p class="sub">Her bina, inşa edildiği andaki toplam nüfusu admin panelinde belirlenen oran kadar artırır.</p>
-   <div class="unit-grid population-building-grid">${populationBuildingsHtml}</div>
+    ${canManage?`<button class="btn green" style="width:100%;margin-top:10px;" onclick="saveCountryManagement('${s.id}')">ÜLKE YÖNETİMİNİ KAYDET</button>`:'<p class="sub">Bu devleti düzenleme yetkiniz yok.</p>'}
+    <h4 style="color:var(--border-gold);margin:18px 0 8px;font-family:'Oswald';">🏗️ NÜFUSU GELİŞTİREN BİNALAR</h4>
+    <p class="sub">Her bina, inşa edildiği andaki toplam nüfusu admin panelinde belirlenen oran kadar artırır.</p>
+    <div class="event-result" style="margin-bottom:12px; background:rgba(13,20,28,0.7); border:1px solid var(--border-gold);">
+      <div style="font-family:'Oswald',sans-serif; color:var(--border-gold); font-size:13px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+        <span>👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</span>
+        <span class="badge">Nüfus Dinamiği</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:12px;">
+        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--gold);">
+          <span class="sub">Yeni Doğan / Çocuk Nüfus:</span><br>
+          <b style="font-size:15px; color:var(--gold);">${num(p.children || 0)}</b> kişi
+          <div class="sub" style="font-size:10px; margin-top:2px;">(Henüz vergi vermez, askere alınamaz)</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--green);">
+          <span class="sub">Seneye Yetişkin Olacak Gençler:</span><br>
+          <b style="font-size:15px; color:var(--green);">+${num(Math.floor((p.children || 0) * 0.20))}</b> kişi (%20)
+          <div class="sub" style="font-size:10px; margin-top:2px;">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--blue);">
+          <span class="sub">Yetişkin Nüfus (Mükellef):</span><br>
+          <b style="font-size:15px; color:var(--text);">${num(p.adults || (s.population - (p.children||0)))}</b> kişi
+          <div class="sub" style="font-size:10px; margin-top:2px;">(Vergi veren ve ordu/eğitim havuzunu oluşturanlar)</div>
+        </div>
+      </div>
+    </div>
+    <div class="unit-grid population-building-grid">${populationBuildingsHtml}</div>
  </div>`;
 
 
@@ -532,7 +556,7 @@ function openDetail(id){
  const leftPoliticalHtml=isPremiumDetail?`
    <div class="ottoman-svg-card"><svg class="ottoman-card-svg" viewBox="0 0 979 1618" role="img" aria-label="${esc(s.name)} yönetim özeti"><defs><clipPath id="omPortraitClip"><rect x="92" y="148" width="795" height="438" rx="5"/></clipPath></defs>${rulerImgClean?`<image href="${esc(rulerImgClean)}" x="92" y="148" width="795" height="438" preserveAspectRatio="xMidYMid slice" clip-path="url(#omPortraitClip)"/>`:''}<g font-family="'Playfair Display',Georgia,serif" text-anchor="middle"><text x="489.5" y="98" fill="#dfbe72" font-size="47" font-weight="800">${esc(s.name)}</text><text x="489.5" y="635" fill="#dfbe72" font-size="39" font-weight="800">${esc(s.ruler||'Lider Yok')}</text><text x="489.5" y="674" fill="#aaa399" font-family="Oswald,sans-serif" font-size="22" font-weight="700">${esc(s.title||'Devlet')}${isOwner?' (SEN)':''}</text><text x="489.5" y="757" fill="#cdb06d" font-size="30" font-weight="700">HALK MUTLULUĞU</text><text x="489.5" y="870" fill="${omGClr}" font-family="'Roboto Condensed',sans-serif" font-size="66" font-weight="900">${num(happinessNow)}%</text>${adv.happinessBonus!==0?`<text x="489.5" y="914" fill="#d4a940" font-family="'Roboto Condensed',sans-serif" font-size="30" font-weight="800">(${adv.happinessBonus>0?'+':''}${adv.happinessBonus})</text>`:''}</g><rect x="111" y="956" width="757" height="14" rx="3" fill="#090b09"/><rect x="111" y="956" width="${(757*happinessNow/100).toFixed(1)}" height="14" rx="3" fill="${omGClr}"/><g font-family="Oswald,sans-serif" text-anchor="middle"><text x="225" y="1055" fill="#c89d4d" font-size="45">⚖</text><text x="330" y="1032" fill="#b9b0a0" font-size="22">VERGİ ORANI</text><text x="330" y="1082" fill="#dfbe72" font-size="42" font-weight="800">%${num(s.tax)}</text><text x="585" y="1055" fill="#c89d4d" font-size="36">♟♟♟</text><text x="735" y="1032" fill="#b9b0a0" font-size="22">TOPLAM NÜFUS</text><text x="735" y="1082" fill="#dfbe72" font-size="39" font-weight="800">${num(s.population)}</text><text x="489.5" y="1185" fill="#cdb06d" font-family="'Playfair Display',Georgia,serif" font-size="29" font-weight="700">NÜFUS VE SINIF DAĞILIMI</text></g><g font-family="'Roboto Condensed',Arial,sans-serif" font-size="25" dominant-baseline="middle"><text x="105" y="1270" fill="#c89d4d" font-size="29">▤</text><text x="155" y="1270" fill="#d0cbc2">Eğitimli Sınıf (%${educatedRateText})</text><text x="875" y="1270" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.edu)}</text><text x="105" y="1334" fill="#c89d4d" font-size="29">♟</text><text x="155" y="1334" fill="#d0cbc2">Sıradan Halk</text><text x="875" y="1334" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.other)}</text><text x="105" y="1398" fill="#c89d4d" font-size="29">♜</text><text x="155" y="1398" fill="#d0cbc2">Boştaki Elverişli Asker</text><text x="875" y="1398" text-anchor="end" fill="#28d17c" font-weight="800">${num(p.elig)}</text><text x="105" y="1462" fill="#c89d4d" font-size="29">⚔</text><text x="155" y="1462" fill="#d0cbc2">Silahaltındaki Ordu</text><text x="875" y="1462" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.armySize)}</text><text x="105" y="1526" fill="#cf4138" font-size="29">Ⓐ</text><text x="155" y="1526" fill="#d0cbc2">Anarşistler</text><text x="875" y="1526" text-anchor="end" fill="#cf4138" font-size="22" font-weight="800">${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</text></g></svg></div>
   `:`
- <div class="political-panel"><div class="political-header"><h1 style="color:${esc(s.color||'var(--border-gold)')};">${esc(s.name)}</h1></div><div class="ruler-portrait-container">${rulerImgClean?`<img src="${esc(rulerImgClean)}" class="big-portrait">`:'<div class="sub">Portre Yok</div>'}<div class="ruler-name-plate"><strong>${esc(s.ruler||'Lider Yok')}</strong><span>${esc(s.title||'Devlet')} ${isOwner?'<b style="color:var(--green)">(SEN)</b>':''}</span></div></div><div class="pol-stats"><div style="text-align:center;margin-bottom:10px;"><div class="sub">HALK MUTLULUĞU</div><div style="font-size:20px;font-weight:bold;color:var(--green)">${num(happinessNow)}%</div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${happinessNow}%"></div></div></div><div class="pol-stat-row"><span class="muted">Vergi Oranı</span><span style="color:var(--gold)">%${num(s.tax)}</span></div><div class="pol-stat-row"><span class="muted">Toplam Nüfus</span><span>${num(s.population)}</span></div>${(p.children||0)>0?`<div class="pol-stat-row"><span class="muted">👶 Çocuk Nüfus (Vergi Dışı)</span><span style="color:var(--gold)">${num(p.children)}</span></div>`:''}<div class="population-section-title">NÜFUS VE SINIF DAĞILIMI</div><div class="pol-stat-row"><span class="muted">Eğitimli Sınıf (%${educatedRateText})</span><span>${num(p.edu)}</span></div><div class="pol-stat-row"><span class="muted">Sıradan Halk</span><span>${num(p.other)}</span></div><div class="pol-stat-row"><span class="muted">Boştaki Elverişli Asker</span><span>${num(p.elig)}</span></div><div class="pol-stat-row"><span class="muted">Silahaltındaki Ordu</span><span>${num(p.armySize)}</span></div><div class="pol-stat-row"><span class="muted">Anarşistler</span><span>${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</span></div></div></div>`;
+ <div class="political-panel"><div class="political-header"><h1 style="color:${esc(s.color||'var(--border-gold)')};">${esc(s.name)}</h1></div><div class="ruler-portrait-container">${rulerImgClean?`<img src="${esc(rulerImgClean)}" class="big-portrait">`:'<div class="sub">Portre Yok</div>'}<div class="ruler-name-plate"><strong>${esc(s.ruler||'Lider Yok')}</strong><span>${esc(s.title||'Devlet')} ${isOwner?'<b style="color:var(--green)">(SEN)</b>':''}</span></div></div><div class="pol-stats"><div style="text-align:center;margin-bottom:10px;"><div class="sub">HALK MUTLULUĞU</div><div style="font-size:20px;font-weight:bold;color:var(--green)">${num(happinessNow)}%</div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${happinessNow}%"></div></div></div><div class="pol-stat-row"><span class="muted">Vergi Oranı</span><span style="color:var(--gold)">%${num(s.tax)}</span></div><div class="pol-stat-row"><span class="muted">Toplam Nüfus</span><span>${num(s.population)}</span></div>${(p.children||0)>0?`<div class="pol-stat-row"><span class="muted">👶 Çocuk Nüfus (Vergi Dışı)</span><span style="color:var(--gold)">${num(p.children)}</span></div><div class="pol-stat-row"><span class="muted">🌱 Seneye Yetişkin Olacak Gençler</span><span style="color:var(--green)">+${num(Math.floor((p.children||0)*0.20))}</span></div>`:''}<div class="population-section-title">NÜFUS VE SINIF DAĞILIMI</div><div class="pol-stat-row"><span class="muted">Eğitimli Sınıf (%${educatedRateText})</span><span>${num(p.edu)}</span></div><div class="pol-stat-row"><span class="muted">Sıradan Halk</span><span>${num(p.other)}</span></div><div class="pol-stat-row"><span class="muted">Boştaki Elverişli Asker</span><span>${num(p.elig)}</span></div><div class="pol-stat-row"><span class="muted">Silahaltındaki Ordu</span><span>${num(p.armySize)}</span></div><div class="pol-stat-row"><span class="muted">Anarşistler</span><span>${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</span></div></div></div>`;
 
  // ANA DETAY DÜZENİ
  document.getElementById("detail").innerHTML = `
