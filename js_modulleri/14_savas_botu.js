@@ -1,4 +1,3 @@
-
 // --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI) ---
 
 let currentBattleSubscription = null;
@@ -127,7 +126,6 @@ window.openBattleRoom = async function(savasId) {
     const supabaseClient = (window.sb || sb);
     currentActiveBattleId = savasId;
     
-    // Savaş bilgilerini çek
     const { data: bData, error: bErr } = await supabaseClient.from('savaslar').eq('id', savasId).single();
     if(bErr) return alert("Savaş odası bulunamadı!");
     currentBattleData = bData;
@@ -155,7 +153,6 @@ window.openBattleRoom = async function(savasId) {
     `;
     modal(html);
 
-    // Mesajları çek ve Canlı Bağlantıyı kur
     fetchAndRenderMessages(savasId);
     setupRealtimeSubscription(savasId);
 };
@@ -190,12 +187,8 @@ window.appendMessageToChat = function(msg) {
     
     let align = isSystem ? "center" : "left";
     
-    // Güvenlik ve formatlama
-    let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    if(isGM) {
-        // Eğer gemini JSON yollamışsa veya markdown varsa parse etmeyi deneriz, ama metin olarak verdik
-        safeMsg = formatGeminiResponse(msg.mesaj);
-    }
+    let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>');
+    if(isGM) safeMsg = formatGeminiResponse(msg.mesaj);
 
     const html = `
         <div style="align-self:stretch; text-align:${align}; background:${bg}; border:${border}; padding:8px; border-radius:4px;">
@@ -219,7 +212,7 @@ window.formatGeminiResponse = function(raw) {
         out += `<b style="color:var(--border-gold);">Durum/Kazanan: ${obj.kazanan}</b>`;
         return out;
     } catch(e) {
-        return raw.replace(/\n/g, '<br>');
+        return raw.replace(/\\n/g, '<br>');
     }
 }
 
@@ -259,7 +252,7 @@ window.endBattle = async function(savasId) {
     if(!confirm("Savaşı bitirmek ve BÜTÜN chat geçmişini sonsuza dek silmek istediğine emin misin? (Veritabanı temizliği için önerilir)")) return;
     
     const supabaseClient = (window.sb || sb);
-    await supabaseClient.from('savaslar').delete().eq('id', savasId); // CASCADE sayesinde mesajlar da silinir.
+    await supabaseClient.from('savaslar').delete().eq('id', savasId);
     alert("Savaş ve tüm geçmişi silindi.");
     if(currentBattleSubscription) supabaseClient.removeChannel(currentBattleSubscription);
     openBattleLobby();
@@ -268,14 +261,9 @@ window.endBattle = async function(savasId) {
 // --- 4. GEMINI ENTEGRASYONU ---
 window.evaluateTurnWithGemini = async function() {
     const apiKey = getGeminiApiKey();
-    if(!apiKey) {
-        alert("Savaşı başlatabilmek için bir Gemini API Anahtarına ihtiyacınız var.");
-        return;
-    }
-
+    if(!apiKey) return alert("API Anahtarı eksik.");
     if(!currentBattleData) return;
 
-    // Önce tüm mesaj geçmişini okuyalım
     const supabaseClient = (window.sb || sb);
     const { data: msgs } = await supabaseClient.from('savas_mesajlari').select('gonderen,mesaj').eq('savas_id', currentActiveBattleId).order('gonderilme_tarihi', { ascending: true });
     
@@ -285,7 +273,7 @@ window.evaluateTurnWithGemini = async function() {
 Savaş canlı ve çok turludur. Sana oyuncuların savaş boyunca aralarında yaptığı sohbet/hamle geçmişi (Savaş Geçmişi) verilecek.
 
 KURAL 1: Taktikler ve arazi, ham gücü en fazla +%30 veya -%30 etkileyebilir.
-KURAL 2: Mantıksal çıkarım yap. Sabit kurallar yoktur, dinamiklere göre analiz et.
+KURAL 2: Mantıksal çıkarım yap.
 KURAL 3: Tüm chat geçmişini oku, özellikle oyuncuların SON hamlelerine odaklan. Sonuca göre iki tarafın kayıplarını belirle.
 KURAL 4: Cevabını SADECE JSON formatında ver. Başka metin yazma.
 
@@ -330,15 +318,11 @@ Lütfen son hamleleri değerlendirerek bilanço raporunu oluştur.`;
             body: JSON.stringify(requestBody)
         });
         
-        if (!response.ok) {
-            if (response.status === 400 || response.status === 403) clearGeminiApiKey();
-            throw new Error(`HTTP Error ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
         
         const data = await response.json();
         const rawResponse = data.candidates[0].content.parts[0].text;
         
-        // Sonucu veritabanına yaz, Realtime sayesinde herkese anında düşecek!
         await supabaseClient.from('savas_mesajlari').insert([{
             savas_id: currentActiveBattleId,
             gonderen: 'Game Master (Gemini)',
@@ -347,11 +331,9 @@ Lütfen son hamleleri değerlendirerek bilanço raporunu oluştur.`;
         
     } catch(e) {
         alert("Bağlantı hatası: " + e.message);
-        console.error(e);
     }
 };
 
-// Temizlik
 window.addEventListener('beforeunload', () => {
     const supabaseClient = (window.sb || sb);
     if(currentBattleSubscription && supabaseClient) supabaseClient.removeChannel(currentBattleSubscription);
