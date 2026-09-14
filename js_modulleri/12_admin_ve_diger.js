@@ -308,6 +308,12 @@ function passOneYear(){
         
         addLog({stateId: s.id, stateName: s.name, action: `Yıl Sonu Hasılası`, cost: Math.abs(net), qty: 1, oldTreasury: oldT, newTreasury: s.treasury});
         
+        // ✅ BUG 1 FIX: Savaş zayiatları her yıl sıfırlanır — aksi halde elverişli asker havuzu kalıcı olarak kilitlenir
+        const oldCasualties = (s.warCasualties||0) + (s.garrisonWarDeaths||0);
+        s.warCasualties = 0;
+        s.garrisonWarDeaths = 0;
+        if(oldCasualties > 0) rpt.events.push(`Savaş zayiatları sıfırlandı (${num(oldCasualties)} şehit anıldı)`);
+        
         // ADIM 2: BORÇ VE FAİZ KONTROLÜ
         s.debtYears=Math.max(0,Math.floor(Number(s.debtYears)||0));
         if(Number(s.treasury||0)<0){
@@ -336,8 +342,18 @@ function passOneYear(){
             let calculatedPop = Math.floor(newPop * growthMultiplier);
             let extraPeople = calculatedPop - newPop;
           
-            s.population = newPop + extraPeople;
-            rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
+            // ✅ FIX C: Nüfus tavanı — toprak sayısı × 50.000 (sınırsız büyüme engellendi)
+            const ownedLands = getOwnedMapProvinceIds(s.id).length;
+            const popCap = Math.max(50000, ownedLands * 50000);
+            const cappedPop = Math.min(newPop + extraPeople, popCap);
+            extraPeople = cappedPop - newPop;
+            
+            if(extraPeople > 0) {
+                s.population = cappedPop;
+                rpt.events.push(`Binalardan +${num(extraPeople)} Nüfus`);
+            } else if(newPop >= popCap) {
+                rpt.events.push(`Nüfus tavanına ulaşıldı (${num(popCap)})`);
+            }
         }
         
         // ADIM 4: İSYANLAR
@@ -354,6 +370,14 @@ function passOneYear(){
                     db.mapProvinceOwners[randomProv] = "__rebel__";
                     db.mapProvinceDetails[randomProv] = { countryName: "İsyancılar (" + s.name + " Karşıtı)", color: "#000000", garrison: 5000 + Math.floor(Math.random() * 5000) };
                     rpt.rebellions.push(`${getTurkishMapName(randomProv)} bölgesinde İSYAN çıktı ve kontrol kaybedildi!`);
+                    // ✅ FIX D TAM: İsyanda garnizon ve binalar güncelle + garnizonu kırp
+                    refreshMapFortressCounts();
+                    const remainingLands = getOwnedMapProvinceIds(s.id).length;
+                    if(remainingLands === 0) {
+                        s.fortressGarrison = 0;
+                    } else if((s.fortressGarrison||0) > 0) {
+                        redistributeMapGarrisonsForStateIds([s.id]);
+                    }
                 }
             }
         }
