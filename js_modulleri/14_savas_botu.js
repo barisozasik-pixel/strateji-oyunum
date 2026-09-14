@@ -62,7 +62,7 @@ window.openBattleLobby = async function() {
 
 // --- 2. YENİ SAVAŞ OLUŞTURMA EKRANI ---
 window.openCreateBattleModal = function() {
-    let stateOptions = (window.db.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    let stateOptions = (db.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     let html = `
         <h2>🔥 YENİ SAVAŞ OLUŞTUR</h2>
         <label>Hedef / Bölge Adı</label>
