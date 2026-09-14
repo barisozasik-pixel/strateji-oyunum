@@ -94,20 +94,25 @@ window.openBattleLobby = async function() {
 
 // --- 2. YENİ SAVAŞ OLUŞTURMA ---
 window.openCreateBattleModal = function() {
-    let stateOptions = (window.db.states || window.dbBaseSnapshot?.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    let stateOptions = (db.states || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    
+    let mapProvinces = Object.keys(db.mapProvinceOwners || {}).sort();
+    let locInput = mapProvinces.length > 0 
+        ? `<select id="cb_location" style="width:100%;"><option value="">-- Haritadan Bölge Seç --</option>${mapProvinces.map(p => `<option value="${p}">${p}</option>`).join('')}</select>`
+        : `<input type="text" id="cb_location" placeholder="Örn: Viyana Kuşatması" style="width:100%;">`;
     let html = `
         <h2>🔥 YENİ SAVAŞ OLUŞTUR</h2>
         <label>Hedef / Bölge Adı</label>
-        <input type="text" id="cb_location" placeholder="Örn: Viyana Kuşatması">
+        ${locInput}
         
         <div style="display:flex; gap:10px; margin-top:10px;">
             <div style="flex:1;">
                 <label style="color:#e74c3c;">🗡️ Saldıran Devlet</label>
-                <select id="cb_att_id"><option value="">-- Seç --</option>${stateOptions}</select>
+                <select id="cb_att_id" style="width:100%;"><option value="">-- Seç --</option>${stateOptions}</select>
             </div>
             <div style="flex:1;">
                 <label style="color:#3498db;">🛡️ Savunan Devlet</label>
-                <select id="cb_def_id"><option value="">-- Seç --</option>${stateOptions}</select>
+                <select id="cb_def_id" style="width:100%;"><option value="">-- Seç --</option>${stateOptions}</select>
             </div>
         </div>
         
