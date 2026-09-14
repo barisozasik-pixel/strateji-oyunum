@@ -310,6 +310,8 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
 .population-building-card .population-qty-step:hover{background:#29251d;color:#e0bd72;}
 .population-building-card .population-build-btn{width:auto;min-width:126px;height:38px;padding:5px 17px;color:#21170a;border:1px solid #e2c174;outline:1px solid #73501d;outline-offset:-4px;background:linear-gradient(180deg,#e0c078 0%,#c59743 48%,#9f7128 100%);box-shadow:inset 0 2px 0 rgba(255,247,209,.6),inset 0 -3px 5px rgba(76,45,9,.45),0 4px 7px rgba(0,0,0,.48);font-size:12px;font-family:'Playfair Display',serif;white-space:nowrap;text-shadow:0 1px rgba(255,240,190,.35);}
 .population-building-card .population-build-btn:hover{color:#15100a;border-color:#f0d38a;background:linear-gradient(180deg,#e4c477 0%,#b98a36 100%);}
+.population-building-card .population-disband-btn{width:auto;min-width:88px;height:38px;padding:5px 14px;color:#f7e1d7;border:1px solid #9e2a2b;outline:1px solid #540b0e;outline-offset:-4px;background:linear-gradient(180deg,#6b1414 0%,#4c0808 50%,#2b0404 100%);box-shadow:inset 0 2px 0 rgba(255,160,160,.4),inset 0 -3px 5px rgba(0,0,0,.8),0 4px 7px rgba(0,0,0,.6);font-size:12px;font-family:'Playfair Display',serif;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px #000;cursor:pointer;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .15s ease;}
+.population-building-card .population-disband-btn:hover{border-color:#c94040;background:linear-gradient(180deg,#801818 0%,#540d0d 100%);color:#fff;transform:translateY(-1px);}
 .population-building-card .population-total{text-align:right;font-size:14px;font-family:'Roboto Condensed',sans-serif;font-weight:700;margin-top:7px;color:#dfc17e;text-shadow:0 2px 2px #000;}
 .finance-dashboard{font-family:'Roboto Condensed',sans-serif;}
 .finance-dashboard .finance-hero,.finance-dashboard .finance-panel{background-color:#0b0c0d;background-image:linear-gradient(100deg,rgba(20,22,23,.1),rgba(3,4,5,.28)),url('../assets/panel-dark-texture.png');background-repeat:no-repeat,repeat;background-size:100% 100%,auto 100%;border:1px solid #755a2c;box-shadow:inset 0 0 0 2px #070809,inset 0 0 18px rgba(0,0,0,.6),0 3px 8px rgba(0,0,0,.35);}
@@ -506,6 +508,7 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
     .population-building-card .population-qty-control input{width:48px;height:31px;padding-bottom:5px;line-height:normal;font-size:14px;}
     .population-building-card .population-qty-step{width:23px;height:15px;font-size:9px;}
     .population-building-card .population-build-btn{min-width:91px;height:31px;padding:4px 9px;font-size:10px;}
+    .population-building-card .population-disband-btn{min-width:76px;height:31px;padding:4px 8px;font-size:10px;}
     .population-building-card .population-total{font-size:11px;margin-top:4px;}
     .finance-kpi-grid,.finance-columns{grid-template-columns:1fr;}
     .finance-kpi b{font-size:17px;}
