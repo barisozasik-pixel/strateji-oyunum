@@ -99,7 +99,9 @@ function applyEventChoice(pendingOrUid,optionId){
  const educatedRequest=Math.trunc(Number(opt.educatedPopulation)||0);
  const remainingPopulation=calcPop(s).remaining;
  const targetEducated=Math.max(0,Math.min(remainingPopulation,oldEducated+educatedRequest));
- s.education=remainingPopulation>0?Math.max(0,Math.min(100,(targetEducated/remainingPopulation)*100)):0;
+ // ✅ BUG 3 FIX: Payda toplam nüfus olmalı — calcPop pop*(edu/100) kullanıyor
+ const totalPop = Math.max(1, Number(s.population)||0);
+ s.education=totalPop>0?Math.max(0,Math.min(100,(targetEducated/totalPop)*100)):0;
  const actualEducated=targetEducated-oldEducated;
  db.eventHistory.unshift({uid:pending.uid,stateId:s.id,stateName:s.name,eventId:event.id,eventTitle:event.title,year:pending.year,choice:optionId,choiceText:opt.text,gold:actualGold,happiness:Number(opt.happiness||0),population:actualPopulation,soldiers:actualSoldiers,guns:actualGuns,educatedPopulation:actualEducated,date:new Date().toLocaleString("tr-TR"),user:currentUserEmail});
  if(db.eventHistory.length>500)db.eventHistory.pop();
