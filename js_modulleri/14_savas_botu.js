@@ -446,7 +446,7 @@ window.checkAutoReferee = async function() {
 // --- 4. GEMINI ENTEGRASYONU ---
 window.evaluateTurnWithGemini = async function(retryCount = 0) {
     const apiKey = localStorage.getItem("OSMOYUN_GEMINI_KEY");
-    if(!apiKey) return; // Zaten lobiye girmeden alınmış olması lazım
+    if(!apiKey) return;
     if(!currentBattleData) return;
 
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
@@ -508,11 +508,11 @@ Format:
         
         if (!response.ok) {
             if(response.status === 503 && retryCount < 3) {
-                console.warn(\`Gemini 503 hatası, tekrar deneniyor... (\${retryCount + 1}. deneme)\`);
+                console.warn(`Gemini 503 hatası, tekrar deneniyor... (${retryCount + 1}. deneme)`);
                 await new Promise(r => setTimeout(r, 2000));
                 return window.evaluateTurnWithGemini(retryCount + 1);
             }
-            throw new Error(\`HTTP Error \${response.status}\`);
+            throw new Error(`HTTP Error ${response.status}`);
         }
         
         const data = await response.json();
@@ -523,7 +523,7 @@ Format:
         
         // Sadece odanın geçici hafızasını güncelle (2. tur için), global db'ye DOKUNMA!
         try {
-            let cleanStr2 = rawResponse.replace(/\`\`\`json/gi, "").replace(/\`\`\`/gi, "").trim();
+            let cleanStr2 = rawResponse.replace(/```json/gi, "").replace(/```/gi, "").trim();
             let obj2 = JSON.parse(cleanStr2);
             if(obj2.saldiran_kalan && obj2.savunan_kalan) {
                 let sK = obj2.saldiran_kalan;
@@ -539,7 +539,7 @@ Format:
         await supabaseClient.from('savas_mesajlari').insert([{ 
             savas_id: currentActiveBattleId, 
             gonderen: 'Sistem', 
-            mesaj: \`❌ Hata oluştu: \${e.message}. Lütfen hamlenizi tekrar yazın veya bir süre bekleyin.\` 
+            mesaj: `❌ Hata oluştu: ${e.message}. Lütfen hamlenizi tekrar yazın veya bir süre bekleyin.` 
         }]);
         console.error("Savaş Botu Hatası: ", e);
     }
