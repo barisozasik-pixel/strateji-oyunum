@@ -1,9 +1,8 @@
-
 // --- PVP SAVAŞ ODASI (GEMINI GAME MASTER) SUNUCUSUZ ---
 window.getGeminiApiKey = function() {
     let key = localStorage.getItem("OSMOYUN_GEMINI_KEY");
     if (!key) {
-        key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Bu anahtar GITHUB'a yüklenmez, sadece sizin bilgisayarınızın tarayıcı hafızasına güvenli kaydedilir.)");
+        key = prompt("Lütfen Gemini API Anahtarınızı girin:\n(Bu anahtar GITHUB'a yüklenmez, sadece sizin tarayıcınıza güvenli kaydedilir.)");
         if (key && key.trim() !== "") {
             localStorage.setItem("OSMOYUN_GEMINI_KEY", key.trim());
         }
