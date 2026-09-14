@@ -235,8 +235,9 @@ function sendLetter(fromStateId)
  }
  db.letters=db.letters||[];
  db.letters.unshift({id:crypto.randomUUID(),fromStateId:isAdminLetter?"__admin__":sender.id,fromStateName:isAdminLetter?"Devlet Yönetim Paneli":sender.name,senderTitle,toStateId:recipient.id,toStateName:recipient.name,toType:recipient.type,sealUrl,content,gold,piyade,suvari,nisanci,date:new Date().toLocaleDateString("tr-TR")+" "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}),read:false});
- if(sender)addLog({stateId:sender.id,stateName:sender.name,action:`Mektup & Yardım Gönderildi -> ${recipient.name}`,cost:gold,qty:1,oldTreasury:oldSenderT,newTreasury:sender.treasury,unitName:piyade>0?"Piyade":(suvari>0?"Süvari":(nisanci>0?"Nişancı":"")),oldUnit:oldSenderP,newUnit:sender.piyade||0});
- if(target)addLog({stateId:target.id,stateName:target.name,action:`Mektup & Yardım Alındı <- ${isAdminLetter?"Yönetim Paneli":sender.name}`,cost:gold,qty:1,oldTreasury:oldTargetT,newTreasury:target.treasury,unitName:piyade>0?"Piyade":(suvari>0?"Süvari":(nisanci>0?"Nişancı":"")),oldUnit:oldTargetP,newUnit:target.piyade||0});
+  const troopDetails = [piyade>0?`${num(piyade)} Piyade`:null, suvari>0?`${num(suvari)} Süvari`:null, nisanci>0?`${num(nisanci)} Nişancı`:null].filter(Boolean).join(', ');
+  if(sender)addLog({stateId:sender.id,stateName:sender.name,action:`Mektup & Yardım Gönderildi -> ${recipient.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldSenderT,newTreasury:sender.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
+  if(target)addLog({stateId:target.id,stateName:target.name,action:`Mektup & Yardım Alındı <- ${isAdminLetter?"Yönetim Paneli":sender.name}${troopDetails?` (${troopDetails})`:''}`,cost:gold,qty:1,oldTreasury:oldTargetT,newTreasury:target.treasury,unitName:troopDetails||'',oldUnit:0,newUnit:0});
  queueSave();
  if(isAdminLetter){openAdminLetters();}else{closeModal();openDetail(sender.id);}
  toast(`Mektup ${recipient.name} için kaydedildi.`,true);
