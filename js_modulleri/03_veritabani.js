@@ -29,7 +29,11 @@ async function loadDB(silent = false){
      states: statesRes.data ? statesRes.data.map(r => r.data) : [],
      advisors: advisorsRes.data ? advisorsRes.data.map(r => r.data) : [],
      letters: lettersRes.data ? lettersRes.data.map(r => r.data) : [],
-     purchaseLog: logsRes.data ? logsRes.data.map(r => r.data) : []
+     purchaseLog: logsRes.data ? logsRes.data.map(r => ({
+       ...(r.data || {}),
+       logId: r.data?.logId || r.id,
+       created_at: r.created_at || r.data?.created_at || new Date().toISOString()
+     })) : []
    };
    // Varsayılan paşa ve ayar yüklemeleri (eskisi gibi)
    if(!db.advisors || db.advisors.length === 0) {
@@ -60,102 +64,142 @@ async function loadDB(silent = false){
 }
 
 async function cleanupOldLogs(){
- try{
-   if(!sb || !db.purchaseLog || db.purchaseLog.length < 300) return;
-   // En eski korunan logun tarihini al
-   const oldestKept = db.purchaseLog[db.purchaseLog.length - 1];
-   if(!oldestKept?.logId) return;
-   // Bu logdan daha eski olanları veritabanından sil
-   const { error } = await sb.from('game_logs')
-     .delete()
-     .lt('created_at', oldestKept.created_at || new Date(0).toISOString());
-   if(!error) console.log("Eski loglar temizlendi.");
- }catch(e){ console.warn("Log temizleme hatası:", e); }
+  try{
+    if(!sb || !db.purchaseLog || db.purchaseLog.length < 300) return;
+    // En eski korunan logun tarihini al
+    const oldestKept = db.purchaseLog[db.purchaseLog.length - 1];
+    if(!oldestKept?.logId || !oldestKept?.created_at) return;
+    const cutoffDate = new Date(oldestKept.created_at);
+    if(isNaN(cutoffDate.getTime())) return;
+
+    // Bu logdan daha eski olanları veritabanından sil
+    const { error } = await sb.from('game_logs')
+      .delete()
+      .lt('created_at', cutoffDate.toISOString());
+    if(!error) console.log("Eski loglar temizlendi (300 üzeri silindi).");
+    else console.warn("Log temizleme hatası:", error);
+  }catch(e){ console.warn("Log temizleme hatası:", e); }
 }
 async function saveDB(){
- if(!sb)return false;
- if(saveInFlight){saveQueued=true;return false;}
- saveInFlight=true;
- 
- // ✅ FIX: Snapshot'ı asenkron işlemler BAŞLAMADAN ÖNCE al.
- // Böylece Promise.all çalışırken db değişse bile, snapshot
- // yalnızca kaydetmeye başladığımız anın verilerini tutar.
- const snapshotBeforeSave = structuredClone(db);
- 
- try{
-   const promises = [];
-   // 1. SADECE DEĞİŞEN DEVLETLERİ KAYDET
-   db.states.forEach(s => {
-       const baseState = dbBaseSnapshot.states.find(x => x.id === s.id);
-       if(!baseState || !valuesEqual(s, baseState)){
-           promises.push(sb.from('game_states').upsert({ id: s.id, name: s.name, owner_email: s.ownerEmail, data: s }));
-       }
-   });
-   dbBaseSnapshot.states.forEach(baseState => {
-       if(!db.states.find(x => x.id === baseState.id)){
-           promises.push(sb.from('game_states').delete().eq('id', baseState.id));
-       }
-   });
-   // 2. SADECE DEĞİŞEN PAŞALARI KAYDET
-   db.advisors.forEach(a => {
-       const baseAdv = dbBaseSnapshot.advisors.find(x => x.id === a.id);
-       if(!baseAdv || !valuesEqual(a, baseAdv)){
-           promises.push(sb.from('game_advisors').upsert({ id: a.id, data: a })); 
-       }
-   });
-   dbBaseSnapshot.advisors.forEach(baseAdv => {
-       if(!db.advisors.find(x => x.id === baseAdv.id)){
-           promises.push(sb.from('game_advisors').delete().eq('id', baseAdv.id));
-       }
-   });
-   // 3. SADECE DEĞİŞEN MEKTUPLARI KAYDET
-   db.letters.forEach(l => {
-       const baseLetter = dbBaseSnapshot.letters.find(x => x.id === l.id);
-       if(!baseLetter || !valuesEqual(l, baseLetter)){
-           promises.push(sb.from('game_letters').upsert({ id: l.id, to_state_id: l.toStateId, from_state_id: l.fromStateId, read: l.read, data: l }));
-       }
-   });
-   dbBaseSnapshot.letters.forEach(baseLetter => {
-       if(!db.letters.find(x => x.id === baseLetter.id)){
-           promises.push(sb.from('game_letters').delete().eq('id', baseLetter.id));
-       }
-   });
-   // 4. SADECE YENİ EKLENEN LOGLARI KAYDET
-   db.purchaseLog.forEach(log => {
-       const baseLog = dbBaseSnapshot.purchaseLog.find(x => x.logId === log.logId);
-       if(!baseLog){
-           promises.push(sb.from('game_logs').insert({ id: log.logId, state_id: log.stateId, log_type: log.logType||'purchase', data: log }));
-       }
-   });
-   // 5. MERKEZ (CORE) DEĞİŞİKLİKLERİ
-   const coreChanged = 
-       db.gameYear !== dbBaseSnapshot.gameYear ||
-       db.timerSeconds !== dbBaseSnapshot.timerSeconds ||
-       db.timerRunning !== dbBaseSnapshot.timerRunning ||
-       !valuesEqual(db.settings, dbBaseSnapshot.settings) ||
-       !valuesEqual(db.mapProvinceOwners, dbBaseSnapshot.mapProvinceOwners) ||
-       !valuesEqual(db.mapProvinceDetails, dbBaseSnapshot.mapProvinceDetails) ||
-       !valuesEqual(db.valuableRegions, dbBaseSnapshot.valuableRegions) ||
-       !valuesEqual(db.pendingEvents, dbBaseSnapshot.pendingEvents) ||
-       !valuesEqual(db.eventHistory, dbBaseSnapshot.eventHistory);
-   if(coreChanged){
-       const coreData = {
-           game_year: db.gameYear,
-           timer_seconds: db.timerSeconds,
-           timer_running: db.timerRunning,
-           settings: db.settings,
-           map_data: {
-               mapProvinceOwners: db.mapProvinceOwners,
-               mapProvinceDetails: db.mapProvinceDetails,
-               valuableRegions: db.valuableRegions
-           },
-           events_data: {
-               pendingEvents: db.pendingEvents,
-               eventHistory: db.eventHistory
-           }
-       };
-       promises.push(sb.from('game_core').update(coreData).eq('id', 1));
-   }
+  if(!sb || !db) return false;
+  if(saveInFlight){saveQueued=true;return false;}
+  saveInFlight=true;
+  
+  // ✅ FIX (Madde 6): dbBaseSnapshot ve db için null / array güvenliği
+  if(!dbBaseSnapshot){
+    console.warn("saveDB: dbBaseSnapshot bulunamadı, güvenli snapshot oluşturuluyor.");
+    dbBaseSnapshot = {
+      settings: {},
+      gameYear: null,
+      timerSeconds: null,
+      timerRunning: null,
+      mapProvinceOwners: {},
+      mapProvinceDetails: {},
+      valuableRegions: {},
+      pendingEvents: [],
+      eventHistory: [],
+      states: [],
+      advisors: [],
+      letters: [],
+      purchaseLog: []
+    };
+  } else {
+    if(!Array.isArray(dbBaseSnapshot.states)) dbBaseSnapshot.states = [];
+    if(!Array.isArray(dbBaseSnapshot.advisors)) dbBaseSnapshot.advisors = [];
+    if(!Array.isArray(dbBaseSnapshot.letters)) dbBaseSnapshot.letters = [];
+    if(!Array.isArray(dbBaseSnapshot.purchaseLog)) dbBaseSnapshot.purchaseLog = [];
+  }
+  if(!Array.isArray(db.states)) db.states = [];
+  if(!Array.isArray(db.advisors)) db.advisors = [];
+  if(!Array.isArray(db.letters)) db.letters = [];
+  if(!Array.isArray(db.purchaseLog)) db.purchaseLog = [];
+
+  // ✅ FIX: Snapshot'ı asenkron işlemler BAŞLAMADAN ÖNCE al.
+  // Böylece Promise.all çalışırken db değişse bile, snapshot
+  // yalnızca kaydetmeye başladığımız anın verilerini tutar.
+  const snapshotBeforeSave = structuredClone(db);
+  
+  try{
+    const promises = [];
+    // 1. SADECE DEĞİŞEN DEVLETLERİ KAYDET
+    db.states.forEach(s => {
+        const baseState = dbBaseSnapshot.states.find(x => x.id === s.id);
+        if(!baseState || !valuesEqual(s, baseState)){
+            promises.push(sb.from('game_states').upsert({ id: s.id, name: s.name, owner_email: s.ownerEmail, data: s }));
+        }
+    });
+    dbBaseSnapshot.states.forEach(baseState => {
+        if(!db.states.find(x => x.id === baseState.id)){
+            promises.push(sb.from('game_states').delete().eq('id', baseState.id));
+        }
+    });
+    // 2. SADECE DEĞİŞEN PAŞALARI KAYDET
+    db.advisors.forEach(a => {
+        const baseAdv = dbBaseSnapshot.advisors.find(x => x.id === a.id);
+        if(!baseAdv || !valuesEqual(a, baseAdv)){
+            promises.push(sb.from('game_advisors').upsert({ id: a.id, data: a })); 
+        }
+    });
+    dbBaseSnapshot.advisors.forEach(baseAdv => {
+        if(!db.advisors.find(x => x.id === baseAdv.id)){
+            promises.push(sb.from('game_advisors').delete().eq('id', baseAdv.id));
+        }
+    });
+    // 3. SADECE DEĞİŞEN MEKTUPLARI KAYDET
+    db.letters.forEach(l => {
+        const baseLetter = dbBaseSnapshot.letters.find(x => x.id === l.id);
+        if(!baseLetter || !valuesEqual(l, baseLetter)){
+            promises.push(sb.from('game_letters').upsert({ id: l.id, to_state_id: l.toStateId, from_state_id: l.fromStateId, read: l.read, data: l }));
+        }
+    });
+    dbBaseSnapshot.letters.forEach(baseLetter => {
+        if(!db.letters.find(x => x.id === baseLetter.id)){
+            promises.push(sb.from('game_letters').delete().eq('id', baseLetter.id));
+        }
+    });
+    // 4. SADECE YENİ EKLENEN LOGLARI KAYDET (Madde 2)
+    db.purchaseLog.forEach(log => {
+        const baseLog = dbBaseSnapshot.purchaseLog.find(x => x.logId === log.logId);
+        if(!baseLog){
+            promises.push(sb.from('game_logs').insert({ 
+                id: log.logId, 
+                state_id: log.stateId, 
+                log_type: log.logType||'purchase', 
+                created_at: log.created_at || new Date().toISOString(),
+                data: log 
+            }));
+        }
+    });
+    // 5. MERKEZ (CORE) DEĞİŞİKLİKLERİ
+    const coreChanged = 
+        db.gameYear !== dbBaseSnapshot.gameYear ||
+        db.timerSeconds !== dbBaseSnapshot.timerSeconds ||
+        db.timerRunning !== dbBaseSnapshot.timerRunning ||
+        !valuesEqual(db.settings, dbBaseSnapshot.settings) ||
+        !valuesEqual(db.mapProvinceOwners, dbBaseSnapshot.mapProvinceOwners) ||
+        !valuesEqual(db.mapProvinceDetails, dbBaseSnapshot.mapProvinceDetails) ||
+        !valuesEqual(db.valuableRegions, dbBaseSnapshot.valuableRegions) ||
+        !valuesEqual(db.pendingEvents, dbBaseSnapshot.pendingEvents) ||
+        !valuesEqual(db.eventHistory, dbBaseSnapshot.eventHistory);
+    if(coreChanged){
+        const coreData = {
+            game_year: db.gameYear,
+            timer_seconds: db.timerSeconds,
+            timer_running: db.timerRunning,
+            settings: db.settings,
+            map_data: {
+                mapProvinceOwners: db.mapProvinceOwners,
+                mapProvinceDetails: db.mapProvinceDetails,
+                valuableRegions: db.valuableRegions
+            },
+            events_data: {
+                pendingEvents: db.pendingEvents,
+                eventHistory: db.eventHistory
+            }
+        };
+        // ✅ FIX (Madde 5): update yerine upsert — satır id:1 yoksa da güvenle oluşturur
+        promises.push(sb.from('game_core').upsert({ id: 1, ...coreData }));
+    }
    // Çakışma olmadan paralelde tüm güncellemeleri saniyeler içinde yolla!
    if(promises.length > 0){
        await Promise.all(promises);
@@ -190,9 +234,13 @@ function setupGameRealtime(){
  
 async function handleRealtimeUpdate(payload) 
 {
-   if(document.getElementById('modal')?.classList.contains('show')) return;
-   
-   if(valuesEqual(db, dbBaseSnapshot)){
+    if(document.getElementById('modal')?.classList.contains('show')) return;
+    if(!dbBaseSnapshot){
+      await loadDB(true);
+      return;
+    }
+    
+    if(valuesEqual(db, dbBaseSnapshot)){
      const oldYear = dbBaseSnapshot.gameYear;
      const activeTab = document.querySelector('.hoi-tab.active')?.id?.replace('tab-btn-', '');
      const scrollTop = window.scrollY;

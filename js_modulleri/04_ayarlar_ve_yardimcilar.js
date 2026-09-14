@@ -57,9 +57,12 @@ function startGlobalClock() {
             if(db.timerSeconds >= 10800) {
                 db.timerRunning = false;
                 toast("⚠️ 3 Saatlik Süre Doldu! Yıl geçişi onay bekliyor.", false);
+                if(isAdmin) queueSave();
+            } else if(isAdmin && db.timerSeconds % 60 === 0) {
+                // ✅ FIX (Madde 4): Her saniye değil, admin ekranında dakikada bir (60s) veritabanına kaydet
+                queueSave();
             }
             updateAdminTimerUI();
-            queueSave();
         }
     }, 1000);
 }
@@ -67,9 +70,9 @@ function startGlobalClock() {
 function updateAdminTimerUI() {
     const box = document.getElementById("adminTimerDisplay");
     if(!box) return;
-    const hrs = Math.floor(db.timerSeconds / 3600);
-    const mins = Math.floor((db.timerSeconds % 3600) / 60);
-    const secs = db.timerSeconds % 60;
+    const hrs = Math.floor((db.timerSeconds || 0) / 3600);
+    const mins = Math.floor(((db.timerSeconds || 0) % 3600) / 60);
+    const secs = (db.timerSeconds || 0) % 60;
     const timeStr = `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
     
     box.innerHTML = `
@@ -77,18 +80,20 @@ function updateAdminTimerUI() {
             <span>⏱️ Süre: <b>${timeStr}</b> / 03:00:00</span>
             <button class="btn small ${db.timerRunning?'red':'green'}" onclick="toggleTimer()">${db.timerRunning?'DURDUR':'BAŞLAT'}</button>
             <button class="btn small gold" onclick="resetTimer()">SIFIRLA</button>
-            ${db.timerSeconds >= 10800 ? '<button class="btn green small" onclick="passOneYear()">YILI GEÇİR</button>' : ''}
+            ${(db.timerSeconds || 0) >= 10800 ? '<button class="btn green small" onclick="passOneYear()">YILI GEÇİR</button>' : ''}
         </div>
     `;
 }
 
 function toggleTimer() {
+    if(!isAdmin) return;
     db.timerRunning = !db.timerRunning;
     queueSave();
     updateAdminTimerUI();
 }
 
 function resetTimer() {
+    if(!isAdmin) return;
     if(!confirm("Sayacı sıfırlamak istediğinize emin misiniz?")) return;
     db.timerSeconds = 0;
     db.timerRunning = false;

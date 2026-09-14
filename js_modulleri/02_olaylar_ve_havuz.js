@@ -221,17 +221,57 @@ function normalizeSettings(settings){
  s.customItems=Array.isArray(s.customItems)?s.customItems:[];
  return s;
 }
-function mergeStateThreeWay(base,local,remote,path="",conflicts=[]){
- if(valuesEqual(local,base))return structuredClone(remote);
- if(valuesEqual(remote,base))return structuredClone(local);
- if(valuesEqual(local,remote))return structuredClone(local);
+function isAdditiveNumericField(path) {
+  if (!path) return false;
+  // settings altındaki hiçbir sayısal alan delta ile toplanmaz (fiyat, kapasite, bakım vb.)
+  if (path.includes('settings')) return false;
+  
+  const key = path.split('.').pop()?.replace(/\[.*?\]/g, '') || '';
+  
+  // Kesinlikle toplanmaması gereken alanlar (oran, yıl, sayaç, statü vb.)
+  const nonAdditive = new Set([
+    'gameYear', 'timerSeconds', 'timerRunning', 'tax', 'happiness', 
+    'advisorSlots', 'provCount', 'rulerDeathAge', 'currentAge', 'birthYear',
+    'stars', 'age', 'id', 'stateId', 'year', 'cost', 'oldTreasury', 'newTreasury',
+    'oldUnit', 'newUnit', 'portId', 'color'
+  ]);
+  if (nonAdditive.has(key)) return false;
 
- // Sayılarda (Örn: asker sayısı, hazine) anlık çakışmaları delta (fark) mantığıyla toplayarak çöz:
- if(typeof base === "number" && typeof local === "number" && typeof remote === "number") {
-     const deltaLocal = local - base;
-     const deltaRemote = remote - base;
-     return base + deltaLocal + deltaRemote;
- }
+  // Bilinen toplanabilir kaynaklar ve envanter alanları:
+  const additiveKeys = new Set([
+    'treasury', 'piyade', 'suvari', 'nisanci', 'topcu', 'muhafiz', 'humbaraci',
+    'kalyon', 'kadirga', 'firkateyn', 'bastanarda', 'sahib', 'humbaraci_ocagi',
+    'okul', 'hastane', 'ciftlik', 'atelye', 'liman', 'pazar', 'matbaa', 'kale',
+    'fortressGarrison', 'warCasualties', 'children', 'adults', 'pop', 'eligiblePop', 'educated',
+    'qty', 'count', 'amount'
+  ]);
+  if (additiveKeys.has(key)) return true;
+
+  // Custom unit veya custom item miktarları
+  if (path.includes('customUnits') || path.includes('customLedger') || path.includes('permanentLedger')) {
+    return key === 'count' || key === 'qty' || key === 'amount' || key === 'value';
+  }
+
+  return false;
+}
+
+function mergeStateThreeWay(base,local,remote,path="",conflicts=[]){
+  if(valuesEqual(local,base))return structuredClone(remote);
+  if(valuesEqual(remote,base))return structuredClone(local);
+  if(valuesEqual(local,remote))return structuredClone(local);
+
+  // ✅ FIX (Madde 3): Sayılarda anlık çakışma çözümü:
+  if(typeof base === "number" && typeof local === "number" && typeof remote === "number") {
+      // Yalnızca toplanabilir kaynaklarda (asker sayısı, hazine vb.) delta toplamı yap:
+      if (isAdditiveNumericField(path)) {
+          const deltaLocal = local - base;
+          const deltaRemote = remote - base;
+          return base + deltaLocal + deltaRemote;
+      }
+      // Oran, yıl, sayaç veya ayar gibi tekil alanlarda çakışma varsa remote kazanır (delta ile birbirine eklenmez):
+      conflicts.push(path || "numeric_conflict");
+      return structuredClone(remote);
+  }
 
  if(Array.isArray(local)||Array.isArray(remote)){
    // ÖNEMLİ: Eskiden burada aynı id'ye sahip öğe hem local hem remote'da varsa

@@ -170,4 +170,71 @@ function startCampaign(id) {
     closeModal(); queueSave(); openDetail(id);
 }
 
-// ---------------- DEVLET FORMU (DİVAN KOTASI AYARLI) ----------------
+// ---------------- ASKERİ TERHİS / DAĞITMA (GİDER DÜŞÜRME) ----------------
+function disbandUnit(id, key, labelName) {
+    const s = getState(id);
+    if(!s) return;
+    if(!isAdmin && s.ownerEmail !== currentUserEmail) return;
+    const currentCount = s[key] || 0;
+    if(currentCount <= 0) { alert("Terhis edilecek birim bulunmuyor!"); return; }
+    
+    const qtyInput = document.getElementById(`qty_${id}_${key}`);
+    const qty = Math.floor(Number(qtyInput?.value)) || 0;
+    if(qty <= 0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; }
+    if(qty > currentCount) { alert(`Mevcut miktardan (${num(currentCount)}) fazla terhis edemezsiniz!`); return; }
+    
+    if(!confirm(`${num(qty)} adet ${labelName} terhis edilsin mi?\n\nAskerler sivil halka geri dönecek ve yıllık bakım masrafları kesilmeyecektir.`)) return;
+    
+    s[key] = currentCount - qty;
+    
+    addLog({
+        stateId: s.id,
+        stateName: s.name,
+        action: `Birim Terhisi: ${labelName}`,
+        cost: 0,
+        qty: qty,
+        oldTreasury: s.treasury||0,
+        newTreasury: s.treasury||0,
+        unitName: labelName,
+        oldUnit: currentCount,
+        newUnit: s[key]
+    });
+    
+    queueSave();
+    openDetail(id);
+    toast(`${num(qty)} adet ${labelName} terhis edildi. Bakım masrafları düştü.`, true);
+}
+
+function disbandCustomUnit(id, itemId, labelName) {
+    const s = getState(id);
+    if(!s) return;
+    if(!isAdmin && s.ownerEmail !== currentUserEmail) return;
+    const currentCount = s[itemId] || 0;
+    if(currentCount <= 0) { alert("Terhis edilecek özel birim bulunmuyor!"); return; }
+    
+    const qtyInput = document.getElementById(`qty_${id}_${itemId}`);
+    const qty = Math.floor(Number(qtyInput?.value)) || 0;
+    if(qty <= 0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; }
+    if(qty > currentCount) { alert(`Mevcut miktardan (${num(currentCount)}) fazla terhis edemezsiniz!`); return; }
+    
+    if(!confirm(`${num(qty)} adet ${labelName} terhis edilsin mi?\n\nBirimler sivil hayata geri dönecektir.`)) return;
+    
+    s[itemId] = currentCount - qty;
+    
+    addLog({
+        stateId: s.id,
+        stateName: s.name,
+        action: `Özel Birim Terhisi: ${labelName}`,
+        cost: 0,
+        qty: qty,
+        oldTreasury: s.treasury||0,
+        newTreasury: s.treasury||0,
+        unitName: labelName,
+        oldUnit: currentCount,
+        newUnit: s[itemId]
+    });
+    
+    queueSave();
+    openDetail(id);
+    toast(`${num(qty)} adet ${labelName} terhis edildi.`, true);
+}

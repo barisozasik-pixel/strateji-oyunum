@@ -13,6 +13,13 @@ function hireAdvisor(stateId, advId) {
 
     if(s.hiredAdvisors.includes(advId)) return;
 
+    // ✅ BUG 6 FIX: Başka bir devlet bu paşayı tutmuş mu kontrol et
+    const otherHiringState = (db.states||[]).find(st => st.id !== stateId && (st.hiredAdvisors||[]).includes(advId));
+    if(otherHiringState) {
+        alert(`Bu paşa şu anda ${otherHiringState.name} devletinin hizmetindedir! Başka bir paşa seçmelisiniz.`);
+        return;
+    }
+
     if((s.treasury||0) < adv.salary) {
         alert(`Hazinede yeterli altın yok! ${adv.name} için ${money(adv.salary)} gerekli.`);
         return;
@@ -21,18 +28,15 @@ function hireAdvisor(stateId, advId) {
     s.hiredAdvisors.push(advId);
     s.advisorHiredYears = s.advisorHiredYears || {};
     s.advisorHiredYears[advId] = 0; // 0 yıl (yani henüz 1 yılını doldurmadı, kilitli)
-    
-    const oldTreasury = s.treasury || 0;
-    s.treasury = oldTreasury - adv.salary;
 
     addLog({
         stateId: s.id,
         stateName: s.name,
-        action: `Divana Atandı: ${adv.name} (${adv.role})`,
-        cost: adv.salary,
+        action: `Divana Atandı: ${adv.name} (${adv.role}) - Maaş: ${money(adv.salary)}/yıl`,
+        cost: 0,
         qty: 1,
-        oldTreasury: oldTreasury,
-        newTreasury: s.treasury
+        oldTreasury: s.treasury||0,
+        newTreasury: s.treasury||0
     });
 
     queueSave();

@@ -37,6 +37,9 @@ function calcPop(s)
   const adv = getAdvisorEffects(s);
   let hap = (Number(s.happiness) || 0) + adv.happinessBonus;
   let pop = Number(s.population) || 0;
+  let children = Math.max(0, Math.floor(Number(s.children)||0));
+  if(children > pop) children = pop;
+  let adults = Math.max(0, pop - children);
   let edu = Number(s.education) || 0;
   
   const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
@@ -45,18 +48,17 @@ function calcPop(s)
   if(anarRate > 100) anarRate = 100;
   if(adv.stopAnarchy) anarRate = 0;
   
-  let anarCount = Math.floor(pop * (anarRate/100));
+  let anarCount = Math.floor(adults * (anarRate/100));
   
   // ✅ FIX #5: Garnizon toplam askerden ÇIKARILDI (garnizon ayrı gösterilecek)
   let armySize = (s.piyade||0) + (s.suvari||0) + (s.nisanci||0);
-  if(db.settings.customItems) 
+  if(db?.settings?.customItems) 
   {
      db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
   }
  
   let eligRate = hap * 0.3;
-  let bonusElig = Math.max(0, Math.floor(Number(s.eligiblePopulationBonus)||0));
-  let maxElig = Math.floor(pop * (eligRate/100)) + bonusElig;
+  let maxElig = Math.floor(adults * (eligRate/100));
   
   // SAVAŞ KAYIPLARI
   let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
@@ -65,44 +67,55 @@ function calcPop(s)
   // BOŞTAKİ ASKER
   let availableElig = Math.max(0, maxElig - armySize - (s.fortressGarrison||0) - ghostEligible);
   
-  // ✅ FIX #1: Anarşist bonusu halktan düşsün
-  const bonusAnar = Math.max(0, Math.floor(Number(s.anarchistPopulationBonus)||0));
-  anarCount = Math.min(pop, anarCount + bonusAnar);
-  
-  // SIRADAN HALK (anarşistler ve askerler düşüldükten sonra kalan)
-  let baseCivilian = Math.max(0, pop - anarCount - armySize - (s.fortressGarrison||0));
+  // SIRADAN HALK (anarşistler ve askerler düşüldükten sonra kalan yetişkinler)
+  let baseCivilian = Math.max(0, adults - anarCount - armySize - (s.fortressGarrison||0));
   let remCount = baseCivilian;
   
-  // ✅ FIX #6: Eğitimli halk = eğitim oranı × toplam nüfus
-  let eduCount = Math.floor(pop * (edu / 100));
-  const bonusEdu = Math.max(0, Math.floor(Number(s.educatedPopulationBonus)||0));
-  eduCount = Math.min(remCount, eduCount + bonusEdu);
+  // ✅ FIX: Eğitimli halk — doğrudan s.educatedPopulation (kişi sayısı) koda bağlandı
+  let eduCount = 0;
+  if(s.educatedPopulation !== undefined && s.educatedPopulation !== null && Number(s.educatedPopulation) > 0) {
+      eduCount = Math.floor(Number(s.educatedPopulation) || 0);
+  } else {
+      eduCount = Math.floor(adults * (edu / 100));
+  }
+  eduCount = Math.min(remCount, eduCount);
   let otherCount = Math.max(0, remCount - eduCount);
   
-  availableElig = Math.min(Math.max(0, pop - anarCount - eduCount - armySize - (s.fortressGarrison||0)), availableElig);
+  // Eğitim oranı: Eğitimli / (Eğitimli + Sıradan Halk)
+  const totalTaxpayers = eduCount + otherCount;
+  const calculatedEduRate = totalTaxpayers > 0 ? (eduCount / totalTaxpayers) * 100 : 0;
+  
+  availableElig = Math.min(Math.max(0, adults - anarCount - eduCount - armySize - (s.fortressGarrison||0)), availableElig);
   
   const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
   
-  // ✅ FIX #2: eduTotal ve garrison eklendi (eğitimli/toplam nüfus gösterimi için)
-  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, garrison: s.fortressGarrison||0, edu: eduCount, eduTotal: pop, eduRate: edu, other: otherCount, remaining: remCount };
+  // ✅ FIX #2: children ve adults eklendi
+  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, garrison: s.fortressGarrison||0, edu: eduCount, eduTotal: adults, eduRate: calculatedEduRate, other: otherCount, remaining: remCount, children, adults };
 }
 
 
 function calcIncome(s){
   const p = calcPop(s);
   const adv = getAdvisorEffects(s);
-  const baseTax = (Number(s.baseTaxPerPerson)||5) * (Math.max(0,Math.min(75,Number(s.tax)||0))/100);
+  const baseTax = (Number(s.baseTaxPerPerson)||5) * ((Number(s.tax)||0)/100);
   const adjustedBaseTax = baseTax * (1 + (adv.taxBonus / 100));
-  const educatedMultiplier = Math.max(0, Number(db.settings.educatedTaxMultiplier ?? 1.5));
+  const educatedMultiplier = Math.max(0, Number(db.settings.educatedTaxMultiplier??1.5));
   return Math.floor((p.other * adjustedBaseTax) + (p.edu * adjustedBaseTax * educatedMultiplier));
 }
- 
-function calcPermIncome(s)
-{
-  let total = 0;
-  if(s.permanentLedger && s.permanentLedger.length > 0) s.permanentLedger.forEach(item => { total += item.amount; });
-  return total;
+function calcPermIncome(s){
+  let t = 0;
+  if(s.permanentLedger && s.permanentLedger.length > 0) {
+      s.permanentLedger.forEach(item => { if(item.type === 'income') t += item.amount; });
+  }
+  return t;
+}
+function calcPermExpense(s){
+  let t = 0;
+  if(s.permanentLedger && s.permanentLedger.length > 0) {
+      s.permanentLedger.forEach(item => { if(item.type === 'expense') t += item.amount; });
+  }
+  return t;
 }
  
 function calcMilitaryUpkeep(s)
@@ -131,8 +144,19 @@ function calcNavyUpkeep(s)
  
 function calcCustomUpkeep(s)
 {
+  const adv = getAdvisorEffects(s);
+  const discountFactor = Math.max(0, 1 - (adv.milUpkeepDiscount / 100));
   let c = 0;
-  if(db.settings.customItems) db.settings.customItems.forEach(item => { c += (s[item.id]||0) * (item.upkeep||0); });
+  if(db?.settings?.customItems) {
+    db.settings.customItems.forEach(item => {
+      const itemCost = (s[item.id]||0) * (item.upkeep||0);
+      if(item.category === 'asker' || item.type === 'military' || item.isMilitary) {
+        c += Math.round(itemCost * discountFactor);
+      } else {
+        c += itemCost;
+      }
+    });
+  }
   return c;
 }
  
@@ -172,10 +196,13 @@ function rejectDebtPurchase(s){if(hasTreasuryDebt(s)){alert("Bu devlet borçlu o
 
 function addLog(data) {
     if(!db.purchaseLog) db.purchaseLog = [];
-    const dateStr = new Date().toLocaleDateString("tr-TR") + " " + new Date().toLocaleTimeString("tr-TR", {hour:'2-digit', minute:'2-digit'});
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("tr-TR") + " " + now.toLocaleTimeString("tr-TR", {hour:'2-digit', minute:'2-digit'});
+    const nowIso = now.toISOString();
     
     db.purchaseLog.unshift({
         logId: crypto.randomUUID(),
+        created_at: nowIso,
         stateId: data.stateId || "",
         state: data.stateName || "Bilinmeyen Devlet",
         item: data.action || "",
@@ -218,7 +245,7 @@ function buyEdict(id, edictId) {
     
     const oldT = s.treasury;
     s.treasury -= totalCost;
-    s.happiness = Math.min(100, (s.happiness||0) + (pts/10));
+    s.happiness = Math.min(100, (s.happiness||0) + Number(pts||0));
     
     addLog({
         stateId: s.id,

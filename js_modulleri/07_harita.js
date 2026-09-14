@@ -20,7 +20,7 @@ function getProvinceDisplayColor(provinceId,detail={},owner=null)
 }
 function getOwnedMapProvinceIds(stateId){return Object.entries(db.mapProvinceOwners||{}).filter(([,ownerId])=>ownerId===stateId).map(([provinceId])=>provinceId);}
 function refreshMapFortressCounts(){
- const popBuildings = ["hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ const popBuildings = ["hastane","asevi","su_degirmeni","kervansaray","pazar","okul"];
  db.states.forEach(s=>{
    const next=Math.max(0,getOwnedMapProvinceIds(s.id).length);
    const applied=Math.max(0,Math.floor(Number(s.fortressPopulationCount)||0));
@@ -33,6 +33,15 @@ function refreshMapFortressCounts(){
      if((s[key]||0) > next) {
        const lost = s[key] - next;
        s[key] = next;
+       if(key === "okul") {
+         const capacityPerSchool = Math.max(0, Math.floor(Number(db.settings.schoolCapacityPerBuilding)||500));
+         const maxEducated = next * capacityPerSchool;
+         const currentEducated = calcPop(s).edu;
+         if(currentEducated > maxEducated) {
+           const totalPop = Math.max(1, Number(s.population)||0);
+           s.education = Math.max(0, Math.min(100, (maxEducated / totalPop) * 100));
+         }
+       }
        addLog({stateId:s.id, stateName:s.name, action:`Toprak kaybı: ${lost} adet ${key} kaybedildi (kota: ${next} toprak)`, qty:lost, cost:0});
      }
    });

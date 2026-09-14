@@ -18,7 +18,7 @@ window.switchStateEditTab = function(tabId) {
 function openStateForm(id=null){
  if(!isAdmin) return;
  const populationBreakdown=calcPop(id?getState(id):{population:0,happiness:0,education:0});
- const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,anarchistPopulationBonus:0,eligiblePopulationBonus:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0,hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0};
+ const s=id?getState(id):{name:"",ownerEmail:"",ruler:"",rulerImage:"",bgImage:"",title:"Devlet",color:"#c5a059",treasury:0,population:0,tax:20,happiness:75,education:30,educatedPopulation:0,baseTaxPerPerson:5,civilExpense:0,advisorSlots:3,piyade:0,suvari:0,nisanci:0,kucuk_top:0,orta_top:0,buyuk_top:0,kucuk_gemi:0,orta_gemi:0,buyuk_gemi:0,kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,okul:0,istihbarat_binasi:0,hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0};
  
  let customFields = "";
  if(db.settings.customItems && db.settings.customItems.length > 0) {
@@ -78,14 +78,6 @@ function openStateForm(id=null){
         </div>
         ${field("educatedPopulation","Eğitimli Nüfus (Kişi)",s.educatedPopulation??0,"number")}
       </div>
-      <div class="full" style="background:rgba(52,152,219,.1);border:1px solid var(--blue);padding:10px;border-radius:5px; margin-top:10px;">
-        <b style="color:var(--blue);">🛡 EK NÜFUS BONUSLARI (Kapasite)</b>
-        <div class="formgrid" style="margin-top:10px;">
-          ${field("anarchistPopulationBonus","Ek Anarşist Nüfus",s.anarchistPopulationBonus||0,"number")}
-          ${field("eligiblePopulationBonus","Ek Elverişli Asker",s.eligiblePopulationBonus||0,"number")}
-        </div>
-        <p class="sub" style="margin:6px 0 0;">Bu sayılar otomatik hesaplamalardaki havuz sınırlarına (kapasiteye) eklenir.</p>
-      </div>
     </div>
 
     <div id="adm-tab-ordu" class="adm-tab" style="display:none;">
@@ -121,7 +113,7 @@ function openStateForm(id=null){
 function field(k,l,v,t="text"){return `<div><label style="font-weight:bold; margin-bottom:4px; display:block; color:var(--text);">${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}" style="width:100%; padding:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:4px;"></div>`}
 
 function saveState(id){
- const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","anarchistPopulationBonus","eligiblePopulationBonus","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
  if(db.settings.customItems) { db.settings.customItems.forEach(item => keys.push(item.id)); }
  const o={};
  keys.forEach(k=>o[k]=["name","ownerEmail","ruler","rulerImage","bgImage","title","color"].includes(k)?document.getElementById("f_"+k).value:Number(document.getElementById("f_"+k).value||0));
