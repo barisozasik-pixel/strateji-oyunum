@@ -183,7 +183,7 @@ window.openBattleRoom = async function(savasId) {
         </div>
         
         <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--line); display:flex; gap:5px;">
-            <button class="btn gold" style="flex:1;" onclick="evaluateTurnWithGemini()">🤖 BİLANÇO İSTE (GEMİNİ)</button>
+            
             <button class="btn" style="width:80px;" onclick="openBattleLobby()">ÇIKIŞ</button>
         </div>
     `;
@@ -272,6 +272,7 @@ window.sendBattleMessage = async function() {
     
     input.disabled = false;
     input.focus();
+    checkAutoReferee();
 };
 
 window.setupRealtimeSubscription = function(savasId) {
@@ -365,3 +366,35 @@ window.addEventListener('beforeunload', () => {
     const supabaseClient = (window.sb || sb);
     if(currentBattleSubscription && supabaseClient) supabaseClient.removeChannel(currentBattleSubscription);
 });
+
+window.checkAutoReferee = async function() {
+    const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
+    if(!supabaseClient || !currentActiveBattleId) return;
+
+    const { data: msgs } = await supabaseClient.from('savas_mesajlari')
+        .select('*')
+        .eq('savas_id', currentActiveBattleId)
+        .order('gonderilme_tarihi', { ascending: true });
+        
+    if(!msgs) return;
+
+    let lastGMIndex = -1;
+    for(let i = msgs.length - 1; i >= 0; i--) {
+        if(msgs[i].gonderen.includes('Game Master') || msgs[i].mesaj.includes('değerlendiriyor')) {
+            lastGMIndex = i;
+            break;
+        }
+    }
+    
+    let recentMsgs = msgs.slice(lastGMIndex + 1);
+    let isEvaluating = recentMsgs.some(m => m.mesaj.includes('değerlendiriyor'));
+    if(isEvaluating) return;
+    
+    let humanMsgs = recentMsgs.filter(m => m.gonderen !== 'Sistem');
+    let uniqueSenders = [...new Set(humanMsgs.map(m => m.gonderen))];
+    
+    // 2 farklı kişi mesaj attıysa otomatik değerlendir
+    if (uniqueSenders.length >= 2) {
+        evaluateTurnWithGemini();
+    }
+};
