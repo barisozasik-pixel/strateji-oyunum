@@ -1,6 +1,20 @@
 // --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI) ---
 
 let currentBattleSubscription = null;
+let currentActiveBattleId = null;
+let currentBattleData = null;
+let currentBattleRole = null; // 'saldiran' | 'savunan' | null (izleyici)
+let refereeDebounceTimer = null;
+const REFEREE_DEBOUNCE_MS = 4000; // katılımcı yazmayı bitirsin diye kısa bir bekleme
+
+// --- KULLANICI / DEVLET YARDIMCISI ---
+window.getMyStateName = function() {
+    if(typeof db !== 'undefined' && db.states && typeof currentUserEmail !== 'undefined' && currentUserEmail) {
+        let myState = db.states.find(s => s.ownerEmail === currentUserEmail);
+        if(myState) return myState.name;
+    }
+    return null;
+};
 
 // --- GLOBAL SAVAŞ DİNLEYİCİ ---
 window.initGlobalBattleListener = function() {
@@ -13,11 +27,7 @@ window.initGlobalBattleListener = function() {
     supabaseClient.channel('public-savaslar-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'savaslar' }, payload => {
             const b = payload.new;
-            let myStateName = null;
-            if(typeof db !== 'undefined' && db.states && typeof currentUserEmail !== 'undefined' && currentUserEmail) {
-                let myState = db.states.find(s => s.ownerEmail === currentUserEmail);
-                if(myState) myStateName = myState.name;
-            }
+            const myStateName = getMyStateName();
             if(myStateName && (b.saldiran_id === myStateName || b.savunan_id === myStateName)) {
                 alert(`⚔️ DİKKAT! Devletin (${myStateName}) savaşa girdi! Hedef: ${b.bolge}\n(Lütfen hamleni chat'e yaz)`);
                 openBattleRoom(b.id);
@@ -192,9 +202,6 @@ window.createBattleSubmit = async function() {
 };
 
 // --- 3. CANLI SAVAŞ ODASI ---
-let currentActiveBattleId = null;
-let currentBattleData = null;
-
 window.openBattleRoom = async function(savasId) {
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     currentActiveBattleId = savasId;
@@ -203,24 +210,35 @@ window.openBattleRoom = async function(savasId) {
     if(bErr) return alert("Savaş odası bulunamadı!");
     currentBattleData = bData;
 
+    // Kullanıcının bu savaştaki rolünü belirle: saldıran / savunan / izleyici
+    const myStateName = getMyStateName();
+    currentBattleRole = myStateName === bData.saldiran_id ? 'saldiran'
+                       : myStateName === bData.savunan_id ? 'savunan'
+                       : null;
+    const isParticipant = currentBattleRole !== null;
+
+    // Sadece savaşan taraflar yazabilir; izleyiciler için giriş kutusu yerine bilgi mesajı gösterilir.
+    const chatInputHtml = isParticipant
+        ? `<div style="display:flex; gap:5px; margin-top:10px;">
+                <input type="text" id="chat_input" placeholder="Hamleni veya mesajını yaz..." style="flex:1;" onkeypress="if(event.key==='Enter') sendBattleMessage()">
+                <button class="btn blue" onclick="sendBattleMessage()">Gönder</button>
+           </div>`
+        : `<div style="margin-top:10px; text-align:center; color:var(--muted); font-size:12px; padding:8px; border:1px dashed var(--line); border-radius:4px;">
+                👁️ İzleyicisin — bu savaşa sadece <b>${bData.saldiran_id}</b> ve <b>${bData.savunan_id}</b> mesaj yazabilir.
+           </div>`;
+
     let html = `
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2 style="margin:0;">📍 ${bData.bolge} Savaş Odası</h2>
             <button class="btn red" onclick="endBattle('${savasId}')">SAVAŞI BİTİR</button>
         </div>
-        <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">
-            <span style="color:#e74c3c">Saldıran (${bData.saldiran_id})</span>: 🧍${bData.saldiran_ordu.Piyade} 🐎${bData.saldiran_ordu["Süvari"]} 💣${bData.saldiran_ordu["Topçu"]} | 
-            <span style="color:#3498db">Savunan (${bData.savunan_id})</span>: 🧍${bData.savunan_ordu.Piyade} 🐎${bData.savunan_ordu["Süvari"]} 💣${bData.savunan_ordu["Topçu"]}
-        </div>
+        <div id="own_army_info" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
         
         <div id="live_chat_box" style="background:var(--panel-light); border:1px solid var(--line); border-radius:4px; height:350px; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px;">
             <div style="text-align:center; color:var(--gold); font-size:11px;">Bağlanıyor...</div>
         </div>
         
-        <div style="display:flex; gap:5px; margin-top:10px;">
-            <input type="text" id="chat_input" placeholder="Hamleni veya mesajını yaz..." style="flex:1;" onkeypress="if(event.key==='Enter') sendBattleMessage()">
-            <button class="btn blue" onclick="sendBattleMessage()">Gönder</button>
-        </div>
+        ${chatInputHtml}
         
         <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--line); display:flex; gap:5px;">
             <button class="btn" style="width:100%;" onclick="openBattleLobby()">ÇIKIŞ</button>
@@ -228,8 +246,26 @@ window.openBattleRoom = async function(savasId) {
     `;
     modal(html);
 
+    renderOwnArmyInfo();
     fetchAndRenderMessages(savasId);
     setupRealtimeSubscription(savasId);
+};
+
+// Sadece kendi tarafının ordu sayılarını gösterir. İzleyiciye hiçbir sayı gösterilmez
+// (aksi halde izleyici gördüğü sayıları savaşan taraflardan birine sızdırabilir).
+window.renderOwnArmyInfo = function() {
+    const el = document.getElementById('own_army_info');
+    if(!el || !currentBattleData) return;
+
+    if(currentBattleRole === 'saldiran') {
+        const o = currentBattleData.saldiran_ordu;
+        el.innerHTML = `<span style="color:#e74c3c">🗡️ Kendi Ordun (${currentBattleData.saldiran_id})</span>: 🧍${o.Piyade} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
+    } else if(currentBattleRole === 'savunan') {
+        const o = currentBattleData.savunan_ordu;
+        el.innerHTML = `<span style="color:#3498db">🛡️ Kendi Ordun (${currentBattleData.savunan_id})</span>: 🧍${o.Piyade} 🐎${o["Süvari"]} 💣${o["Topçu"]}`;
+    } else {
+        el.innerHTML = `<span style="color:var(--muted)">👁️ İzleyici modundasın — ordu sayıları gizli.</span>`;
+    }
 };
 
 window.fetchAndRenderMessages = async function(savasId) {
@@ -304,6 +340,9 @@ window.formatGeminiResponse = function(raw) {
 }
 
 window.sendBattleMessage = async function() {
+    // İzleyiciler mesaj gönderemez. Arayüzde zaten input kutusu yok, bu ekstra bir güvenlik katmanı.
+    if(!currentBattleRole) return;
+
     const input = document.getElementById('chat_input');
     const msgText = input.value.trim();
     if(!msgText || !currentActiveBattleId) return;
@@ -323,8 +362,8 @@ window.sendBattleMessage = async function() {
     input.disabled = false;
     input.focus();
     
-    // Mesaj gittikten sonra Oto-Hakem'i kontrol et
-    checkAutoReferee();
+    // Gerçek zamanlı, sıra beklemeyen hakem: kısa bir bekleme sonrası otomatik değerlendirir.
+    scheduleAutoReferee();
 };
 
 window.setupRealtimeSubscription = function(savasId) {
@@ -334,6 +373,16 @@ window.setupRealtimeSubscription = function(savasId) {
     currentBattleSubscription = supabaseClient.channel(`room_${savasId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'savas_mesajlari', filter: `savas_id=eq.${savasId}` }, payload => {
             appendMessageToChat(payload.new);
+            const m = payload.new;
+            // Hangi taraf yazarsa yazsın (sıra beklemeden) hakemi tetikle.
+            if(m.gonderen !== 'Sistem' && !m.gonderen.includes('Game Master')) {
+                scheduleAutoReferee();
+            }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'savaslar', filter: `id=eq.${savasId}` }, payload => {
+            // Ordu sayıları GM değerlendirmesinden sonra güncellenince, kendi ordu paneli canlı yenilensin.
+            currentBattleData = payload.new;
+            renderOwnArmyInfo();
         })
         .subscribe();
 };
@@ -348,7 +397,17 @@ window.endBattle = async function(savasId) {
     openBattleLobby();
 };
 
-// --- OTOMATİK HAKEM (GERÇEK ZAMANLI) ---
+// --- OTOMATİK HAKEM (GERÇEK ZAMANLI, SIRA BEKLEMEZ) ---
+window.scheduleAutoReferee = function() {
+    if(refereeDebounceTimer) clearTimeout(refereeDebounceTimer);
+    // Birden fazla açık sekme/istemci aynı anda tetiklenirse çakışma riskini azaltmak için küçük bir rastgele gecikme eklenir.
+    const jitter = Math.floor(Math.random() * 1200);
+    refereeDebounceTimer = setTimeout(() => {
+        refereeDebounceTimer = null;
+        checkAutoReferee();
+    }, REFEREE_DEBOUNCE_MS + jitter);
+};
+
 window.checkAutoReferee = async function() {
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     if(!supabaseClient || !currentActiveBattleId) return;
@@ -371,12 +430,12 @@ window.checkAutoReferee = async function() {
     let recentMsgs = msgs.slice(lastGMIndex + 1);
     let isEvaluating = recentMsgs.some(m => m.mesaj.includes('değerlendiriyor'));
     if(isEvaluating) return;
+
+    // GERÇEK ZAMANLI: iki tarafın da yazmasını beklemiyoruz.
+    // Son değerlendirmeden bu yana tek bir katılımcı mesajı bile varsa hakem devreye girer.
+    let hasCombatantMessage = recentMsgs.some(m => m.gonderen !== 'Sistem' && !m.gonderen.includes('Game Master'));
     
-    let humanMsgs = recentMsgs.filter(m => m.gonderen !== 'Sistem');
-    let uniqueSenders = [...new Set(humanMsgs.map(m => m.gonderen))];
-    
-    // 2 farklı kişi mesaj attıysa otomatik değerlendir
-    if (uniqueSenders.length >= 2) {
+    if (hasCombatantMessage) {
         evaluateTurnWithGemini();
     }
 };
