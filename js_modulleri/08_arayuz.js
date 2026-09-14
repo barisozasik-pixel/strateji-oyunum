@@ -689,10 +689,21 @@ function saveCountryManagement(stateId){
  const added=newTotal-oldTotal;
  const available=calcPop(s).elig;
  if(added>available){alert(`Elverişli nüfus yetersiz! En fazla ${num(available)} yeni garnizon askeri ekleyebilirsiniz.`);return;}
+ // ✅ BUG 4 FIX: Garnizon ekleme artık hazineden bedel kesiyor
+ if(added > 0) {
+   if(rejectDebtPurchase(s))return;
+   const garrisonPrice = Math.max(1, Number(db.settings.prices?.fortress_garrison) || Number(db.settings.garrisonUpkeep?.fortress) || 50);
+   const garrisonCost = added * garrisonPrice;
+   if(s.treasury < garrisonCost){alert(`Hazine yetersiz! ${num(added)} garnizon askeri için ${money(garrisonCost)} gerekli.`);return;}
+   const oldT = s.treasury;
+   s.treasury -= garrisonCost;
+   addLog({stateId:s.id,stateName:s.name,action:`Garnizon Alımı: ${num(added)} asker`,cost:garrisonCost,qty:added,oldTreasury:oldT,newTreasury:s.treasury,unitName:"Kale Garnizonu",oldUnit:oldTotal,newUnit:newTotal});
+ } else {
+   addLog({stateId:s.id,stateName:s.name,action:`Ülke Yönetimi: Garnizon güncellendi`,qty:Math.abs(added),cost:0,unitName:"Kale Garnizonu",oldUnit:oldTotal,newUnit:newTotal});
+ }
  const ownedCount=getOwnedMapProvinceIds(s.id).length;
  if(!ownedCount&&fortressGarrison>0){alert("Haritada bu devlete ait toprak bulunmadığı için garnizon askeri yerleştirilemez.");return;}
- const distribution=distributeFortressGarrisonToMap(s,fortressGarrison);
- addLog({stateId:s.id,stateName:s.name,action:`Ülke Yönetimi: ${distribution.count} harita kalesine garnizon dağıtıldı`,qty:distribution.count,cost:0,unitName:"Kale Garnizonu",oldUnit:oldTotal,newUnit:newTotal});
+ distributeFortressGarrisonToMap(s,fortressGarrison);
  queueSave();
  openDetail(stateId);
  switchTab('country');
