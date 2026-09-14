@@ -24,27 +24,21 @@
 
 <!-- OYUN PANELİ -->
 <div id="app" class="hidden">
-    <div class="container">
-        <header class="top">
-         <div><div class="brand">⚔️ OSMOYUN • Devlet Bilgi Sistemi</div><div id="syncText" class="sub">Bağlantı kuruluyor...</div></div>
-         <div class="actions" id="topActions"></div>
-        </header>
-        <div id="home" class="screen">
-         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0; font-family:'Oswald'; color:var(--border-gold);">DEVLETLER</h3>
-            <button class="btn gold" onclick="openGameMap()">🗺️ HARİTA</button>
-         </div>
-         <div id="pendingEventsHome"></div><div id="stateGrid" class="cards"></div>
-        </div>
-        <div id="detail" class="screen hidden"></div>
-        <div id="mapScreen" class="screen hidden"></div>
-    </div>
-    
-    <!-- SAVAŞ ODASI BUTONU (Oyuna Giriş Yapınca Görünecek) -->
-    <button id="war-room-fab" onclick="openPvPWarRoomModal()" title="PvP Savaş Odası" style="position: fixed; bottom: 20px; right: 20px; background: #c0392b; color: white; border-radius: 50%; width: 65px; height: 65px; font-size: 28px; border: 2px solid #c5a059; box-shadow: 0 4px 10px rgba(0,0,0,0.6); cursor: pointer; z-index: 9999; display: flex; align-items: center; justify-content: center; transition: transform 0.2s;">
-      ⚔️
-    </button>
+<div class="container">
+<header class="top">
+ <div><div class="brand">⚔️ OSMOYUN • Devlet Bilgi Sistemi</div><div id="syncText" class="sub">Bağlantı kuruluyor...</div></div>
+ <div class="actions" id="topActions"></div>
+</header>
+<div id="home" class="screen">
+ <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <h3 style="margin:0; font-family:'Oswald'; color:var(--border-gold);">DEVLETLER</h3>
+    <button class="btn gold" onclick="openGameMap()">🗺️ HARİTA</button>
+ </div>
+ <div id="pendingEventsHome"></div><div id="stateGrid" class="cards"></div>
 </div>
+<div id="detail" class="screen hidden"></div>
+<div id="mapScreen" class="screen hidden"></div>
+</div></div>
 
 <div id="modal" class="modal"><div class="modalbox"><div id="modalContent"></div></div></div>
 
@@ -65,8 +59,16 @@
 <script src="js_modulleri/10_diplomasi.js"></script>
 <script src="js_modulleri/11_ekonomi.js"></script>
 <script src="js_modulleri/12_admin_ve_diger.js"></script>
-<script src="js_modulleri/13_teknoloji_agaci.js"></script>
-<script src="js_modulleri/14_savas_botu.js"></script>
+
+
+<!-- SAVAŞ ODASI FAB (Yüzen Buton) -->
+<button id="war-room-fab" onclick="openBattleLobby()" title="PvP Savaş Odası" style="position: fixed; bottom: 20px; right: 20px; background: #c0392b; color: white; border-radius: 50%; width: 65px; height: 65px; font-size: 28px; border: 2px solid #c5a059; box-shadow: 0 4px 10px rgba(0,0,0,0.6); cursor: pointer; z-index: 9999; display: flex; align-items: center; justify-content: center; transition: transform 0.2s;">
+  ⚔️
+</button>
+<style>#war-room-fab:hover { transform: scale(1.1); }</style>
+
+<!-- Savaş Botu JS -->
+<script src="savas_botu.js"></script>
 
 </body>
 </html>
