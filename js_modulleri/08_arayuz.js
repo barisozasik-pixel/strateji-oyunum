@@ -158,15 +158,15 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     ? `<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="Alınacak adet" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">${isInfrastructure?'🔨 İNŞA ET':'⚔ AL'}</button>${disbandBtn}</div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(displayPrice)}</div>`
     : canManage ? `<div class="unit-buy-row">
          <input id="qty_${s.id}_${key}" type="number" min="1" value="1" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})">
-         <button class="btn green" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">AL</button>
+         <button class="btn unit-buy-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">AL</button>
          ${disbandBtn}
        </div>
-       <div style="text-align:center; font-size:10px; margin-top:2px; color:var(--gold);" id="tot_${s.id}_${key}">${money(displayPrice)} ${disc > 0 ? `<span style="color:var(--green);">(%${disc} İndirim)</span>` : ''}</div>` 
+       <div style="text-align:center; font-size:10px; margin-top:2px; color:var(--theme-accent-gold, var(--gold));" id="tot_${s.id}_${key}">${money(displayPrice)} ${disc > 0 ? `<span style="color:var(--green);">(%${disc} İndirim)</span>` : ''}</div>` 
     : `<div style="text-align:center; padding:3px; background:var(--red); color:#fff; font-size:10px; border-radius:2px;">YETKİ YOK</div>`;
 
     let countHtml = `Mevcut: <strong>${num(count)}</strong>`;
     if (status.inProgress > 0) {
-        countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
+        countHtml += ` <span style="color:var(--theme-accent-gold, var(--gold)); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
     }
     let durationHtml = buildConf ? `<div>Süre: <strong style="color:var(--cyan);">${buildConf.years} Yıl</strong></div>` : '';
     let capacityHtml = '';
@@ -207,7 +207,7 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
         : `<div class="unit-img-box unit-emblem-box"><span class="emblem-glyph">${iconSymbol}</span></div>`;
 
     return `
-    <div class="unit-card${premiumStyle?' population-building-card':''}${isInfrastructure?' infrastructure-building-card':''}${usePremiumStyle?' military-premium-card':''}">
+    <div class="unit-card unit-card-${key}${premiumStyle?' population-building-card':''}${isInfrastructure?' infrastructure-building-card':''}${usePremiumStyle?' military-premium-card':''}">
         ${imgBoxHtml}
         <div class="unit-details">
             <div class="unit-title">${esc(name)}</div>
@@ -254,9 +254,9 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
    infoExtraHtml = `<div>Nüfus: <strong style="color:var(--green)">+%${num(growth)}</strong></div>`;
  }
 
- let countHtml = `Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--gold);'}">${num(status.currentCount)} / ${ownedCount}</strong>`;
+ let countHtml = `Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--theme-accent-gold, var(--gold));'}">${num(status.currentCount)} / ${ownedCount}</strong>`;
  if (status.inProgress > 0) {
-   countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
+   countHtml += ` <span style="color:var(--theme-accent-gold, var(--gold)); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
  }
  
   const popIcons = {
@@ -271,14 +271,14 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
     ? `<div class="unit-img-box"><img src="${esc(safeImg)}" alt="${esc(name)}"></div>`
     : `<div class="unit-img-box unit-emblem-box"><span class="emblem-glyph">${iconSymbol}</span></div>`;
 
-  return `<div class="unit-card population-building-card">
+  return `<div class="unit-card unit-card-${key} population-building-card">
     ${imgBoxHtml}
     <div class="unit-details">
      <div class="unit-title">${esc(name)}</div>
      <div class="unit-info-grid">
        <div>${countHtml}</div>
        ${infoExtraHtml}
-       <div>Fiyat: <strong style="color:var(--gold)">${money(displayPrice)}</strong></div>
+       <div>Fiyat: <strong style="color:var(--theme-accent-gold, var(--gold))">${money(displayPrice)}</strong></div>
      </div>
      ${canManage?`<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="İnşa edilecek adet" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="buildPopulationBuilding('${s.id}','${key}','${esc(name)}')">🔨 İNŞA ET</button></div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(displayPrice)}</div>`:'<div style="text-align:center;padding:3px;background:var(--red);color:#fff;font-size:10px;border-radius:2px;">YETKİ YOK</div>'}
    </div>
@@ -368,14 +368,14 @@ function openDetail(id){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px;">
       <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div>
-          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--theme-accent-gold, var(--gold));font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
           <div class="sub" style="font-size:11px;">Vilayet kalelerine asker tertip etmek ve garnizon fermanını mühürlemek için:</div>
         </div>
         <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
       </div>
       <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div>
-          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--theme-accent-gold, var(--gold));font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
           <div class="sub" style="font-size:11px;">Hastane, Aşevi, Değirmen ve Pazar inşaatı için:</div>
         </div>
         <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
@@ -903,9 +903,9 @@ function openDetail(id){
      <div class="list-item" style="flex-direction:column; align-items:stretch;">
         <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
             <div><b>${e.icon} ${e.name}</b><div class="sub">${e.desc}</div></div>
-            <div style="color:var(--gold); font-weight:bold;">${money(cost)}</div>
+            <div style="color:var(--theme-accent-gold, var(--gold)); font-weight:bold;">${money(cost)}</div>
         </div>
-        ${canManage ? `<button class="btn green small" style="padding:6px;" onclick="buyEdict('${s.id}', '${e.id}')">YAYINLA</button>` : `<button class="btn small" disabled>YETKİ YOK</button>`}
+        ${canManage ? `<button class="btn unit-buy-btn small" style="padding:6px;" onclick="buyEdict('${s.id}', '${e.id}')">YAYINLA</button>` : `<button class="btn small" disabled>YETKİ YOK</button>`}
      </div>`;
  });
  eylemHtml += `</div></div>`;
