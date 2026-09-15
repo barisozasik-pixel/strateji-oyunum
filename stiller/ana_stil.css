@@ -803,7 +803,7 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
     .content-panel > .hoi-tabs .hoi-tab { width:100%; min-width:0; padding:10px 5px; font-size:10px; line-height:1.25; border:1px solid var(--line); overflow-wrap:anywhere; }
     .content-panel > .hoi-tabs .hoi-tab.active { border-color:var(--border-gold); box-shadow:inset 3px 0 0 var(--border-gold); }
     .content-panel > .tab-content { grid-column:1; grid-row:3; padding:8px; width:100%; min-width:0; overflow-x:hidden; }
-    .unit-grid { grid-template-columns: 1fr; }
+    .unit-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
     #tab-content-asker > .unit-grid {
         max-height: 780px;
         overflow-y: auto;
@@ -869,3 +869,191 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
 .detail-crimea .ottoman-card-svg image[clip-path*="omFinalFrameClip"]{filter:hue-rotate(250deg) saturate(.62)}
 .detail-sun .ottoman-card-svg image[clip-path*="omFinalFrameClip"]{filter:hue-rotate(175deg) saturate(.72)}
 .ottoman-card-svg{display:block;width:100%;height:100%;overflow:visible}.ottoman-card-svg text{paint-order:stroke;stroke:#080909;stroke-width:1.4px;stroke-linejoin:round}
+
+
+/* ===================================================
+   ALT SEKME (SUB-TAB) VE DİNAMİK DEVLET TEMALARI SİSTEMİ
+   =================================================== */
+
+/* DİNAMİK DEVLET TEMALARI (SAF VEKTÖR CSS) */
+.content-panel.theme-ottoman {
+  --theme-border: #d69e2e;
+  --theme-accent-gold: #f6e05e;
+  --theme-glow: rgba(214, 158, 46, 0.35);
+  --theme-accent-light: #fae29f;
+  --theme-accent-dark: #8e6d2e;
+}
+.content-panel.theme-sun {
+  --theme-border: #3182ce;
+  --theme-accent-gold: #63b3ed;
+  --theme-glow: rgba(49, 130, 206, 0.4);
+  --theme-accent-light: #e0f2fe;
+  --theme-accent-dark: #0284c7;
+}
+.content-panel.theme-crimea {
+  --theme-border: #9f7aea;
+  --theme-accent-gold: #d6bcfa;
+  --theme-glow: rgba(159, 122, 234, 0.4);
+  --theme-accent-light: #fae8ff;
+  --theme-accent-dark: #a21caf;
+}
+
+/* SUB-TABS (ALT SEKMELER) ŞERİDİ */
+.sub-tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.sub-tabs-ribbon {
+  display: flex;
+  gap: 6px;
+  background: rgba(12, 15, 20, 0.95);
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, var(--border-gold));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6), 0 3px 10px rgba(0,0,0,0.4);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+.sub-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(22, 27, 34, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #9aa2b0;
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  user-select: none;
+}
+.sub-tab-btn:hover {
+  background: rgba(45, 55, 72, 0.9);
+  color: #fff;
+  border-color: var(--theme-accent-dark, rgba(218, 165, 32, 0.4));
+  transform: translateY(-1px);
+}
+.sub-tab-btn.active {
+  background: linear-gradient(180deg, #28313e 0%, #171c24 100%);
+  color: var(--theme-accent-gold, #f6e05e);
+  border: 1px solid var(--theme-border, #d69e2e);
+  box-shadow: 0 0 10px var(--theme-glow, rgba(214, 158, 46, 0.35)), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+}
+.sub-tab-btn .badge-pill {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.sub-tab-pane {
+  display: none;
+  animation: subTabFade 0.2s ease-out;
+}
+.sub-tab-pane.active {
+  display: block;
+}
+@keyframes subTabFade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* GÖRSEL OLMAYAN BİRİMLER İÇİN VEKTÖR EMBLEM */
+.unit-emblem-box {
+  background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, #080a0d 80%) !important;
+  border: 1px solid rgba(197, 160, 89, 0.3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.emblem-glyph {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+}
+
+/* KAPASİTE GÖSTERGE ÇUBUĞU */
+.capacity-bar-container {
+  width: 100%;
+  margin-top: 5px;
+}
+.capacity-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.capacity-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ÜLKE YÖNETİMİ HIZLI GEÇİŞ KÖPRÜLERİ */
+.country-nav-bridge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.country-nav-bridge-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #181d26 0%, #0d1015 100%);
+  border: 1px solid var(--theme-border, #755a2c);
+  border-radius: 5px;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  text-align: left;
+}
+.country-nav-bridge-btn:hover {
+  background: linear-gradient(180deg, #232b38 0%, #131720 100%);
+  border-color: var(--theme-accent-gold, #dfbe72);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px var(--theme-glow, rgba(214, 158, 46, 0.3));
+}
+.bridge-icon-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--theme-border, rgba(197, 160, 89, 0.4));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.bridge-content-box {
+  display: flex;
+  flex-direction: column;
+}
+.bridge-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--theme-accent-gold, #dfbe72);
+  letter-spacing: 0.5px;
+}
+.bridge-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
