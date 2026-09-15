@@ -383,6 +383,97 @@ function openDetail(id){
     </div>
   </div>`;
 
+  const fortressCount = getOwnedMapProvinceIds(s.id).length;
+  const currentGarrison = Math.max(0, Number(s.fortressGarrison) || 0);
+  const upkeepPerSoldier = Math.max(0, Number(db.settings.prices?.fortress_garrison) || Number(db.settings.garrisonUpkeep?.fortress) || 3);
+  const fortressLiveCost = currentGarrison * upkeepPerSoldier;
+  const garrisonPerFortress = fortressCount > 0 ? Math.floor(currentGarrison / fortressCount) : 0;
+  const garrisonRemainder = fortressCount > 0 ? (currentGarrison % fortressCount) : 0;
+
+  const fortressCommandHtml = `
+  <div class="fortress-command-panel">
+    <div class="fortress-command-header">
+      <div>
+        <div class="fortress-command-title">
+          <span>🏰</span> SERHAT KALELERİ VE GARNİZON MUHAFIZLARI
+        </div>
+        <p class="fortress-command-desc">Müstahkem vilayet kalelerine nefer tertip edin. Garnizonlar fetihte düşman hücumunu kırar ve sınır emniyetini sağlar.</p>
+      </div>
+      <div class="fortress-badge-status">🛡️ AKTİF SAVUNMA NİZAMI</div>
+    </div>
+    <div class="fortress-kpi-grid">
+      <div class="fortress-kpi-card">
+        <div class="fortress-kpi-label">MÜSTAHKEM TOPRAKLAR</div>
+        <div class="fortress-kpi-val">${num(fortressCount)} <span class="fortress-kpi-unit">Kale</span></div>
+        <div class="fortress-kpi-sub">1 Vilayet = 1 Kale</div>
+      </div>
+      <div class="fortress-kpi-card kpi-emerald">
+        <div class="fortress-kpi-label">TOPLAM MUHAFIZ GÜCÜ</div>
+        <div class="fortress-kpi-val" id="fortress_live_total_kpi">${num(currentGarrison)} <span class="fortress-kpi-unit">Asker</span></div>
+        <div class="fortress-kpi-sub">Sınır hattı muhafızları</div>
+      </div>
+      <div class="fortress-kpi-card kpi-blue">
+        <div class="fortress-kpi-label">KALE BAŞINA DÜŞEN</div>
+        <div class="fortress-kpi-val" id="fortress_live_per_kpi">${num(garrisonPerFortress)} <span class="fortress-kpi-unit">Nefer/Kale</span></div>
+        <div class="fortress-kpi-sub" id="fortress_live_rem_kpi">${garrisonRemainder ? `+${num(garrisonRemainder)} kaleye birer fazla` : 'Eşit dağıtılmış'}</div>
+      </div>
+      <div class="fortress-kpi-card kpi-red">
+        <div class="fortress-kpi-label">SENELİK MASRAF</div>
+        <div class="fortress-kpi-val" id="fortress_live_cost_kpi">-${money(fortressLiveCost)}</div>
+        <div class="fortress-kpi-sub">Asker başı: ${money(upkeepPerSoldier)}/Yıl</div>
+      </div>
+    </div>
+    <div class="fortress-management-grid">
+      <div class="fortress-info-box">
+        <div>
+          <div class="fortress-box-header">
+            <span class="fortress-box-title">SERHAT HİSARI NİZAMI</span>
+            <span class="fortress-box-badge">KOT-1453</span>
+          </div>
+          <div class="fortress-thumb-wrap">
+            ${fortressImg ? `<img src="${esc(fortressImg)}" class="fortress-thumb" alt="Kale">` : ''}
+            <div>
+              <p class="fortress-box-text">Kaleleriniz harita fethinde ilk savunma hattıdır. Garnizon neferleri kuşatmalarda düşmana ağır zayiat verdirir.</p>
+            </div>
+          </div>
+        </div>
+        <div class="fortress-sub-card">
+          <div class="fortress-stat-row">
+            <span>Boştaki Elverişli Nüfus:</span>
+            <b class="text-green">${num(p.elig)} Asker</b>
+          </div>
+          <div class="fortress-stat-row">
+            <span>Mevcut Kale Garnizonu:</span>
+            <b class="text-gold">${num(currentGarrison)} Asker</b>
+          </div>
+        </div>
+      </div>
+      <div class="fortress-control-box">
+        <div>
+          <div class="fortress-box-header">
+            <span class="fortress-box-title">TERTİBAT & İKMAL MASASI</span>
+            <span id="fortress_live_cost_tag" class="text-red">-${money(fortressLiveCost)}</span>
+          </div>
+          <label class="fortress-input-label" for="f_country_fortressGarrison">Garnizon Asker Sayısı:</label>
+          <div class="fortress-input-row">
+            <input id="f_country_fortressGarrison" type="number" min="0" max="1000000" step="1000" class="fortress-input-styled" value="${currentGarrison}" oninput="onFortressGarrisonChange(this.value, ${upkeepPerSoldier}, ${fortressCount})">
+          </div>
+          <div class="fortress-quick-label">Hızlı Tertibat Butonları:</div>
+          <div class="fortress-quick-buttons">
+            <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(5000, ${upkeepPerSoldier}, ${fortressCount})">+5.000</button>
+            <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(10000, ${upkeepPerSoldier}, ${fortressCount})">+10.000</button>
+            <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(50000, ${upkeepPerSoldier}, ${fortressCount})">+50.000</button>
+            <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-10000, ${upkeepPerSoldier}, ${fortressCount})">-10.000</button>
+            <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-50000, ${upkeepPerSoldier}, ${fortressCount})">-50.000</button>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          ${canManage ? `<button type="button" class="fortress-save-btn" onclick="saveCountryManagement('${s.id}')">🛡️ GARNİZON TERTİBATINI MÜHÜRLE VE KAYDET</button>` : `<div style="text-align:center;padding:8px;color:var(--muted);font-size:12px;">YETKİ YOK</div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
   const populationBuildings = [
     ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
   ];
