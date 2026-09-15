@@ -813,61 +813,6 @@ function openDetail(id){
  });
  eylemHtml += `</div></div>`;
 
-  // 8. ÜLKE YÖNETİMİ: KALE, GARNİZON VE NÜFUS BİNALARI
-  const fortressImg = cleanUrl(imgs.fortress);
-  const fortressGarrisonImg = cleanUrl(imgs.fortress_garrison);
-  const populationBuildings = [
-    ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
-  ];
-  const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');  // 8. ÜLKE YÖNETİMİ: DEMOGRAFİ & YÖNETİM MERKEZİ
-  let countryManagementHtml = `<div>
-    <h4 style="color:var(--border-gold);margin:0 0 8px;font-family:'Oswald';">👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</h4>
-    <p class="sub">Halkınızın demografik yapısı, gelecek nesil büyüme oranları ve vergi mükellefleri.</p>
-    <div class="demography-panel">
-      <div class="demography-head">
-        <span>👶 NÜFUS VE YAŞ DİNAMİĞİ</span>
-        <span class="badge">Demografik Rapor</span>
-      </div>
-      <div class="demography-grid">
-        <div class="demography-card card-children">
-          <span class="sub">Yeni Doğan / Çocuk Nüfus:</span><br>
-          <b class="demo-val">${num(p.children || 0)}</b> kişi
-          <div class="demo-sub">(Henüz vergi vermez, askere alınamaz)</div>
-        </div>
-        <div class="demography-card card-maturing">
-          <span class="sub">Seneye Yetişkin Olacak Gençler:</span><br>
-          <b class="demo-val">+${num(Math.floor((p.children || 0) * 0.10))}</b> kişi (%10)
-          <div class="demo-sub">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
-        </div>
-        <div class="demography-card card-adults">
-          <span class="sub">Yetişkin Nüfus (Mükellef):</span><br>
-          <b class="demo-val">${num(p.adults || (s.population - (p.children||0)))}</b> kişi
-          <div class="demo-sub">(Vergi veren ve ordu/eğitim havuzunu oluşturanlar)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- HIZLI GEÇİŞ KÖPRÜLERİ -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px;">
-      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-        <div>
-          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
-          <div class="sub" style="font-size:11px;">Vilayet kalelerine asker tertip etmek ve garnizon fermanını mühürlemek için:</div>
-        </div>
-        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
-      </div>
-      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-        <div>
-          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
-          <div class="sub" style="font-size:11px;">Hastane, Aşevi, Değirmen ve Pazar inşaatı için:</div>
-        </div>
-        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
-      </div>
-    </div>
-  </div>`;
-
-
-
  const detailStateKey = `${s.id||''} ${s.name||''}`.toLocaleLowerCase('tr-TR');
  const isOttomanDetail = detailStateKey.includes('osmanlı') || detailStateKey.includes('osmanli') || detailStateKey.includes('osmalı') || detailStateKey.includes('osmali') || detailStateKey.includes('ottoman');
  const isCrimeaDetail = detailStateKey.includes('kırım') || detailStateKey.includes('kirim') || detailStateKey.includes('crimea');
