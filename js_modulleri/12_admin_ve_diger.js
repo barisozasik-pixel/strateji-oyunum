@@ -401,13 +401,15 @@ function passOneYear(){
         // 5. MEDRESE / OKUL MEZUNİYETİ: Yetişkin ve sivil halktan yeni ilim talebeleri mezun olur
         const schoolCount = Number(s.okul) || 0;
         if (schoolCount > 0) {
-            const capacityPerSchool = Math.max(1, Math.floor(Number(db.settings.schoolCapacityPerBuilding) || 250));
+            const baseAdminCap = Number(db.settings.schoolCapacityPerBuilding) || 250;
+            const popBonus = Math.round((Number(s.population) || 0) / 50000);
+            const capacityPerSchool = Math.max(120, Math.min(500, Math.round((baseAdminCap * 0.5) + popBonus)));
             const potentialGraduates = schoolCount * capacityPerSchool;
             const civilianPool = Math.max(0, currentAdults - currentEdu - (s.piyade || 0) - (s.suvari || 0) - (s.nisanci || 0) - (s.fortressGarrison || 0));
             const actualGraduates = Math.min(civilianPool, potentialGraduates);
             if (actualGraduates > 0) {
                 currentEdu += actualGraduates;
-                rpt.events.push(`🎓 Medrese Mezunları: +${num(actualGraduates)} genç eğitimini tamamlayıp eğitimli sınıfa katıldı`);
+                rpt.events.push(`🎓 Medrese Mezunları: +${num(actualGraduates)} genç eğitimini tamamlayıp eğitimli sınıfa katıldı (Okul başı ${capacityPerSchool} talebe)`);
             }
         }
 

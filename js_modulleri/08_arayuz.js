@@ -58,6 +58,18 @@ function toggleMobileTabs(){
  document.getElementById('player-tabs')?.classList.toggle('mobile-open');
 }
 
+function switchSubTab(group, subId) {
+    const parent = document.getElementById('tab-content-' + group);
+    if (!parent) return;
+    parent.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-subtab') === subId);
+    });
+    parent.querySelectorAll('.sub-tab-pane').forEach(pane => {
+        pane.classList.toggle('active', pane.getAttribute('data-subtab') === subId);
+    });
+    try { sessionStorage.setItem('subtab_' + group, subId); } catch(e){}
+}
+
 const BUILDING_CONSTRUCTION_CONFIG = {
   hastane: { years: 1, label: 'Şifahane', scalable: true },
   okul: { years: 1, label: 'Okul', scalable: true },
@@ -157,16 +169,53 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
         countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
     }
     let durationHtml = buildConf ? `<div>Süre: <strong style="color:var(--cyan);">${buildConf.years} Yıl</strong></div>` : '';
+    let capacityHtml = '';
+    if (key === 'okul') {
+        const baseAdminCap = Number(db.settings.schoolCapacityPerBuilding) || 250;
+        const popBonus = Math.round((Number(s.population) || 0) / 50000);
+        const capacityPerSchool = Math.max(120, Math.min(500, Math.round((baseAdminCap * 0.5) + popBonus)));
+        capacityHtml = `<div>Kapasite: <strong style="color:var(--green);">${capacityPerSchool} Talebe/Yıl</strong></div>`;
+    }
+
+    const fallbackIcons = {
+      piyade: '⚔️',
+      suvari: '🐎',
+      nisanci: '🏹',
+      kucuk_top: '💣',
+      orta_top: '💣',
+      buyuk_top: '💥',
+      kucuk_gemi: '⛵',
+      orta_gemi: '⛵',
+      buyuk_gemi: '⚓',
+      kucuk_liman: '🏗️',
+      orta_liman: '⚓',
+      buyuk_liman: '🚢',
+      kucuk_ocak: '🌋',
+      orta_ocak: '🏭',
+      buyuk_ocak: '🏰',
+      okul: '📜',
+      istihbarat_binasi: '🕵️',
+      hastane: '🌿',
+      asevi: '🍲',
+      su_degirmeni: '⚙️',
+      kervansaray: '🐫',
+      pazar: '⚖️'
+    };
+    const iconSymbol = fallbackIcons[key] || (isInfrastructure ? '🏛️' : '⚔️');
+    const imgBoxHtml = safeImg 
+        ? `<div class="unit-img-box"><img src="${esc(safeImg)}" alt="${esc(name)}"></div>`
+        : `<div class="unit-img-box unit-emblem-box"><span class="emblem-glyph">${iconSymbol}</span></div>`;
 
     return `
     <div class="unit-card${premiumStyle?' population-building-card':''}${isInfrastructure?' infrastructure-building-card':''}${usePremiumStyle?' military-premium-card':''}">
-        ${safeImg ? `<div class="unit-img-box"><img src="${esc(safeImg)}"></div>` : ''}
+        ${imgBoxHtml}
         <div class="unit-details">
             <div class="unit-title">${esc(name)}</div>
             <div class="unit-info-grid">
                 <div>${countHtml}</div>
                 <div>Fiyat: <strong>${num(displayPrice)}</strong></div>
                 <div>Bakım: <strong style="color:var(--red)">-${num(baseUpkeep)}</strong></div>
+                ${capacityHtml}
                 ${durationHtml}
                 ${capStr ? `<div>Lmt: <strong>${capStr}</strong></div>` : ''}
             </div>
@@ -210,9 +259,21 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
    countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
  }
  
- return `<div class="unit-card population-building-card">
-   ${safeImg?`<div class="unit-img-box"><img src="${esc(safeImg)}"></div>`:''}
-   <div class="unit-details">
+  const popIcons = {
+    hastane: '🌿',
+    asevi: '🍲',
+    su_degirmeni: '⚙️',
+    kervansaray: '🐫',
+    pazar: '⚖️'
+  };
+  const iconSymbol = popIcons[key] || '🏛️';
+  const imgBoxHtml = safeImg
+    ? `<div class="unit-img-box"><img src="${esc(safeImg)}" alt="${esc(name)}"></div>`
+    : `<div class="unit-img-box unit-emblem-box"><span class="emblem-glyph">${iconSymbol}</span></div>`;
+
+  return `<div class="unit-card population-building-card">
+    ${imgBoxHtml}
+    <div class="unit-details">
      <div class="unit-title">${esc(name)}</div>
      <div class="unit-info-grid">
        <div>${countHtml}</div>
@@ -273,43 +334,205 @@ function openDetail(id){
     .sort((a, b) => getLetterTimestamp(b) - getLetterTimestamp(a));
  const unreadCount = myLetters.filter(l => l.toStateId === s.id && !l.read).length;
 
- // 1. ASKERİYE SEKMESİ
- const pendingEventCount=getVisiblePendingEvents().length;
- const olaylarHtml=renderPendingEvents();
-  let askeriyeHtml = `<div class="unit-grid population-building-grid">`;
- askeriyeHtml += buildUnitCard(s, 'piyade', 'Piyade', imgs.piyade, db.settings.prices.piyade, db.settings.upkeep.piyade, '', canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'suvari', 'Süvari', imgs.suvari, db.settings.prices.suvari, db.settings.upkeep.suvari, '', canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'nisanci', 'Nişancı', imgs.nisanci, db.settings.prices.nisanci, db.settings.upkeep.nisanci, '', canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'kucuk_top', 'Küçük Top', imgs.kucuk_top, db.settings.prices.kucuk_top, db.settings.upkeep.kucuk_top, `${num(gunCapacity(s))}/${num(gunCapMax(s))}`, canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'orta_top', 'Orta Top', imgs.orta_top, db.settings.prices.orta_top, db.settings.upkeep.orta_top, `${num(gunCapacity(s))}/${num(gunCapMax(s))}`, canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'buyuk_top', 'Büyük Top', imgs.buyuk_top, db.settings.prices.buyuk_top, db.settings.upkeep.buyuk_top, `${num(gunCapacity(s))}/${num(gunCapMax(s))}`, canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'kucuk_gemi', 'Küçük Gemi', imgs.kucuk_gemi, db.settings.prices.kucuk_gemi, db.settings.upkeep.kucuk_gemi, `${num(shipCapacity(s))}/${num(shipCapMax(s))}`, canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'orta_gemi', 'Orta Gemi', imgs.orta_gemi, db.settings.prices.orta_gemi, db.settings.upkeep.orta_gemi, `${num(shipCapacity(s))}/${num(shipCapMax(s))}`, canManage, false, false, true);
- askeriyeHtml += buildUnitCard(s, 'buyuk_gemi', 'Büyük Gemi', imgs.buyuk_gemi, db.settings.prices.buyuk_gemi, db.settings.upkeep.buyuk_gemi, `${num(shipCapacity(s))}/${num(shipCapMax(s))}`, canManage, false, false, true);
- 
- const customUnits = (db.settings.customItems || []).filter(item => (!item.faction || item.faction === s.id) && item.category === 'asker');
- customUnits.forEach(c => {
-     askeriyeHtml += buildUnitCard(s, c.id, c.name, c.icon, c.price, c.upkeep, '', canManage, true, false, true);
- });
- askeriyeHtml += `</div>`;
+  // KALE & GARNİZON DEĞİŞKENLERİ
+  const fortressImg = cleanUrl(imgs.fortress);
+  const fortressGarrisonImg = cleanUrl(imgs.fortress_garrison);  // 8. ÜLKE YÖNETİMİ: DEMOGRAFİ & YÖNETİM MERKEZİ
+  let countryManagementHtml = `<div>
+    <h4 style="color:var(--border-gold);margin:0 0 8px;font-family:'Oswald';">👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</h4>
+    <p class="sub">Halkınızın demografik yapısı, gelecek nesil büyüme oranları ve vergi mükellefleri.</p>
+    <div class="demography-panel">
+      <div class="demography-head">
+        <span>👶 NÜFUS VE YAŞ DİNAMİĞİ</span>
+        <span class="badge">Demografik Rapor</span>
+      </div>
+      <div class="demography-grid">
+        <div class="demography-card card-children">
+          <span class="sub">Yeni Doğan / Çocuk Nüfus:</span><br>
+          <b class="demo-val">${num(p.children || 0)}</b> kişi
+          <div class="demo-sub">(Henüz vergi vermez, askere alınamaz)</div>
+        </div>
+        <div class="demography-card card-maturing">
+          <span class="sub">Seneye Yetişkin Olacak Gençler:</span><br>
+          <b class="demo-val">+${num(Math.floor((p.children || 0) * 0.10))}</b> kişi (%10)
+          <div class="demo-sub">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
+        </div>
+        <div class="demography-card card-adults">
+          <span class="sub">Yetişkin Nüfus (Mükellef):</span><br>
+          <b class="demo-val">${num(p.adults || (s.population - (p.children||0)))}</b> kişi
+          <div class="demo-sub">(Vergi veren ve ordu/eğitim havuzunu oluşturanlar)</div>
+        </div>
+      </div>
+    </div>
 
- // 2. ALTYAPI SEKMESİ
- const iu = db.settings.infrastructureUpkeep || {};
- let altyapiHtml = `<div class="unit-grid population-building-grid">`;
- altyapiHtml += buildUnitCard(s, 'kucuk_liman', 'Küçük Liman', imgs.kucuk_liman, db.settings.prices.kucuk_liman, iu.kucuk_liman||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'orta_liman', 'Orta Liman', imgs.orta_liman, db.settings.prices.orta_liman, iu.orta_liman||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'buyuk_liman', 'Büyük Liman', imgs.buyuk_liman, db.settings.prices.buyuk_liman, iu.buyuk_liman||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'kucuk_ocak', 'Küçük Top Ocağı', imgs.kucuk_ocak, db.settings.prices.kucuk_ocak, iu.kucuk_ocak||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'orta_ocak', 'Orta Top Ocağı', imgs.orta_ocak, db.settings.prices.orta_ocak, iu.orta_ocak||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'buyuk_ocak', 'Büyük Top Ocağı', imgs.buyuk_ocak, db.settings.prices.buyuk_ocak, iu.buyuk_ocak||0, '', canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'okul', 'Okul', imgs.okul, db.settings.prices.okul, db.settings.schoolUpkeep||0, `${s.okul||0} / ${getOwnedMapProvinceIds(s.id).length}`, canManage, false, true);
- altyapiHtml += buildUnitCard(s, 'istihbarat_binasi', 'İstihbarat Dairesi', imgs.istihbarat_binasi, db.settings.prices.istihbarat_binasi, iu.istihbarat_binasi||0, '', canManage, false, true);
- 
- const customInfra = (db.settings.customItems || []).filter(item => (!item.faction || item.faction === s.id) && item.category !== 'asker');
- customInfra.forEach(c => {
-     altyapiHtml += buildUnitCard(s, c.id, c.name, c.icon, c.price, c.upkeep, '', canManage, true, true);
- });
- altyapiHtml += `</div>`;
+    <!-- HIZLI GEÇİŞ KÖPRÜLERİ -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px;">
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
+          <div class="sub" style="font-size:11px;">Vilayet kalelerine asker tertip etmek ve garnizon fermanını mühürlemek için:</div>
+        </div>
+        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
+      </div>
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
+          <div class="sub" style="font-size:11px;">Hastane, Aşevi, Değirmen ve Pazar inşaatı için:</div>
+        </div>
+        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
+      </div>
+    </div>
+  </div>`;
+
+  const populationBuildings = [
+    ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
+  ];
+  const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');
+
+  // Aktif alt sekmeleri hatırla
+  let activeAskerSub = 'kara';
+  let activeAltyapiSub = 'askeri_sanayi';
+  try {
+    activeAskerSub = sessionStorage.getItem('subtab_asker') || 'kara';
+    activeAltyapiSub = sessionStorage.getItem('subtab_altyapi') || 'askeri_sanayi';
+  } catch(e){}
+
+  // 1. ASKERİYE SEKMESİ (ALT SEKMELİ)
+  const pendingEventCount=getVisiblePendingEvents().length;
+  const olaylarHtml=renderPendingEvents();
+
+  let karaHtml = `<div class="unit-grid">`;
+  karaHtml += buildUnitCard(s, 'piyade', 'Piyade', imgs.piyade, db.settings.prices.piyade, db.settings.upkeep.piyade, '', canManage, false, false, true);
+  karaHtml += buildUnitCard(s, 'suvari', 'Süvari', imgs.suvari, db.settings.prices.suvari, db.settings.upkeep.suvari, '', canManage, false, false, true);
+  karaHtml += buildUnitCard(s, 'nisanci', 'Nişancı', imgs.nisanci, db.settings.prices.nisanci, db.settings.upkeep.nisanci, '', canManage, false, false, true);
+  const customUnits = (db.settings.customItems || []).filter(item => (!item.faction || item.faction === s.id) && item.category === 'asker');
+  customUnits.forEach(c => {
+      karaHtml += buildUnitCard(s, c.id, c.name, c.icon, c.price, c.upkeep, '', canManage, true, false, true);
+  });
+  karaHtml += `</div>`;
+
+  const gunCur = gunCapacity(s);
+  const gunMax = gunCapMax(s);
+  const gunPct = gunMax > 0 ? Math.min(100, Math.round((gunCur / gunMax) * 100)) : 0;
+  let topHtml = `
+    <div class="capacity-bar-container">
+      <div>
+        <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;color:var(--gold);">💣 TOPHANE-İ ÂMİRE KAPASİTESİ</div>
+        <div class="sub" style="font-size:11px;">Top Ocakları (Dökümhaneler) toplam namlu döküm kapasitesi sağlar.</div>
+      </div>
+      <div style="text-align:right;">
+        <span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--gold);">${num(gunCur)} / ${num(gunMax)} Namlu</span>
+        <div class="capacity-bar-track">
+          <div class="capacity-bar-fill" style="width:${gunPct}%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="unit-grid">`;
+  topHtml += buildUnitCard(s, 'kucuk_top', 'Küçük Top', imgs.kucuk_top, db.settings.prices.kucuk_top, db.settings.upkeep.kucuk_top, `${num(gunCur)}/${num(gunMax)}`, canManage, false, false, true);
+  topHtml += buildUnitCard(s, 'orta_top', 'Orta Top', imgs.orta_top, db.settings.prices.orta_top, db.settings.upkeep.orta_top, `${num(gunCur)}/${num(gunMax)}`, canManage, false, false, true);
+  topHtml += buildUnitCard(s, 'buyuk_top', 'Büyük Top (Şâhi)', imgs.buyuk_top, db.settings.prices.buyuk_top, db.settings.upkeep.buyuk_top, `${num(gunCur)}/${num(gunMax)}`, canManage, false, false, true);
+  topHtml += `</div>`;
+
+  const shipCur = shipCapacity(s);
+  const shipMax = shipCapMax(s);
+  const shipPct = shipMax > 0 ? Math.min(100, Math.round((shipCur / shipMax) * 100)) : 0;
+  let bahriyeHtml = `
+    <div class="capacity-bar-container">
+      <div>
+        <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;color:var(--cyan, #7dd3fc);">⚓ TERSANE-İ ÂMİRE & DONANMA KOTASI</div>
+        <div class="sub" style="font-size:11px;">İnşa edilen Limanlar filonuzun barındırabileceği azami gemi sayısını belirler.</div>
+      </div>
+      <div style="text-align:right;">
+        <span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--cyan, #7dd3fc);">${num(shipCur)} / ${num(shipMax)} Tekne</span>
+        <div class="capacity-bar-track">
+          <div class="capacity-bar-fill" style="width:${shipPct}%;background:linear-gradient(90deg, #0284c7, #7dd3fc);"></div>
+        </div>
+      </div>
+    </div>
+    <div class="unit-grid">`;
+  bahriyeHtml += buildUnitCard(s, 'kucuk_gemi', 'Küçük Gemi (Kadırga)', imgs.kucuk_gemi, db.settings.prices.kucuk_gemi, db.settings.upkeep.kucuk_gemi, `${num(shipCur)}/${num(shipMax)}`, canManage, false, false, true);
+  bahriyeHtml += buildUnitCard(s, 'orta_gemi', 'Orta Gemi (Kalyon)', imgs.orta_gemi, db.settings.prices.orta_gemi, db.settings.upkeep.orta_gemi, `${num(shipCur)}/${num(shipMax)}`, canManage, false, false, true);
+  bahriyeHtml += buildUnitCard(s, 'buyuk_gemi', 'Büyük Gemi (Baştarda)', imgs.buyuk_gemi, db.settings.prices.buyuk_gemi, db.settings.upkeep.buyuk_gemi, `${num(shipCur)}/${num(shipMax)}`, canManage, false, false, true);
+  bahriyeHtml += `</div>`;
+
+  let askeriyeHtml = `
+    <div class="sub-tabs-container">
+      <div class="sub-tabs-ribbon">
+        <button type="button" class="sub-tab-btn ${activeAskerSub==='kara'?'active':''}" data-subtab="kara" onclick="switchSubTab('asker','kara')">
+          <span>🏹</span> Kara Ordusu
+        </button>
+        <button type="button" class="sub-tab-btn ${activeAskerSub==='top'?'active':''}" data-subtab="top" onclick="switchSubTab('asker','top')">
+          <span>💣</span> Tophane & Muhasara
+        </button>
+        <button type="button" class="sub-tab-btn ${activeAskerSub==='bahriye'?'active':''}" data-subtab="bahriye" onclick="switchSubTab('asker','bahriye')">
+          <span>⚓</span> Bahriye & Donanma
+        </button>
+        <button type="button" class="sub-tab-btn ${activeAskerSub==='garnizon'?'active':''}" data-subtab="garnizon" onclick="switchSubTab('asker','garnizon')">
+          <span>🏰</span> Serhat Kaleleri & Garnizon
+        </button>
+      </div>
+      <div class="sub-tab-pane ${activeAskerSub==='kara'?'active':''}" data-subtab="kara">
+        ${karaHtml}
+      </div>
+      <div class="sub-tab-pane ${activeAskerSub==='top'?'active':''}" data-subtab="top">
+        ${topHtml}
+      </div>
+      <div class="sub-tab-pane ${activeAskerSub==='bahriye'?'active':''}" data-subtab="bahriye">
+        ${bahriyeHtml}
+      </div>
+      <div class="sub-tab-pane ${activeAskerSub==='garnizon'?'active':''}" data-subtab="garnizon">
+        ${fortressCommandHtml}
+      </div>
+    </div>
+  `;
+
+  // 2. ALTYAPI SEKMESİ (ALT SEKMELİ)
+  const iu = db.settings.infrastructureUpkeep || {};
+
+  let askeriSanayiHtml = `<div class="unit-grid">`;
+  askeriSanayiHtml += buildUnitCard(s, 'kucuk_liman', 'Küçük Liman', imgs.kucuk_liman, db.settings.prices.kucuk_liman, iu.kucuk_liman||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'orta_liman', 'Orta Liman', imgs.orta_liman, db.settings.prices.orta_liman, iu.orta_liman||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'buyuk_liman', 'Büyük Liman', imgs.buyuk_liman, db.settings.prices.buyuk_liman, iu.buyuk_liman||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'kucuk_ocak', 'Küçük Top Ocağı', imgs.kucuk_ocak, db.settings.prices.kucuk_ocak, iu.kucuk_ocak||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'orta_ocak', 'Orta Top Ocağı', imgs.orta_ocak, db.settings.prices.orta_ocak, iu.orta_ocak||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'buyuk_ocak', 'Büyük Top Ocağı', imgs.buyuk_ocak, db.settings.prices.buyuk_ocak, iu.buyuk_ocak||0, '', canManage, false, true);
+  askeriSanayiHtml += `</div>`;
+
+  let maarifHtml = `<div class="unit-grid">`;
+  maarifHtml += buildUnitCard(s, 'okul', 'Okul (Medrese)', imgs.okul, db.settings.prices.okul, db.settings.schoolUpkeep||0, `${s.okul||0} / ${getOwnedMapProvinceIds(s.id).length}`, canManage, false, true);
+  maarifHtml += buildUnitCard(s, 'istihbarat_binasi', 'İstihbarat Dairesi', imgs.istihbarat_binasi, db.settings.prices.istihbarat_binasi, iu.istihbarat_binasi||0, '', canManage, false, true);
+  const customInfra = (db.settings.customItems || []).filter(item => (!item.faction || item.faction === s.id) && item.category !== 'asker');
+  customInfra.forEach(c => {
+      maarifHtml += buildUnitCard(s, c.id, c.name, c.icon, c.price, c.upkeep, '', canManage, true, true);
+  });
+  maarifHtml += `</div>`;
+
+  let sivilImarHtml = `<div class="unit-grid">${populationBuildingsHtml}</div>`;
+
+  let altyapiHtml = `
+    <div class="sub-tabs-container">
+      <div class="sub-tabs-ribbon">
+        <button type="button" class="sub-tab-btn ${activeAltyapiSub==='askeri_sanayi'?'active':''}" data-subtab="askeri_sanayi" onclick="switchSubTab('altyapi','askeri_sanayi')">
+          <span>🔨</span> Askeri Sanayi & Tersane
+        </button>
+        <button type="button" class="sub-tab-btn ${activeAltyapiSub==='maarif'?'active':''}" data-subtab="maarif" onclick="switchSubTab('altyapi','maarif')">
+          <span>📜</span> Maarif & Teşkilat
+        </button>
+        <button type="button" class="sub-tab-btn ${activeAltyapiSub==='sivil_imar'?'active':''}" data-subtab="sivil_imar" onclick="switchSubTab('altyapi','sivil_imar')">
+          <span>🌾</span> Sivil & Nüfus İmarı
+        </button>
+      </div>
+      <div class="sub-tab-pane ${activeAltyapiSub==='askeri_sanayi'?'active':''}" data-subtab="askeri_sanayi">
+        ${askeriSanayiHtml}
+      </div>
+      <div class="sub-tab-pane ${activeAltyapiSub==='maarif'?'active':''}" data-subtab="maarif">
+        ${maarifHtml}
+      </div>
+      <div class="sub-tab-pane ${activeAltyapiSub==='sivil_imar'?'active':''}" data-subtab="sivil_imar">
+        ${sivilImarHtml}
+      </div>
+    </div>
+  `;
+
 
  // 3. MALİYE & DETAYLI EKONOMİ & YILLIK HASILA SEKMESİ
  let ledgerHtml = `<div class="finance-dashboard">`;
@@ -596,127 +819,14 @@ function openDetail(id){
   const populationBuildings = [
     ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
   ];
-  const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');
-  const mapFortressCount = getOwnedMapProvinceIds(s.id).length;
-  const garrisonPerFortress = mapFortressCount ? Math.floor((s.fortressGarrison||0)/mapFortressCount) : 0;
-  const garrisonRemainder = mapFortressCount ? (s.fortressGarrison||0)%mapFortressCount : 0;
-  const upkeepPerSoldier = Number(db.settings.garrisonUpkeep?.fortress) || 3;
-
+  const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');  // 8. ÜLKE YÖNETİMİ: DEMOGRAFİ & YÖNETİM MERKEZİ
   let countryManagementHtml = `<div>
-    <div class="fortress-command-panel">
-      <div class="fortress-command-header">
-        <div>
-          <div class="fortress-command-title">
-            <span>🏰</span> SERHAT KALELERİ VE GARNİZON MUHAFIZLARI
-          </div>
-          <p class="sub fortress-command-desc">
-            Müstahkem vilayet kalelerine nefer tertip edin. Garnizonlar fetihte düşman hücumunu kırar ve asayişi temin eder.
-          </p>
-        </div>
-        <div class="fortress-badge-status">
-          🛡️ AKTİF SAVUNMA NİZAMI
-        </div>
-      </div>
-
-      <!-- 4'LÜ STRATEJİK DURUM BARI -->
-      <div class="fortress-kpi-grid">
-        <div class="fortress-kpi-card">
-          <div class="fortress-kpi-label">Müstahkem Topraklar</div>
-          <div class="fortress-kpi-val">${num(mapFortressCount)} <span class="fortress-kpi-unit">Kale</span></div>
-          <div class="fortress-kpi-sub">1 Vilayet = 1 Kale Kotası</div>
-        </div>
-
-        <div class="fortress-kpi-card kpi-emerald">
-          <div class="fortress-kpi-label">Toplam Muhafız Gücü</div>
-          <div class="fortress-kpi-val" id="fortress_live_total_kpi">${num(s.fortressGarrison||0)} <span class="fortress-kpi-unit">Asker</span></div>
-          <div class="fortress-kpi-sub">Sınır hattı boyunca nöbette</div>
-        </div>
-
-        <div class="fortress-kpi-card kpi-blue">
-          <div class="fortress-kpi-label">Kale Başına Düşen</div>
-          <div class="fortress-kpi-val" id="fortress_live_per_kpi">${num(garrisonPerFortress)} <span class="fortress-kpi-unit">Nefer/Kale</span></div>
-          <div class="fortress-kpi-sub" id="fortress_live_rem_kpi">${garrisonRemainder ? `+${num(garrisonRemainder)} kaleye birer fazla` : 'Eşit dağıtılmış'}</div>
-        </div>
-
-        <div class="fortress-kpi-card kpi-red">
-          <div class="fortress-kpi-label">Yıllık Garnizon Masrafı</div>
-          <div class="fortress-kpi-val" id="fortress_live_cost_kpi">-${money(fortressGarrisonExpense)}</div>
-          <div class="fortress-kpi-sub">Asker başı yıllık: ${money(upkeepPerSoldier)}</div>
-        </div>
-      </div>
-
-      <!-- MERKEZİ YÖNETİM & TERTİBAT ALANI -->
-      <div class="fortress-management-grid">
-        <!-- SOL: KALE BİLGİ KARTI -->
-        <div class="fortress-info-box">
-          <div>
-            <div class="fortress-box-header">
-              <span class="fortress-box-title">🏰 KALE ENVANTERİ</span>
-              <span class="fortress-box-badge">${num(mapFortressCount)} / ${num(mapFortressCount)} Müstahkem</span>
-            </div>
-            ${fortressImg ? `<div class="fortress-thumb-wrap"><img src="${esc(fortressImg)}" class="fortress-thumb" alt="Kale"></div>` : ''}
-            <p class="fortress-box-text">
-              Devletinizin fethettiği her toprak parçası bir sınır garnizonu barındırır. Garnizona eklenen neferler elverişli nüfustan karşılanır.
-            </p>
-          </div>
-          <div class="fortress-sub-card">
-            <div class="fortress-stat-row">
-              <span class="sub">Boştaki Elverişli Asker Kaynağı:</span>
-              <b class="text-green">${num(p.elig)}</b>
-            </div>
-            <div class="fortress-stat-row">
-              <span class="sub">Maksimum Alınabilecek Garnizon:</span>
-              <b class="text-gold">+${num(p.elig)}</b>
-            </div>
-          </div>
-        </div>
-
-        <!-- SAĞ: ASKER ATAMA VE HIZLI BUTONLAR -->
-        <div class="fortress-control-box">
-          <div>
-            <div class="fortress-box-header">
-              <span class="fortress-box-title">🛡️ TOPLAM KALE MUHAFIZI SAYISI</span>
-              <span class="fortress-live-cost-info">Canlı Maliyet: <b class="text-red" id="fortress_live_cost_tag">-${money(fortressGarrisonExpense)}</b></span>
-            </div>
-
-            <label class="fortress-input-label" for="f_country_fortressGarrison">Toplam Garnizon Asker Sayısını Ayarlayın</label>
-            <div class="fortress-input-row">
-              <input type="number" id="f_country_fortressGarrison" value="${s.fortressGarrison||0}" min="0" class="fortress-input-styled" oninput="onFortressGarrisonChange(this.value, ${upkeepPerSoldier}, ${mapFortressCount})" ${!canManage?'disabled':''}>
-            </div>
-
-            <!-- HIZLI MİKTAR BUTONLARI -->
-            ${canManage ? `
-            <div class="fortress-quick-label">Hızlı Tertibat / Ekleme:</div>
-            <div class="fortress-quick-buttons">
-              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(10000, ${upkeepPerSoldier}, ${mapFortressCount})">+10.000</button>
-              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(50000, ${upkeepPerSoldier}, ${mapFortressCount})">+50.000</button>
-              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(100000, ${upkeepPerSoldier}, ${mapFortressCount})">+100.000</button>
-              <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-50000, ${upkeepPerSoldier}, ${mapFortressCount})">-50.000</button>
-              <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-100000, ${upkeepPerSoldier}, ${mapFortressCount})">-100.000</button>
-            </div>
-            ` : ''}
-          </div>
-
-          <div class="fortress-hint-bar">
-            <span>💡 İpucu: Her kaleye eşit asker dağıtılır. Artan askerler sınır kalelerine birer birer eklenir.</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ALT: PRESTİJLİ FERMAN KAYDET BUTONU -->
-      ${canManage ? `
-      <button type="button" class="fortress-save-btn" onclick="saveCountryManagement('${s.id}')">
-        <span>🛡️</span> GARNİZON TERTİBATINI MÜHÜRLE VE KAYDET
-      </button>
-      ` : `<p class="sub" style="text-align:center;margin-top:10px;">Bu devleti düzenleme yetkiniz yok.</p>`}
-    </div>
-
-    <h4 style="color:var(--border-gold);margin:18px 0 8px;font-family:'Oswald';">🏗️ NÜFUSU GELİŞTİREN BİNALAR</h4>
-    <p class="sub">Her bina, inşa edildiği andaki toplam nüfusu admin panelinde belirlenen oran kadar artırır.</p>
+    <h4 style="color:var(--border-gold);margin:0 0 8px;font-family:'Oswald';">👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</h4>
+    <p class="sub">Halkınızın demografik yapısı, gelecek nesil büyüme oranları ve vergi mükellefleri.</p>
     <div class="demography-panel">
       <div class="demography-head">
-        <span>👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</span>
-        <span class="badge">Nüfus Dinamiği</span>
+        <span>👶 NÜFUS VE YAŞ DİNAMİĞİ</span>
+        <span class="badge">Demografik Rapor</span>
       </div>
       <div class="demography-grid">
         <div class="demography-card card-children">
@@ -726,7 +836,7 @@ function openDetail(id){
         </div>
         <div class="demography-card card-maturing">
           <span class="sub">Seneye Yetişkin Olacak Gençler:</span><br>
-          <b class="demo-val">+${num(Math.floor((p.children || 0) * 0.20))}</b> kişi (%20)
+          <b class="demo-val">+${num(Math.floor((p.children || 0) * 0.10))}</b> kişi (%10)
           <div class="demo-sub">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
         </div>
         <div class="demography-card card-adults">
@@ -736,8 +846,26 @@ function openDetail(id){
         </div>
       </div>
     </div>
-    <div class="unit-grid population-building-grid">${populationBuildingsHtml}</div>
+
+    <!-- HIZLI GEÇİŞ KÖPRÜLERİ -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px;">
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
+          <div class="sub" style="font-size:11px;">Vilayet kalelerine asker tertip etmek ve garnizon fermanını mühürlemek için:</div>
+        </div>
+        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
+      </div>
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div>
+          <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--gold);font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
+          <div class="sub" style="font-size:11px;">Hastane, Aşevi, Değirmen ve Pazar inşaatı için:</div>
+        </div>
+        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
+      </div>
+    </div>
   </div>`;
+
 
 
  const detailStateKey = `${s.id||''} ${s.name||''}`.toLocaleLowerCase('tr-TR');
@@ -756,7 +884,7 @@ function openDetail(id){
  const leftPoliticalHtml=isPremiumDetail?`
    <div class="ottoman-svg-card"><svg class="ottoman-card-svg" viewBox="0 0 979 1618" role="img" aria-label="${esc(s.name)} yönetim özeti"><defs><clipPath id="omPortraitClip"><rect x="92" y="148" width="795" height="438" rx="5"/></clipPath></defs>${rulerImgClean?`<image href="${esc(rulerImgClean)}" x="92" y="148" width="795" height="438" preserveAspectRatio="xMidYMid slice" clip-path="url(#omPortraitClip)"/>`:''}<g font-family="'Playfair Display',Georgia,serif" text-anchor="middle"><text x="489.5" y="98" fill="#dfbe72" font-size="47" font-weight="800">${esc(s.name)}</text><text x="489.5" y="635" fill="#dfbe72" font-size="39" font-weight="800">${esc(s.ruler||'Lider Yok')}</text><text x="489.5" y="674" fill="#aaa399" font-family="Oswald,sans-serif" font-size="22" font-weight="700">${esc(s.title||'Devlet')}${isOwner?' (SEN)':''}</text><text x="489.5" y="757" fill="#cdb06d" font-size="30" font-weight="700">HALK MUTLULUĞU</text><text x="489.5" y="870" fill="${omGClr}" font-family="'Roboto Condensed',sans-serif" font-size="66" font-weight="900">${num(happinessNow)}%</text>${adv.happinessBonus!==0?`<text x="489.5" y="914" fill="#d4a940" font-family="'Roboto Condensed',sans-serif" font-size="30" font-weight="800">(${adv.happinessBonus>0?'+':''}${adv.happinessBonus})</text>`:''}</g><rect x="111" y="956" width="757" height="14" rx="3" fill="#090b09"/><rect x="111" y="956" width="${(757*happinessNow/100).toFixed(1)}" height="14" rx="3" fill="${omGClr}"/><g font-family="Oswald,sans-serif" text-anchor="middle"><text x="225" y="1055" fill="#c89d4d" font-size="45">⚖</text><text x="330" y="1032" fill="#b9b0a0" font-size="22">VERGİ ORANI</text><text x="330" y="1082" fill="#dfbe72" font-size="42" font-weight="800">%${num(s.tax)}</text><text x="585" y="1055" fill="#c89d4d" font-size="36">♟♟♟</text><text x="735" y="1032" fill="#b9b0a0" font-size="22">TOPLAM NÜFUS</text><text x="735" y="1082" fill="#dfbe72" font-size="39" font-weight="800">${num(s.population)}</text><text x="489.5" y="1185" fill="#cdb06d" font-family="'Playfair Display',Georgia,serif" font-size="29" font-weight="700">NÜFUS VE SINIF DAĞILIMI</text></g><g font-family="'Roboto Condensed',Arial,sans-serif" font-size="25" dominant-baseline="middle"><text x="105" y="1270" fill="#c89d4d" font-size="29">▤</text><text x="155" y="1270" fill="#d0cbc2">Eğitimli Sınıf (%${educatedRateText})</text><text x="875" y="1270" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.edu)}</text><text x="105" y="1334" fill="#c89d4d" font-size="29">♟</text><text x="155" y="1334" fill="#d0cbc2">Sıradan Halk</text><text x="875" y="1334" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.other)}</text><text x="105" y="1398" fill="#c89d4d" font-size="29">♜</text><text x="155" y="1398" fill="#d0cbc2">Boştaki Elverişli Asker</text><text x="875" y="1398" text-anchor="end" fill="#28d17c" font-weight="800">${num(p.elig)}</text><text x="105" y="1462" fill="#c89d4d" font-size="29">⚔</text><text x="155" y="1462" fill="#d0cbc2">Silahaltındaki Ordu</text><text x="875" y="1462" text-anchor="end" fill="#e2ddd2" font-weight="800">${num(p.armySize)}</text><text x="105" y="1526" fill="#cf4138" font-size="29">Ⓐ</text><text x="155" y="1526" fill="#d0cbc2">Anarşistler</text><text x="875" y="1526" text-anchor="end" fill="#cf4138" font-size="22" font-weight="800">${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</text></g></svg></div>
   `:`
- <div class="political-panel"><div class="political-header"><h1 style="color:${esc(s.color||'var(--border-gold)')};">${esc(s.name)}</h1></div><div class="ruler-portrait-container">${rulerImgClean?`<img src="${esc(rulerImgClean)}" class="big-portrait">`:'<div class="sub">Portre Yok</div>'}<div class="ruler-name-plate"><strong>${esc(s.ruler||'Lider Yok')}</strong><span>${esc(s.title||'Devlet')} ${isOwner?'<b style="color:var(--green)">(SEN)</b>':''}</span></div></div><div class="pol-stats"><div style="text-align:center;margin-bottom:10px;"><div class="sub">HALK MUTLULUĞU</div><div style="font-size:20px;font-weight:bold;color:var(--green)">${num(happinessNow)}%</div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${happinessNow}%"></div></div></div><div class="pol-stat-row"><span class="muted">Vergi Oranı</span><span style="color:var(--gold)">%${num(s.tax)}</span></div><div class="pol-stat-row"><span class="muted">Toplam Nüfus</span><span>${num(s.population)}</span></div>${(p.children||0)>0?`<div class="pol-stat-row"><span class="muted">👶 Çocuk Nüfus (Vergi Dışı)</span><span style="color:var(--gold)">${num(p.children)}</span></div><div class="pol-stat-row"><span class="muted">🌱 Seneye Yetişkin Olacak Gençler</span><span style="color:var(--green)">+${num(Math.floor((p.children||0)*0.20))}</span></div>`:''}<div class="population-section-title">NÜFUS VE SINIF DAĞILIMI</div><div class="pol-stat-row"><span class="muted">Eğitimli Sınıf (%${educatedRateText})</span><span>${num(p.edu)}</span></div><div class="pol-stat-row"><span class="muted">Sıradan Halk</span><span>${num(p.other)}</span></div><div class="pol-stat-row"><span class="muted">Boştaki Elverişli Asker</span><span>${num(p.elig)}</span></div><div class="pol-stat-row"><span class="muted">Silahaltındaki Ordu</span><span>${num(p.armySize)}</span></div><div class="pol-stat-row"><span class="muted">Anarşistler</span><span>${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</span></div></div></div>`;
+ <div class="political-panel"><div class="political-header"><h1 style="color:${esc(s.color||'var(--border-gold)')};">${esc(s.name)}</h1></div><div class="ruler-portrait-container">${rulerImgClean?`<img src="${esc(rulerImgClean)}" class="big-portrait">`:'<div class="sub">Portre Yok</div>'}<div class="ruler-name-plate"><strong>${esc(s.ruler||'Lider Yok')}</strong><span>${esc(s.title||'Devlet')} ${isOwner?'<b style="color:var(--green)">(SEN)</b>':''}</span></div></div><div class="pol-stats"><div style="text-align:center;margin-bottom:10px;"><div class="sub">HALK MUTLULUĞU</div><div style="font-size:20px;font-weight:bold;color:var(--green)">${num(happinessNow)}%</div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${happinessNow}%"></div></div></div><div class="pol-stat-row"><span class="muted">Vergi Oranı</span><span style="color:var(--gold)">%${num(s.tax)}</span></div><div class="pol-stat-row"><span class="muted">Toplam Nüfus</span><span>${num(s.population)}</span></div>${(p.children||0)>0?`<div class="pol-stat-row"><span class="muted">👶 Çocuk Nüfus (Vergi Dışı)</span><span style="color:var(--gold)">${num(p.children)}</span></div><div class="pol-stat-row"><span class="muted">🌱 Seneye Yetişkin Olacak Gençler</span><span style="color:var(--green)">+${num(Math.floor((p.children||0)*0.10))}</span></div>`:''}<div class="population-section-title">NÜFUS VE SINIF DAĞILIMI</div><div class="pol-stat-row"><span class="muted">Eğitimli Sınıf (%${educatedRateText})</span><span>${num(p.edu)}</span></div><div class="pol-stat-row"><span class="muted">Sıradan Halk</span><span>${num(p.other)}</span></div><div class="pol-stat-row"><span class="muted">Boştaki Elverişli Asker</span><span>${num(p.elig)}</span></div><div class="pol-stat-row"><span class="muted">Silahaltındaki Ordu</span><span>${num(p.armySize)}</span></div><div class="pol-stat-row"><span class="muted">Anarşistler</span><span>${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</span></div></div></div>`;
 
  // ANA DETAY DÜZENİ
  document.getElementById("detail").innerHTML = `
@@ -803,7 +931,7 @@ function openDetail(id){
     </div> -->
 
     <!-- SAĞ PANEL: SEKMELER -->
-    <div class="content-panel">
+    <div class="content-panel ${detailCardClass} ${isCrimeaDetail ? 'theme-crimea' : isSunDetail ? 'theme-sun' : 'theme-ottoman'}">
         <button type="button" class="mobile-tab-toggle" onclick="toggleMobileTabs()"><span>☰ <span id="mobile-active-tab">ASKERİYE</span></span></button>
         <div class="hoi-tabs" id="player-tabs">
             <div class="hoi-tab active" id="tab-btn-asker" onclick="switchTab('asker')">Askeriye</div>
@@ -938,7 +1066,8 @@ function saveCountryManagement(stateId){
  distributeFortressGarrisonToMap(s,fortressGarrison);
  queueSave();
  openDetail(stateId);
- switchTab('country');
+ switchTab('asker');
+ switchSubTab('asker', 'garnizon');
 }
 
 function onFortressGarrisonChange(val, upkeepPerSoldier, fortressCount){
@@ -970,6 +1099,7 @@ function adjustGarrisonInput(delta, upkeepPerSoldier, fortressCount){
 }
 
 function adjustPopulationBuildingQty(inputId,change){const input=document.getElementById(inputId);if(!input)return;input.value=Math.max(1,Math.floor(Number(input.value)||1)+change);input.dispatchEvent(new Event('input',{bubbles:true}));}
+
 function buildPopulationBuilding(stateId,key,labelName){
  const s=getState(stateId); if(!s)return;
  if(!isAdmin&&s.ownerEmail!==currentUserEmail)return;
@@ -1021,14 +1151,16 @@ function buildPopulationBuilding(stateId,key,labelName){
     addLog({stateId:s.id,stateName:s.name,action:`Bina İnşası Başlatıldı: ${labelName} x${qty} (1 Yıl)`,qty,cost:totalCost,oldTreasury,newTreasury:s.treasury,unitName:labelName,oldUnit:status.currentCount,newUnit:status.currentCount});
     queueSave();
     openDetail(stateId);
-    switchTab('country');
+    switchTab('altyapi');
+    switchSubTab('altyapi', 'sivil_imar');
     toast(`${labelName} inşası başlatıldı (${qty} adet). 1 yıl sonra tamamlanacak.`, true);
   } else {
     s[key] = (s[key] || 0) + qty;
     addLog({stateId:s.id,stateName:s.name,action:`Bina İnşası: ${labelName} x${qty}`,qty,cost:totalCost,oldTreasury,newTreasury:s.treasury,unitName:labelName,oldUnit:status.currentCount,newUnit:s[key]});
     queueSave();
     openDetail(stateId);
-    switchTab('country');
+    switchTab('altyapi');
+    switchSubTab('altyapi', 'sivil_imar');
     toast(`${labelName} inşa edildi. Nüfus artışı yıl geçince eklenecek.`, true);
   }
 }
