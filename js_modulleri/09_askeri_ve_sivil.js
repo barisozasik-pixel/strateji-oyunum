@@ -5,24 +5,32 @@ function buyBulk(id,key, labelName)
  if(!isAdmin && s.ownerEmail !== currentUserEmail) return; 
  if(rejectDebtPurchase(s))return;
  
- const basePrice=db.settings.prices[key]||0;
- const adv = getAdvisorEffects(s);
- const disc = key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi" ? adv.infraDiscount : adv.recruitDiscount;
- const price = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
- const qty = Math.floor(Number(document.getElementById(`qty_${id}_${key}`).value)) || 0;
+ const isBuilding = (typeof BUILDING_CONSTRUCTION_CONFIG !== 'undefined') && (key in BUILDING_CONSTRUCTION_CONFIG);
+ const buildYears = isBuilding ? BUILDING_CONSTRUCTION_CONFIG[key].years : 0;
+
+ const qty = Math.floor(Number(document.getElementById(`qty_${id}_${key}`)?.value)) || 0;
  if(qty <= 0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; } // EKSİ SAYI KORUMASI
  
- // OKUL İÇİN TOPRAK KOTASI KONTROLÜ
+ // OKUL İÇİN TOPRAK KOTASI KONTROLÜ (Mevcut + Yapımdakiler)
  if(key === "okul") {
      const ownedCount = getOwnedMapProvinceIds(id).length;
-     const oldCount = s[key] || 0;
-     if((oldCount + qty) > ownedCount) {
-         alert(`⛔ KOTA DOLU: Haritadaki toprak sayınız kadar (${ownedCount} adet) Okul inşa edebilirsiniz! Önce yeni topraklar fethedin.`);
+     const status = typeof getBuildingStatus === 'function' ? getBuildingStatus(s, key) : { total: s[key] || 0, currentCount: s[key] || 0, inProgress: 0 };
+     if((status.total + qty) > ownedCount) {
+         alert(`⛔ KOTA DOLU: Haritadaki toprak sayınız kadar (${ownedCount} adet) Okul inşa edebilirsiniz! (Mevcut: ${status.currentCount}, Yapımda: ${status.inProgress})`);
          return;
      }
  }
  
- const totalCost = price * qty;
+ const basePrice=db.settings.prices[key]||0;
+ const adv = getAdvisorEffects(s);
+ const disc = key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi" ? adv.infraDiscount : adv.recruitDiscount;
+ const baseUnitPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
+ 
+ const calc = typeof calculateBuildingCost === 'function'
+   ? calculateBuildingCost(s, key, baseUnitPrice, qty)
+   : { totalCost: baseUnitPrice * qty };
+ const totalCost = calc.totalCost;
+
  if(s.treasury<totalCost){alert(`Hazine yetersiz! Toplam maliyet: ${money(totalCost)}`);return}
  const p = calcPop(s);
  if(["piyade","suvari","nisanci"].includes(key) && p.elig < qty){alert("Elverişli nüfus yetersiz!");return}
@@ -31,32 +39,49 @@ function buyBulk(id,key, labelName)
  
  const oldT = s.treasury;
  const oldUnitCount = s[key] || 0;
- 
  s.treasury -= totalCost; 
- s[key] = oldUnitCount + qty;
-   if(key==="okul") {
-     // ✅ FIX B: Sadece education oranını güncelle — calcPop zaten pop × (edu/100) hesaplıyor
-     const capacity = Math.max(0, Math.floor(Number(db.settings.schoolCapacityPerBuilding)||0));
-     const newEducated = Math.min(Math.max(0, Number(s.population)||0), calcPop(s).edu + (capacity * qty));
-     s.education = Math.max(0, Math.min(100, (newEducated / Math.max(1, Number(s.population)||0)) * 100));
-     if(s.educatedPopulation !== undefined && s.educatedPopulation !== null) {
-       s.educatedPopulation = newEducated;
-     }
-   }
- 
- addLog({
-     stateId: s.id,
-     stateName: s.name,
-     action: `Birim Üretimi: ${labelName}`,
-     cost: totalCost,
+
+ if (isBuilding) {
+   s.constructionQueue = s.constructionQueue || [];
+   s.constructionQueue.push({
+     key: key,
+     label: labelName,
      qty: qty,
-     oldTreasury: oldT,
-     newTreasury: s.treasury,
-     unitName: labelName,
-     oldUnit: oldUnitCount,
-     newUnit: s[key]
- });
- queueSave(); openDetail(id);
+     remainingYears: buildYears,
+     yearStarted: db.gameYear || 1453
+   });
+   addLog({
+       stateId: s.id,
+       stateName: s.name,
+       action: `İnşaat Başlatıldı: ${labelName} x${qty} (${buildYears} Yıl)`,
+       cost: totalCost,
+       qty: qty,
+       oldTreasury: oldT,
+       newTreasury: s.treasury,
+       unitName: labelName,
+       oldUnit: oldUnitCount,
+       newUnit: oldUnitCount
+   });
+   queueSave();
+   openDetail(id);
+   toast(`${labelName} inşası başlatıldı (${qty} adet). ${buildYears} yıl sonra tamamlanacak.`, true);
+ } else {
+   s[key] = oldUnitCount + qty;
+   addLog({
+       stateId: s.id,
+       stateName: s.name,
+       action: `Birim Üretimi: ${labelName}`,
+       cost: totalCost,
+       qty: qty,
+       oldTreasury: oldT,
+       newTreasury: s.treasury,
+       unitName: labelName,
+       oldUnit: oldUnitCount,
+       newUnit: s[key]
+   });
+   queueSave();
+   openDetail(id);
+ }
 }
 
 function buyCustomBulk(id, itemId, labelName){

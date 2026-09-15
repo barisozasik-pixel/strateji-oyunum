@@ -52,6 +52,7 @@ async function loadDB(silent = false){
       s.hiredAdvisors = s.hiredAdvisors || [];
       s.advisorHiredYears = s.advisorHiredYears || {}; 
       s.advisorSlots = s.advisorSlots || 3;
+      s.constructionQueue = s.constructionQueue || [];
    });
    dbBaseSnapshot = structuredClone(db);
    if(!silent) toast("Yeni Sistem Aktif", true);

@@ -290,6 +290,22 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
+        // ADIM 2.5: İNŞAAT KUYRUĞU İLERLEMESİ (Şifahane 1 Yıl, Okul 1 Yıl, Limanlar 2 Yıl, Top Ocakları 2 Yıl)
+        if (s.constructionQueue && s.constructionQueue.length > 0) {
+            const nextQueue = [];
+            s.constructionQueue.forEach(item => {
+                item.remainingYears = (Number(item.remainingYears) || 1) - 1;
+                if (item.remainingYears <= 0) {
+                    s[item.key] = (Number(s[item.key]) || 0) + (Number(item.qty) || 0);
+                    rpt.events.push(`🏗️ İnşaat Tamamlandı: +${num(item.qty)} adet ${item.label || item.key} tamamlanıp hizmete açıldı!`);
+                } else {
+                    nextQueue.push(item);
+                    rpt.events.push(`⏳ İnşaat Sürüyor: ${num(item.qty)} adet ${item.label || item.key} yapım aşamasında (${item.remainingYears} yıl kaldı)`);
+                }
+            });
+            s.constructionQueue = nextQueue;
+        }
+
         // ADIM 3: NÜFUS, ŞİFAHANELER, DOĞAL ÖLÜMLER, ÇOCUK HAVUZU VE EĞİTİM
         const hospitalCount = Math.max(0, Number(s.hastane) || 0);
         const hospitalCapacity = Math.max(1, Number(db.settings.hospitalCapacityPerBuilding) || 60000);
@@ -320,7 +336,9 @@ function passOneYear(){
         } else {
             currentEdu = Math.floor(currentAdults * ((Number(s.education) || 0) / 100));
         }
-        const eduDeaths = Math.floor(currentEdu * deathRate);
+        // İlim ve ulema sınıfı şehir/saray refahı ve hekimlere erişim sayesinde halkın yarı ecel oranına tabidir (%0.80 civarı)
+        const eduDeathRate = deathRate * 0.50;
+        const eduDeaths = Math.floor(currentEdu * eduDeathRate);
         if (eduDeaths > 0) {
             currentEdu = Math.max(0, currentEdu - eduDeaths);
             rpt.events.push(`🕊️ İlim İrfan Kaybı: -${num(eduDeaths)} eğitimli eceliyle vefat etti`);
@@ -581,7 +599,7 @@ function organizeAdminTabs(){
      else if(heading.includes('GÖRSEL'))current='images';
      else if(heading.includes('ÖZEL BİRİM'))current='custom';
      else if(heading.includes('GARNİZON')||heading.includes('NÜFUS'))current='population';
-     else if(heading.includes('SATIN ALMA')||heading.includes('KAPASİTE')||heading.includes('BAKIM')||heading.includes('FERMAN')||heading.includes('SEFER'))current='economy';
+     else if(heading.includes('SATIN ALMA')||heading.includes('KAPASİTE')||heading.includes('BAKIM')||heading.includes('FERMAN')||heading.includes('SEFER')||heading.includes('OKUL'))current='economy';
    }
    panels[current].appendChild(node);
  });
@@ -716,11 +734,6 @@ async function openAdmin(){
     ${field("school_upkeep","Okul Başına Yıllık Gider",db.settings.schoolUpkeep||0,"number")}
     ${field("educated_tax_multiplier","Eğitimli Nüfus Vergi Çarpanı",db.settings.educatedTaxMultiplier??1.5,"number")}
  </div>
- <h4 style="margin-top:10px; color:var(--green); font-family:'Oswald';">ŞİFAHANE / SAĞLIK AYARLARI</h4>
- <div class="formgrid">
-    ${field("hospital_capacity","Şifahane Başına Sağlık Kapasitesi (Kişi)",db.settings.hospitalCapacityPerBuilding||60000,"number")}
-    ${field("hospital_base_cost","Şifahane Taban İnşaat Bedeli (TL)",db.settings.hospitalBaseCost||35000,"number")}
- </div>
  <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">ALTYAPI BİNALARI YILLIK GİDERLERİ (Bina Başı)</h4>
  <div class="formgrid">${Object.keys(iu).map(k=>field("iu_"+k,k,iu[k],"number")).join("")}</div>
  <p class="sub">Eğitimli nüfus artık yüzdeyle değil, okul kapasitesiyle kişi olarak hesaplanır. Çarpan 1,5 ise eğitimli kişi normal verginin 1,5 katını verir.</p>
@@ -744,8 +757,6 @@ async function openAdmin(){
    ${field("pbu_kervansaray","Kervansaray Yıllık Gideri",pbu.kervansaray,"number")}
    ${field("pbu_pazar","Pazar Yıllık Gideri",pbu.pazar,"number")}
  </div>
- <h4 style="margin-top:10px; color:var(--blue); font-family:'Oswald';">HARİTA İSTİHBARATI</h4>
- <div class="formgrid">${field("map_intel_cost","İstihbaratsız Oyuncu Rapor Ücreti",db.settings.mapIntelReportCost||0,"number")}</div>
  <h4 style="margin-top:10px; color:var(--gold); font-family:'Oswald';">NÜFUSA GÖRE BİNA MALİYETİ (Kişi Başı TL)</h4>
  <p class="sub">Güncel bina fiyatı = devletin toplam nüfusu × kişi başı maliyet.</p>
  <div class="formgrid">
@@ -755,6 +766,13 @@ async function openAdmin(){
    ${field("pc_kervansaray","Kervansaray Kişi Başı Maliyet",pc.kervansaray,"number")}
    ${field("pc_pazar","Pazar Kişi Başı Maliyet",pc.pazar,"number")}
  </div>
+ <h4 style="margin-top:10px; color:var(--green); font-family:'Oswald';">NÜFUS SAĞLIK & ŞİFAHANE SİSTEMİ</h4>
+ <div class="formgrid">
+    ${field("hospital_capacity","Şifahane Başına Sağlık Kapasitesi (Kişi)",db.settings.hospitalCapacityPerBuilding||60000,"number")}
+    ${field("hospital_base_cost","Şifahane Taban İnşaat Bedeli (TL)",db.settings.hospitalBaseCost||35000,"number")}
+ </div>
+ <h4 style="margin-top:10px; color:var(--blue); font-family:'Oswald';">HARİTA İSTİHBARATI</h4>
+ <div class="formgrid">${field("map_intel_cost","İstihbaratsız Oyuncu Rapor Ücreti",db.settings.mapIntelReportCost||0,"number")}</div>
  <h4 style="margin-top:10px; color:var(--gold); font-family:'Oswald';">FERMAN ÇARPANLARI</h4><div class="formgrid">${Object.keys(ec).map(k=>field("ec_"+k,k,ec[k],"number")).join("")}</div>
  <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">SEFER & İKMAL (Birim Başı)</h4><div class="formgrid">${Object.keys(cc).map(k=>field("cc_"+k,k,cc[k],"number")).join("")}</div>
  <div class="actions" style="margin-top:14px"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn blue" onclick="saveAdmin(true)">KAYDET</button></div>`);

@@ -58,13 +58,84 @@ function toggleMobileTabs(){
  document.getElementById('player-tabs')?.classList.toggle('mobile-open');
 }
 
+const BUILDING_CONSTRUCTION_CONFIG = {
+  hastane: { years: 1, label: 'Şifahane', scalable: true },
+  okul: { years: 1, label: 'Okul', scalable: true },
+  kucuk_liman: { years: 2, label: 'Küçük Liman', scalable: false },
+  orta_liman: { years: 2, label: 'Orta Liman', scalable: false },
+  buyuk_liman: { years: 2, label: 'Büyük Liman', scalable: false },
+  kucuk_ocak: { years: 2, label: 'Küçük Top Ocağı', scalable: false },
+  orta_ocak: { years: 2, label: 'Orta Top Ocağı', scalable: false },
+  buyuk_ocak: { years: 2, label: 'Büyük Top Ocağı', scalable: false }
+};
+
+function getBuildingStatus(s, key) {
+  const currentCount = Number(s?.[key]) || 0;
+  const queue = (s?.constructionQueue || []).filter(item => item.key === key);
+  const inProgress = queue.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  const minYears = queue.length > 0 ? Math.min(...queue.map(item => Number(item.remainingYears) || 1)) : 0;
+  return { currentCount, inProgress, total: currentCount + inProgress, queue, minYears };
+}
+
+function calculateBuildingCost(s, key, baseUnitPrice, qty) {
+  qty = Math.max(1, Math.floor(Number(qty) || 1));
+  const isScalable = (key === 'hastane' || key === 'okul');
+  if (!isScalable) {
+    return {
+      totalCost: baseUnitPrice * qty,
+      firstUnitPrice: baseUnitPrice,
+      lastUnitPrice: baseUnitPrice
+    };
+  }
+
+  const status = getBuildingStatus(s, key);
+  const startCount = status.total; // Mevcut + Yapımdakiler üzerinden kademe başlar
+  let totalCost = 0;
+  let firstUnitPrice = 0;
+  let lastUnitPrice = 0;
+
+  for (let i = 0; i < qty; i++) {
+    const currentIdx = startCount + i;
+    // Her bina için %5 kademeli artış (Seçenek A - Exploit Korumalı)
+    const unitPrice = Math.max(1, Math.round(baseUnitPrice * (1 + (currentIdx * 0.05))));
+    if (i === 0) firstUnitPrice = unitPrice;
+    if (i === qty - 1) lastUnitPrice = unitPrice;
+    totalCost += unitPrice;
+  }
+
+  return { totalCost, firstUnitPrice, lastUnitPrice };
+}
+
+function updateBuildingPriceLabel(stateId, key, baseUnitPrice) {
+  const s = getState(stateId);
+  if (!s) return;
+  const input = document.getElementById(`qty_${stateId}_${key}`);
+  const label = document.getElementById(`tot_${stateId}_${key}`);
+  if (!input || !label) return;
+  const qty = Math.max(1, Math.floor(Number(input.value) || 1));
+  const calc = calculateBuildingCost(s, key, baseUnitPrice, qty);
+  const isScalable = (key === 'hastane' || key === 'okul');
+  if (isScalable && qty > 1) {
+    label.innerHTML = `Toplam: ${money(calc.totalCost)} <span style="font-size:10px; color:var(--muted);">(Birim: ${money(calc.firstUnitPrice)} ~ ${money(calc.lastUnitPrice)})</span>`;
+  } else {
+    label.innerText = `Toplam: ${money(calc.totalCost)}`;
+  }
+}
+
 function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canManage, isCustom, isInfrastructure=false, usePremiumStyle=false) {
-    let count = s[key] || 0;
+    const isBuilding = !isCustom && (key in BUILDING_CONSTRUCTION_CONFIG);
+    const buildConf = isBuilding ? BUILDING_CONSTRUCTION_CONFIG[key] : null;
+    const status = isBuilding ? getBuildingStatus(s, key) : { currentCount: Number(s[key]) || 0, inProgress: 0, total: Number(s[key]) || 0 };
+    let count = status.currentCount;
     let safeImg = cleanUrl(imgUrl);
     
     const adv = getAdvisorEffects(s);
     let disc = (isInfrastructure || key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi") ? adv.infraDiscount : adv.recruitDiscount;
-    let actualPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
+    let baseUnitPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
+    let displayPrice = baseUnitPrice;
+    if (key === 'okul') {
+        displayPrice = calculateBuildingCost(s, 'okul', baseUnitPrice, 1).firstUnitPrice;
+    }
 
     const premiumStyle=isInfrastructure||usePremiumStyle;
     const isMilitary = !isInfrastructure && !key.includes("liman") && !key.includes("ocak") && key !== "okul" && key !== "istihbarat_binasi";
@@ -72,14 +143,20 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
         ? `<button type="button" class="btn population-disband-btn" title="Terhis Et (Bakım Masrafını Düşür)" onclick="${isCustom ? `disbandCustomUnit('${s.id}','${key}','${esc(name)}')` : `disbandUnit('${s.id}','${key}','${esc(name)}')`}">⚔ TERHİS</button>` 
         : '';
     const actionsHtml = canManage && premiumStyle
-    ? `<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="Alınacak adet" oninput="document.getElementById('tot_${s.id}_${key}').innerText='Toplam: '+money(${actualPrice}*(this.value||0))"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">${isInfrastructure?'🔨 İNŞA ET':'⚔ AL'}</button>${disbandBtn}</div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(actualPrice)}</div>`
+    ? `<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="Alınacak adet" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">${isInfrastructure?'🔨 İNŞA ET':'⚔ AL'}</button>${disbandBtn}</div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(displayPrice)}</div>`
     : canManage ? `<div class="unit-buy-row">
-         <input id="qty_${s.id}_${key}" type="number" min="1" value="1" oninput="document.getElementById('tot_${s.id}_${key}').innerText = money(${actualPrice} * (this.value||0))">
+         <input id="qty_${s.id}_${key}" type="number" min="1" value="1" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})">
          <button class="btn green" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">AL</button>
          ${disbandBtn}
        </div>
-       <div style="text-align:center; font-size:10px; margin-top:2px; color:var(--gold);" id="tot_${s.id}_${key}">${money(actualPrice)} ${disc > 0 ? `<span style="color:var(--green);">(%${disc} İndirim)</span>` : ''}</div>` 
+       <div style="text-align:center; font-size:10px; margin-top:2px; color:var(--gold);" id="tot_${s.id}_${key}">${money(displayPrice)} ${disc > 0 ? `<span style="color:var(--green);">(%${disc} İndirim)</span>` : ''}</div>` 
     : `<div style="text-align:center; padding:3px; background:var(--red); color:#fff; font-size:10px; border-radius:2px;">YETKİ YOK</div>`;
+
+    let countHtml = `Mevcut: <strong>${num(count)}</strong>`;
+    if (status.inProgress > 0) {
+        countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
+    }
+    let durationHtml = buildConf ? `<div>Süre: <strong style="color:var(--cyan);">${buildConf.years} Yıl</strong></div>` : '';
 
     return `
     <div class="unit-card${premiumStyle?' population-building-card':''}${isInfrastructure?' infrastructure-building-card':''}${usePremiumStyle?' military-premium-card':''}">
@@ -87,9 +164,10 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
         <div class="unit-details">
             <div class="unit-title">${esc(name)}</div>
             <div class="unit-info-grid">
-                <div>Mevcut: <strong>${num(count)}</strong></div>
-                <div>Fiyat: <strong>${num(actualPrice)}</strong></div>
+                <div>${countHtml}</div>
+                <div>Fiyat: <strong>${num(displayPrice)}</strong></div>
                 <div>Bakım: <strong style="color:var(--red)">-${num(baseUpkeep)}</strong></div>
+                ${durationHtml}
                 ${capStr ? `<div>Lmt: <strong>${capStr}</strong></div>` : ''}
             </div>
             ${actionsHtml}
@@ -106,32 +184,42 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
  const provCount = Math.max(1, ownedCount || 1);
  const popPerProv = Math.round(oldPopulation / provCount);
 
- let price = 0;
+ const status = getBuildingStatus(s, key);
+ const isFull = status.total >= ownedCount; // KOTA DOLDU MU?
+
+ let baseUnitPrice = 0;
+ let displayPrice = 0;
  let infoExtraHtml = '';
  if(key === 'hastane') {
    const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
    const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
-   price = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
+   baseUnitPrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
+   displayPrice = calculateBuildingCost(s, 'hastane', baseUnitPrice, 1).firstUnitPrice;
    const hospCap = Math.max(1, Number(db.settings.hospitalCapacityPerBuilding) || 60000);
    const totalPop = Math.max(1, Number(s.population) || 0);
    const cov = Math.min(100, (((s.hastane || 0) * hospCap) / totalPop) * 100);
-   infoExtraHtml = `<div>Sağlık Güvencesi: <strong style="color:var(--green)">%${cov.toFixed(1)}</strong></div>`;
+   infoExtraHtml = `<div>Sağlık Güvencesi: <strong style="color:var(--green)">%${cov.toFixed(1)}</strong></div><div>Süre: <strong style="color:var(--cyan);">1 Yıl</strong></div>`;
  } else {
-   price = Math.max(0, Math.round((Number(s.population)||0)*costPerPerson));
+   baseUnitPrice = Math.max(0, Math.round((Number(s.population)||0)*costPerPerson));
+   displayPrice = baseUnitPrice;
    infoExtraHtml = `<div>Nüfus: <strong style="color:var(--green)">+%${num(growth)}</strong></div>`;
  }
- const isFull = (s[key]||0) >= ownedCount; // KOTA DOLDU MU?
+
+ let countHtml = `Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--gold);'}">${num(status.currentCount)} / ${ownedCount}</strong>`;
+ if (status.inProgress > 0) {
+   countHtml += ` <span style="color:var(--gold); font-size:11px;" title="${status.minYears} yıl kaldı">(+${num(status.inProgress)} Yapımda)</span>`;
+ }
  
  return `<div class="unit-card population-building-card">
    ${safeImg?`<div class="unit-img-box"><img src="${esc(safeImg)}"></div>`:''}
    <div class="unit-details">
      <div class="unit-title">${esc(name)}</div>
      <div class="unit-info-grid">
-       <div>Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--gold);'}">${num(s[key]||0)} / ${ownedCount}</strong></div>
+       <div>${countHtml}</div>
        ${infoExtraHtml}
-       <div>Fiyat: <strong style="color:var(--gold)">${money(price)}</strong></div>
+       <div>Fiyat: <strong style="color:var(--gold)">${money(displayPrice)}</strong></div>
      </div>
-     ${canManage?`<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="İnşa edilecek adet" oninput="document.getElementById('tot_${s.id}_${key}').innerText='Toplam: '+money(${price}*(this.value||0))"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="buildPopulationBuilding('${s.id}','${key}','${esc(name)}')">🔨 İNŞA ET</button></div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(price)}</div>`:'<div style="text-align:center;padding:3px;background:var(--red);color:#fff;font-size:10px;border-radius:2px;">YETKİ YOK</div>'}
+     ${canManage?`<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="İnşa edilecek adet" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="buildPopulationBuilding('${s.id}','${key}','${esc(name)}')">🔨 İNŞA ET</button></div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(displayPrice)}</div>`:'<div style="text-align:center;padding:3px;background:var(--red);color:#fff;font-size:10px;border-radius:2px;">YETKİ YOK</div>'}
    </div>
  </div>`;
 }
@@ -892,40 +980,57 @@ function buildPopulationBuilding(stateId,key,labelName){
  const qty=Math.max(0,Math.floor(Number(document.getElementById(`qty_${stateId}_${key}`)?.value)||0));
  if(qty<=0) { alert("⛔ Hata: Sıfır veya eksi bir değer giremezsiniz!"); return; } // EKSİ SAYI KORUMASI
  
- // NÜFUS BİNALARI İÇİN TOPRAK KOTASI KONTROLÜ
- const ownedCount = getOwnedMapProvinceIds(stateId).length;
- const oldCount = s[key] || 0;
- if((oldCount + qty) > ownedCount){
-     alert(`⛔ KOTA DOLU: Sadece sahip olduğunuz toprak sayısı kadar (${ownedCount} adet) ${labelName} inşa edebilirsiniz! Önce yeni topraklar fethedin.`);
-     return;
- }
- 
+  // NÜFUS BİNALARI İÇİN TOPRAK KOTASI KONTROLÜ (Mevcut + Yapımdakiler)
+  const ownedCount = getOwnedMapProvinceIds(stateId).length;
+  const status = getBuildingStatus(s, key);
+  if((status.total + qty) > ownedCount){
+      alert(`⛔ KOTA DOLU: Sadece sahip olduğunuz toprak sayısı kadar (${ownedCount} adet) ${labelName} inşa edebilirsiniz! (Mevcut: ${status.currentCount}, Yapımda: ${status.inProgress})`);
+      return;
+  }
+  
   const oldPopulation = Math.max(0, Math.floor(Number(s.population) || 0));
   const costPerPerson = Math.max(0, Number(db.settings.populationBuildingCostPerPerson?.[key]) || 0);
   const provCount = Math.max(1, ownedCount || 1);
   const popPerProv = Math.round(oldPopulation / provCount);
 
-  let unitPrice = 0;
+  let basePrice = 0;
   if (key === 'hastane') {
     const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
     const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
-    unitPrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
+    basePrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
   } else {
-    unitPrice = Math.max(0, Math.round(oldPopulation * costPerPerson));
+    basePrice = Math.max(0, Math.round(oldPopulation * costPerPerson));
   }
-  const totalCost = unitPrice * qty;
- if((Number(s.treasury)||0)<totalCost){alert(`Hazine yetersiz! Toplam inşaat maliyeti: ${money(totalCost)}`);return;}
- 
- const oldTreasury=Number(s.treasury)||0;
- 
- s.treasury=oldTreasury-totalCost;
- s[key]=oldCount+qty;
- 
- addLog({stateId:s.id,stateName:s.name,action:`Bina İnşası: ${labelName} x${qty}`,qty,cost:totalCost,oldTreasury,newTreasury:s.treasury,unitName:labelName,oldUnit:oldCount,newUnit:s[key]});
- queueSave();
- openDetail(stateId);
- switchTab('country');
- toast(`${labelName} inşa edildi. Nüfus artışı yıl geçince eklenecek.`,true);
+
+  const calc = calculateBuildingCost(s, key, basePrice, qty);
+  const totalCost = calc.totalCost;
+  if((Number(s.treasury)||0)<totalCost){alert(`Hazine yetersiz! Toplam inşaat maliyeti: ${money(totalCost)}`);return;}
+  
+  const oldTreasury=Number(s.treasury)||0;
+  s.treasury=oldTreasury-totalCost;
+  
+  if (key === 'hastane') {
+    s.constructionQueue = s.constructionQueue || [];
+    s.constructionQueue.push({
+      key: 'hastane',
+      label: 'Şifahane',
+      qty: qty,
+      remainingYears: 1,
+      yearStarted: db.gameYear || 1453
+    });
+    addLog({stateId:s.id,stateName:s.name,action:`Bina İnşası Başlatıldı: ${labelName} x${qty} (1 Yıl)`,qty,cost:totalCost,oldTreasury,newTreasury:s.treasury,unitName:labelName,oldUnit:status.currentCount,newUnit:status.currentCount});
+    queueSave();
+    openDetail(stateId);
+    switchTab('country');
+    toast(`${labelName} inşası başlatıldı (${qty} adet). 1 yıl sonra tamamlanacak.`, true);
+  } else {
+    s[key] = (s[key] || 0) + qty;
+    addLog({stateId:s.id,stateName:s.name,action:`Bina İnşası: ${labelName} x${qty}`,qty,cost:totalCost,oldTreasury,newTreasury:s.treasury,unitName:labelName,oldUnit:status.currentCount,newUnit:s[key]});
+    queueSave();
+    openDetail(stateId);
+    switchTab('country');
+    toast(`${labelName} inşa edildi. Nüfus artışı yıl geçince eklenecek.`, true);
+  }
 }
 
 // ---------------- DANIŞMAN ATAMA & 1 YIL KONTROLÜ ----------------
