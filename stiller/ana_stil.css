@@ -310,8 +310,8 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
 .population-building-card .population-qty-step:hover{background:#29251d;color:#e0bd72;}
 .population-building-card .population-build-btn{width:auto;min-width:126px;height:38px;padding:5px 17px;color:#21170a;border:1px solid #e2c174;outline:1px solid #73501d;outline-offset:-4px;background:linear-gradient(180deg,#e0c078 0%,#c59743 48%,#9f7128 100%);box-shadow:inset 0 2px 0 rgba(255,247,209,.6),inset 0 -3px 5px rgba(76,45,9,.45),0 4px 7px rgba(0,0,0,.48);font-size:12px;font-family:'Playfair Display',serif;white-space:nowrap;text-shadow:0 1px rgba(255,240,190,.35);}
 .population-building-card .population-build-btn:hover{color:#15100a;border-color:#f0d38a;background:linear-gradient(180deg,#e4c477 0%,#b98a36 100%);}
-.population-building-card .population-disband-btn{width:auto;min-width:88px;height:38px;padding:5px 14px;color:#f7e1d7;border:1px solid #9e2a2b;outline:1px solid #540b0e;outline-offset:-4px;background:linear-gradient(180deg,#6b1414 0%,#4c0808 50%,#2b0404 100%);box-shadow:inset 0 2px 0 rgba(255,160,160,.4),inset 0 -3px 5px rgba(0,0,0,.8),0 4px 7px rgba(0,0,0,.6);font-size:12px;font-family:'Playfair Display',serif;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px #000;cursor:pointer;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .15s ease;}
-.population-building-card .population-disband-btn:hover{border-color:#c94040;background:linear-gradient(180deg,#801818 0%,#540d0d 100%);color:#fff;transform:translateY(-1px);}
+.population-disband-btn, .population-building-card .population-disband-btn{width:auto;min-width:88px;height:38px;padding:5px 14px;color:#f7e1d7;border:1px solid #9e2a2b;outline:1px solid #540b0e;outline-offset:-4px;background:linear-gradient(180deg,#6b1414 0%,#4c0808 50%,#2b0404 100%);box-shadow:inset 0 2px 0 rgba(255,160,160,.4),inset 0 -3px 5px rgba(0,0,0,.8),0 4px 7px rgba(0,0,0,.6);font-size:12px;font-family:'Playfair Display',serif;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px #000;cursor:pointer;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .15s ease;}
+.population-disband-btn:hover, .population-building-card .population-disband-btn:hover{border-color:#c94040;background:linear-gradient(180deg,#801818 0%,#540d0d 100%);color:#fff;transform:translateY(-1px);}
 .population-building-card .population-total{text-align:right;font-size:14px;font-family:'Roboto Condensed',sans-serif;font-weight:700;margin-top:7px;color:#dfc17e;text-shadow:0 2px 2px #000;}
 .finance-dashboard{font-family:'Roboto Condensed',sans-serif;}
 .finance-dashboard .finance-hero,.finance-dashboard .finance-panel{background-color:#0b0c0d;background-image:linear-gradient(100deg,rgba(20,22,23,.1),rgba(3,4,5,.28)),url('../assets/panel-dark-texture.png');background-repeat:no-repeat,repeat;background-size:100% 100%,auto 100%;border:1px solid #755a2c;box-shadow:inset 0 0 0 2px #070809,inset 0 0 18px rgba(0,0,0,.6),0 3px 8px rgba(0,0,0,.35);}
@@ -330,6 +330,340 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
 .finance-dashboard .finance-panel .list-item span{color:#c8cdd5;}
 .finance-dashboard .finance-panel .list-item b{text-align:right;white-space:nowrap;}
 .finance-total{display:flex;justify-content:space-between;gap:12px;margin-top:8px;padding:8px 5px 2px;border-top:1px solid #755a2c;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;}
+
+/* DEMOGRAFİ VE GELECEK NESİL PANELİ */
+.demography-panel {
+  margin-bottom: 12px;
+  background: rgba(13, 20, 28, 0.7);
+  border: 1px solid var(--border-gold);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.demography-head {
+  font-family: 'Oswald', sans-serif;
+  color: var(--border-gold);
+  font-size: 13px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.demography-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  font-size: 12px;
+}
+.demography-card {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px 10px;
+  border-radius: 3px;
+}
+.demography-card.card-children { border-left: 3px solid var(--gold); }
+.demography-card.card-maturing { border-left: 3px solid var(--green); }
+.demography-card.card-adults { border-left: 3px solid #3498db; }
+.demo-val {
+  font-size: 15px;
+  font-weight: bold;
+}
+.card-children .demo-val { color: var(--gold); }
+.card-maturing .demo-val { color: var(--green); }
+.card-adults .demo-val { color: var(--text); }
+.demo-sub {
+  font-size: 10px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+/* SERHAT KALELERİ VE GARNİZON MUHAFIZLARI PANELİ */
+.fortress-command-panel {
+  background: linear-gradient(135deg, rgba(21, 25, 33, 0.95), rgba(12, 14, 18, 0.95));
+  border: 1px solid #755a2c;
+  border-top: 2px solid var(--border-gold);
+  box-shadow: inset 0 0 0 1px rgba(197, 160, 89, 0.15), 0 6px 16px rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.fortress-command-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #755a2c;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.fortress-command-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #dfbe72;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.fortress-command-desc {
+  font-size: 12px;
+  color: #c8cdd5;
+  margin: 4px 0 0 0;
+  line-height: 1.4;
+}
+.fortress-badge-status {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 3px;
+  background: #090b0d;
+  border: 1px solid #755a2c;
+  color: #34d399;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.fortress-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.fortress-kpi-card {
+  background: rgba(10, 12, 16, 0.7);
+  border: 1px solid rgba(197, 160, 89, 0.35);
+  border-left: 3px solid #c5a059;
+  padding: 10px 12px;
+  border-radius: 3px;
+}
+.fortress-kpi-card.kpi-emerald { border-left-color: #10b981; }
+.fortress-kpi-card.kpi-blue { border-left-color: #3b82f6; }
+.fortress-kpi-card.kpi-red { border-left-color: #ef4444; }
+.fortress-kpi-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.fortress-kpi-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #dfbe72;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+.kpi-emerald .fortress-kpi-val { color: #34d399; }
+.kpi-blue .fortress-kpi-val { color: #93c5fd; }
+.kpi-red .fortress-kpi-val { color: #f87171; }
+.fortress-kpi-unit {
+  font-family: 'Roboto Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+}
+.fortress-kpi-sub {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fortress-management-grid {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+.fortress-info-box, .fortress-control-box {
+  background: #0e1116;
+  border: 1px solid rgba(117, 90, 44, 0.6);
+  border-radius: 4px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.fortress-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(62, 68, 79, 0.45);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.fortress-box-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #dfbe72;
+  letter-spacing: 0.5px;
+}
+.fortress-box-badge {
+  font-family: monospace;
+  font-size: 11px;
+  color: #34d399;
+}
+.fortress-thumb-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.fortress-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  background: #000;
+  flex-shrink: 0;
+}
+.fortress-box-text {
+  font-size: 12px;
+  color: #c8cdd5;
+  line-height: 1.45;
+  margin: 0;
+}
+.fortress-sub-card {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(62, 68, 79, 0.5);
+  border-radius: 3px;
+}
+.fortress-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+.fortress-stat-row:first-child { margin-top: 0; }
+.fortress-live-cost-info {
+  font-size: 12px;
+  color: #9ca3af;
+}
+.fortress-input-label {
+  display: block;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin: 8px 0 4px;
+}
+.fortress-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fortress-input-styled {
+  width: 100%;
+  background: #07090b;
+  border: 1px solid #755a2c;
+  border-radius: 3px;
+  padding: 8px 12px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  color: #dfbe72;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.fortress-input-styled:focus {
+  border-color: #f39c12;
+  box-shadow: 0 0 6px rgba(243, 156, 18, 0.35);
+}
+.fortress-quick-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin: 8px 0 5px;
+}
+.fortress-quick-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fortress-quick-btn {
+  padding: 5px 11px;
+  font-size: 11px;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  background: #1f2937;
+  border: 1px solid #4b5563;
+  border-radius: 3px;
+  color: #e5e7eb;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.fortress-quick-btn:hover {
+  background: #374151;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+.fortress-quick-btn:active {
+  transform: translateY(0);
+}
+.fortress-quick-btn.danger {
+  background: rgba(69, 10, 10, 0.75);
+  border-color: #991b1b;
+  color: #fca5a5;
+}
+.fortress-quick-btn.danger:hover {
+  background: #7f1d1d;
+  border-color: #ef4444;
+  color: #fff;
+}
+.fortress-hint-bar {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 12px;
+  border-top: 1px solid rgba(62, 68, 79, 0.45);
+  padding-top: 8px;
+}
+.fortress-save-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(180deg, #107c41 0%, #0d5c30 50%, #083c1e 100%);
+  border: 1px solid #34d399;
+  outline: 1px solid #064e3b;
+  outline-offset: -3px;
+  border-radius: 3px;
+  color: #ecfdf5;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  margin-top: 6px;
+}
+.fortress-save-btn:hover {
+  background: linear-gradient(180deg, #159550 0%, #107c41 100%);
+  border-color: #6ee7b7;
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px rgba(16, 185, 129, 0.3);
+}
+.fortress-save-btn:active {
+  transform: translateY(1px);
+}
+.text-green { color: #34d399 !important; font-weight: bold; }
+.text-gold { color: #dfbe72 !important; font-weight: bold; }
+.text-red { color: #f87171 !important; font-weight: bold; }
 
 /* DANIŞMAN KARTLARI */
 .advisor-card {
@@ -508,13 +842,18 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
     .population-building-card .population-qty-control input{width:48px;height:31px;padding-bottom:5px;line-height:normal;font-size:14px;}
     .population-building-card .population-qty-step{width:23px;height:15px;font-size:9px;}
     .population-building-card .population-build-btn{min-width:91px;height:31px;padding:4px 9px;font-size:10px;}
-    .population-building-card .population-disband-btn{min-width:76px;height:31px;padding:4px 8px;font-size:10px;}
+    .population-disband-btn, .population-building-card .population-disband-btn{min-width:76px;height:31px;padding:4px 8px;font-size:10px;}
     .population-building-card .population-total{font-size:11px;margin-top:4px;}
     .finance-kpi-grid,.finance-columns{grid-template-columns:1fr;}
     .finance-kpi b{font-size:17px;}
     .finance-dashboard .finance-panel .list-item{align-items:flex-start;}
     .finance-dashboard .finance-panel .list-item span{padding-right:6px;}
     .finance-dashboard .finance-panel .list-item b{white-space:normal;max-width:48%;overflow-wrap:anywhere;}
+    .fortress-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .fortress-management-grid { grid-template-columns: 1fr; }
+    .fortress-save-btn { font-size: 12px; padding: 11px; }
+    .fortress-kpi-val { font-size: 16px; }
+    .demography-grid { grid-template-columns: 1fr; }
     input,select,textarea { min-width:0; max-width:100%; }
 }
 /* v88: PNG arka plan + sabit viewBox SVG veri katmanı */
