@@ -40,6 +40,9 @@ function refreshMapFortressCounts(){
          if(currentEducated > maxEducated) {
            const totalPop = Math.max(1, Number(s.population)||0);
            s.education = Math.max(0, Math.min(100, (maxEducated / totalPop) * 100));
+           if(s.educatedPopulation !== undefined && s.educatedPopulation !== null) {
+             s.educatedPopulation = maxEducated;
+           }
          }
        }
        addLog({stateId:s.id, stateName:s.name, action:`Toprak kaybı: ${lost} adet ${key} kaybedildi (kota: ${next} toprak)`, qty:lost, cost:0});

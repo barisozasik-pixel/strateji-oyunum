@@ -102,6 +102,9 @@ function applyEventChoice(pendingOrUid,optionId){
  // ✅ BUG 3 FIX: Payda toplam nüfus olmalı — calcPop pop*(edu/100) kullanıyor
  const totalPop = Math.max(1, Number(s.population)||0);
  s.education=totalPop>0?Math.max(0,Math.min(100,(targetEducated/totalPop)*100)):0;
+ if(s.educatedPopulation !== undefined && s.educatedPopulation !== null) {
+   s.educatedPopulation = targetEducated;
+ }
  const actualEducated=targetEducated-oldEducated;
  db.eventHistory.unshift({uid:pending.uid,stateId:s.id,stateName:s.name,eventId:event.id,eventTitle:event.title,year:pending.year,choice:optionId,choiceText:opt.text,gold:actualGold,happiness:Number(opt.happiness||0),population:actualPopulation,soldiers:actualSoldiers,guns:actualGuns,educatedPopulation:actualEducated,date:new Date().toLocaleString("tr-TR"),user:currentUserEmail});
  if(db.eventHistory.length>500)db.eventHistory.pop();
@@ -183,6 +186,8 @@ const defaultSettings={
  populationBuildingGrowth:{hastane:0.5,asevi:0.4,su_degirmeni:0.6,kervansaray:0.3,pazar:0.4},
  populationBuildingCostPerPerson:{hastane:0.10,asevi:0.05,su_degirmeni:0.08,kervansaray:0.12,pazar:0.10},
  populationBuildingUpkeep:{hastane:0,asevi:0,su_degirmeni:0,kervansaray:0,pazar:0},
+ hospitalCapacityPerBuilding:60000,
+ hospitalBaseCost:35000,
  schoolCapacityPerBuilding:500,
  schoolUpkeep:10000,
  educatedTaxMultiplier:1.5,

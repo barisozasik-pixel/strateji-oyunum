@@ -57,16 +57,6 @@ function calcPop(s)
      db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
   }
  
-  let eligRate = hap * 0.3;
-  let maxElig = Math.floor(adults * (eligRate/100));
-  
-  // SAVAŞ KAYIPLARI
-  let totalDead = (Number(s.warCasualties)||0) + (Number(s.garrisonWarDeaths)||0);
-  let ghostEligible = totalDead;
-  
-  // BOŞTAKİ ASKER
-  let availableElig = Math.max(0, maxElig - armySize - (s.fortressGarrison||0) - ghostEligible);
-  
   // SIRADAN HALK (anarşistler ve askerler düşüldükten sonra kalan yetişkinler)
   let baseCivilian = Math.max(0, adults - anarCount - armySize - (s.fortressGarrison||0));
   let remCount = baseCivilian;
@@ -85,7 +75,10 @@ function calcPop(s)
   const totalTaxpayers = eduCount + otherCount;
   const calculatedEduRate = totalTaxpayers > 0 ? (eduCount / totalTaxpayers) * 100 : 0;
   
-  availableElig = Math.min(Math.max(0, adults - anarCount - eduCount - armySize - (s.fortressGarrison||0)), availableElig);
+  // ✅ BOŞTAKİ ELVERİŞLİ ASKER: Doğrudan Sıradan Halk (otherCount) ve Mutluluk üzerinden hesaplanır
+  let eligRate = hap * 0.3;
+  let maxElig = Math.floor(otherCount * (eligRate/100));
+  let availableElig = maxElig;
   
   const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);

@@ -100,9 +100,26 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
 function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
  const safeImg=cleanUrl(imgUrl)||"";
  const growth=Math.max(0,Number(db.settings.populationBuildingGrowth?.[key])||0);
- const costPerPerson=Math.max(0,Number(db.settings.populationBuildingCostPerPerson?.[key])||0);
- const price=Math.max(0,Math.round((Number(s.population)||0)*costPerPerson));
+ const oldPopulation = Math.max(0, Math.floor(Number(s.population) || 0));
+ const costPerPerson = Math.max(0, Number(db.settings.populationBuildingCostPerPerson?.[key]) || 0);
  const ownedCount = getOwnedMapProvinceIds(s.id).length; // TOPRAK KOTASI GÖRSELİ İÇİN
+ const provCount = Math.max(1, ownedCount || 1);
+ const popPerProv = Math.round(oldPopulation / provCount);
+
+ let price = 0;
+ let infoExtraHtml = '';
+ if(key === 'hastane') {
+   const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
+   const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
+   price = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
+   const hospCap = Math.max(1, Number(db.settings.hospitalCapacityPerBuilding) || 60000);
+   const totalPop = Math.max(1, Number(s.population) || 0);
+   const cov = Math.min(100, (((s.hastane || 0) * hospCap) / totalPop) * 100);
+   infoExtraHtml = `<div>Sağlık Güvencesi: <strong style="color:var(--green)">%${cov.toFixed(1)}</strong></div>`;
+ } else {
+   price = Math.max(0, Math.round((Number(s.population)||0)*costPerPerson));
+   infoExtraHtml = `<div>Nüfus: <strong style="color:var(--green)">+%${num(growth)}</strong></div>`;
+ }
  const isFull = (s[key]||0) >= ownedCount; // KOTA DOLDU MU?
  
  return `<div class="unit-card population-building-card">
@@ -111,7 +128,7 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
      <div class="unit-title">${esc(name)}</div>
      <div class="unit-info-grid">
        <div>Mevcut: <strong style="${isFull ? 'color:var(--red);' : 'color:var(--gold);'}">${num(s[key]||0)} / ${ownedCount}</strong></div>
-       <div>Nüfus: <strong style="color:var(--green)">+%${num(growth)}</strong></div>
+       ${infoExtraHtml}
        <div>Fiyat: <strong style="color:var(--gold)">${money(price)}</strong></div>
      </div>
      ${canManage?`<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="İnşa edilecek adet" oninput="document.getElementById('tot_${s.id}_${key}').innerText='Toplam: '+money(${price}*(this.value||0))"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="buildPopulationBuilding('${s.id}','${key}','${esc(name)}')">🔨 İNŞA ET</button></div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(price)}</div>`:'<div style="text-align:center;padding:3px;background:var(--red);color:#fff;font-size:10px;border-radius:2px;">YETKİ YOK</div>'}
@@ -485,59 +502,154 @@ function openDetail(id){
  });
  eylemHtml += `</div></div>`;
 
- // 8. ÜLKE YÖNETİMİ: KALE, GARNİZON VE NÜFUS BİNALARI
- const fortressImg=cleanUrl(imgs.fortress);
- const fortressGarrisonImg=cleanUrl(imgs.fortress_garrison);
- const populationBuildings=[
-   ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
- ];
- const populationBuildingsHtml=populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');
- const mapFortressCount=getOwnedMapProvinceIds(s.id).length;
- const garrisonPerFortress=mapFortressCount?Math.floor((s.fortressGarrison||0)/mapFortressCount):0;
- const garrisonRemainder=mapFortressCount?(s.fortressGarrison||0)%mapFortressCount:0;
- let countryManagementHtml=`<div>
-   <h4 style="color:var(--border-gold);margin:0 0 8px;font-family:'Oswald';">🏰 KALE VE GARNİZON YÖNETİMİ</h4>
-   <p class="sub">Garnizona eklenen yeni askerler elverişli nüfustan düşer. Kale garnizon giderleri yıl sonunda hazineden kesilir.</p>
-   <div class="event-result" style="margin-bottom:10px;">
-     <b>Haritadaki kale/toprak:</b> ${num(mapFortressCount)} &nbsp; | &nbsp; <b>Toplam kale garnizonu:</b> ${num(s.fortressGarrison||0)} asker<br>
-     <b>Kale başına dağılım:</b> ${num(garrisonPerFortress)} asker${garrisonRemainder?` (+${num(garrisonRemainder)} kaleye birer asker fazla)`:''} &nbsp; | &nbsp; <b>Boştaki elverişli asker:</b> ${num(p.elig)}
-   </div>
-   <div class="unit-grid">
-     <div class="unit-card">${fortressImg?`<div class="unit-img-box"><img src="${esc(fortressImg)}"></div>`:''}<div class="unit-details"><div class="unit-title">Kale</div><div class="event-result"><b>${num(mapFortressCount)}</b> adet<br><span class="sub">Haritadaki ülkeye ait topraklardan hesaplanır.</span></div></div></div>
-     <div class="unit-card">${fortressGarrisonImg?`<div class="unit-img-box"><img src="${esc(fortressGarrisonImg)}"></div>`:''}<div class="unit-details"><div class="unit-title">Kale Garnizonu</div>${field("country_fortressGarrison","Toplam Satın Alınacak/Mevcut Asker",s.fortressGarrison||0,"number")}</div></div>
-   </div>
-   <div class="event-result" style="margin-top:10px;">
-     Kale garnizonu asker başı yıllık gider: <b>${money(db.settings.garrisonUpkeep.fortress)}</b><br>
-     Mevcut kale garnizonu gideri: <b style="color:var(--red)">-${money(fortressGarrisonExpense)}</b>
-   </div>
-    ${canManage?`<button class="btn green" style="width:100%;margin-top:10px;" onclick="saveCountryManagement('${s.id}')">ÜLKE YÖNETİMİNİ KAYDET</button>`:'<p class="sub">Bu devleti düzenleme yetkiniz yok.</p>'}
+  // 8. ÜLKE YÖNETİMİ: KALE, GARNİZON VE NÜFUS BİNALARI
+  const fortressImg = cleanUrl(imgs.fortress);
+  const fortressGarrisonImg = cleanUrl(imgs.fortress_garrison);
+  const populationBuildings = [
+    ["hastane","Hastane"],["asevi","Aşevi"],["su_degirmeni","Su Değirmeni"],["kervansaray","Kervansaray"],["pazar","Pazar"]
+  ];
+  const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');
+  const mapFortressCount = getOwnedMapProvinceIds(s.id).length;
+  const garrisonPerFortress = mapFortressCount ? Math.floor((s.fortressGarrison||0)/mapFortressCount) : 0;
+  const garrisonRemainder = mapFortressCount ? (s.fortressGarrison||0)%mapFortressCount : 0;
+  const upkeepPerSoldier = Number(db.settings.garrisonUpkeep?.fortress) || 3;
+
+  let countryManagementHtml = `<div>
+    <div class="fortress-command-panel">
+      <div class="fortress-command-header">
+        <div>
+          <div class="fortress-command-title">
+            <span>🏰</span> SERHAT KALELERİ VE GARNİZON MUHAFIZLARI
+          </div>
+          <p class="sub fortress-command-desc">
+            Müstahkem vilayet kalelerine nefer tertip edin. Garnizonlar fetihte düşman hücumunu kırar ve asayişi temin eder.
+          </p>
+        </div>
+        <div class="fortress-badge-status">
+          🛡️ AKTİF SAVUNMA NİZAMI
+        </div>
+      </div>
+
+      <!-- 4'LÜ STRATEJİK DURUM BARI -->
+      <div class="fortress-kpi-grid">
+        <div class="fortress-kpi-card">
+          <div class="fortress-kpi-label">Müstahkem Topraklar</div>
+          <div class="fortress-kpi-val">${num(mapFortressCount)} <span class="fortress-kpi-unit">Kale</span></div>
+          <div class="fortress-kpi-sub">1 Vilayet = 1 Kale Kotası</div>
+        </div>
+
+        <div class="fortress-kpi-card kpi-emerald">
+          <div class="fortress-kpi-label">Toplam Muhafız Gücü</div>
+          <div class="fortress-kpi-val" id="fortress_live_total_kpi">${num(s.fortressGarrison||0)} <span class="fortress-kpi-unit">Asker</span></div>
+          <div class="fortress-kpi-sub">Sınır hattı boyunca nöbette</div>
+        </div>
+
+        <div class="fortress-kpi-card kpi-blue">
+          <div class="fortress-kpi-label">Kale Başına Düşen</div>
+          <div class="fortress-kpi-val" id="fortress_live_per_kpi">${num(garrisonPerFortress)} <span class="fortress-kpi-unit">Nefer/Kale</span></div>
+          <div class="fortress-kpi-sub" id="fortress_live_rem_kpi">${garrisonRemainder ? `+${num(garrisonRemainder)} kaleye birer fazla` : 'Eşit dağıtılmış'}</div>
+        </div>
+
+        <div class="fortress-kpi-card kpi-red">
+          <div class="fortress-kpi-label">Yıllık Garnizon Masrafı</div>
+          <div class="fortress-kpi-val" id="fortress_live_cost_kpi">-${money(fortressGarrisonExpense)}</div>
+          <div class="fortress-kpi-sub">Asker başı yıllık: ${money(upkeepPerSoldier)}</div>
+        </div>
+      </div>
+
+      <!-- MERKEZİ YÖNETİM & TERTİBAT ALANI -->
+      <div class="fortress-management-grid">
+        <!-- SOL: KALE BİLGİ KARTI -->
+        <div class="fortress-info-box">
+          <div>
+            <div class="fortress-box-header">
+              <span class="fortress-box-title">🏰 KALE ENVANTERİ</span>
+              <span class="fortress-box-badge">${num(mapFortressCount)} / ${num(mapFortressCount)} Müstahkem</span>
+            </div>
+            ${fortressImg ? `<div class="fortress-thumb-wrap"><img src="${esc(fortressImg)}" class="fortress-thumb" alt="Kale"></div>` : ''}
+            <p class="fortress-box-text">
+              Devletinizin fethettiği her toprak parçası bir sınır garnizonu barındırır. Garnizona eklenen neferler elverişli nüfustan karşılanır.
+            </p>
+          </div>
+          <div class="fortress-sub-card">
+            <div class="fortress-stat-row">
+              <span class="sub">Boştaki Elverişli Asker Kaynağı:</span>
+              <b class="text-green">${num(p.elig)}</b>
+            </div>
+            <div class="fortress-stat-row">
+              <span class="sub">Maksimum Alınabilecek Garnizon:</span>
+              <b class="text-gold">+${num(p.elig)}</b>
+            </div>
+          </div>
+        </div>
+
+        <!-- SAĞ: ASKER ATAMA VE HIZLI BUTONLAR -->
+        <div class="fortress-control-box">
+          <div>
+            <div class="fortress-box-header">
+              <span class="fortress-box-title">🛡️ TOPLAM KALE MUHAFIZI SAYISI</span>
+              <span class="fortress-live-cost-info">Canlı Maliyet: <b class="text-red" id="fortress_live_cost_tag">-${money(fortressGarrisonExpense)}</b></span>
+            </div>
+
+            <label class="fortress-input-label" for="f_country_fortressGarrison">Toplam Garnizon Asker Sayısını Ayarlayın</label>
+            <div class="fortress-input-row">
+              <input type="number" id="f_country_fortressGarrison" value="${s.fortressGarrison||0}" min="0" class="fortress-input-styled" oninput="onFortressGarrisonChange(this.value, ${upkeepPerSoldier}, ${mapFortressCount})" ${!canManage?'disabled':''}>
+            </div>
+
+            <!-- HIZLI MİKTAR BUTONLARI -->
+            ${canManage ? `
+            <div class="fortress-quick-label">Hızlı Tertibat / Ekleme:</div>
+            <div class="fortress-quick-buttons">
+              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(10000, ${upkeepPerSoldier}, ${mapFortressCount})">+10.000</button>
+              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(50000, ${upkeepPerSoldier}, ${mapFortressCount})">+50.000</button>
+              <button type="button" class="fortress-quick-btn" onclick="adjustGarrisonInput(100000, ${upkeepPerSoldier}, ${mapFortressCount})">+100.000</button>
+              <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-50000, ${upkeepPerSoldier}, ${mapFortressCount})">-50.000</button>
+              <button type="button" class="fortress-quick-btn danger" onclick="adjustGarrisonInput(-100000, ${upkeepPerSoldier}, ${mapFortressCount})">-100.000</button>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="fortress-hint-bar">
+            <span>💡 İpucu: Her kaleye eşit asker dağıtılır. Artan askerler sınır kalelerine birer birer eklenir.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALT: PRESTİJLİ FERMAN KAYDET BUTONU -->
+      ${canManage ? `
+      <button type="button" class="fortress-save-btn" onclick="saveCountryManagement('${s.id}')">
+        <span>🛡️</span> GARNİZON TERTİBATINI MÜHÜRLE VE KAYDET
+      </button>
+      ` : `<p class="sub" style="text-align:center;margin-top:10px;">Bu devleti düzenleme yetkiniz yok.</p>`}
+    </div>
+
     <h4 style="color:var(--border-gold);margin:18px 0 8px;font-family:'Oswald';">🏗️ NÜFUSU GELİŞTİREN BİNALAR</h4>
     <p class="sub">Her bina, inşa edildiği andaki toplam nüfusu admin panelinde belirlenen oran kadar artırır.</p>
-    <div class="event-result" style="margin-bottom:12px; background:rgba(13,20,28,0.7); border:1px solid var(--border-gold);">
-      <div style="font-family:'Oswald',sans-serif; color:var(--border-gold); font-size:13px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+    <div class="demography-panel">
+      <div class="demography-head">
         <span>👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</span>
         <span class="badge">Nüfus Dinamiği</span>
       </div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:12px;">
-        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--gold);">
+      <div class="demography-grid">
+        <div class="demography-card card-children">
           <span class="sub">Yeni Doğan / Çocuk Nüfus:</span><br>
-          <b style="font-size:15px; color:var(--gold);">${num(p.children || 0)}</b> kişi
-          <div class="sub" style="font-size:10px; margin-top:2px;">(Henüz vergi vermez, askere alınamaz)</div>
+          <b class="demo-val">${num(p.children || 0)}</b> kişi
+          <div class="demo-sub">(Henüz vergi vermez, askere alınamaz)</div>
         </div>
-        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--green);">
+        <div class="demography-card card-maturing">
           <span class="sub">Seneye Yetişkin Olacak Gençler:</span><br>
-          <b style="font-size:15px; color:var(--green);">+${num(Math.floor((p.children || 0) * 0.20))}</b> kişi (%20)
-          <div class="sub" style="font-size:10px; margin-top:2px;">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
+          <b class="demo-val">+${num(Math.floor((p.children || 0) * 0.20))}</b> kişi (%20)
+          <div class="demo-sub">(Gelecek yıl rüştüne erip sıradan mükellef olacak)</div>
         </div>
-        <div style="background:rgba(0,0,0,0.4); padding:7px; border-radius:3px; border-left:3px solid var(--blue);">
+        <div class="demography-card card-adults">
           <span class="sub">Yetişkin Nüfus (Mükellef):</span><br>
-          <b style="font-size:15px; color:var(--text);">${num(p.adults || (s.population - (p.children||0)))}</b> kişi
-          <div class="sub" style="font-size:10px; margin-top:2px;">(Vergi veren ve ordu/eğitim havuzunu oluşturanlar)</div>
+          <b class="demo-val">${num(p.adults || (s.population - (p.children||0)))}</b> kişi
+          <div class="demo-sub">(Vergi veren ve ordu/eğitim havuzunu oluşturanlar)</div>
         </div>
       </div>
     </div>
     <div class="unit-grid population-building-grid">${populationBuildingsHtml}</div>
- </div>`;
+  </div>`;
 
 
  const detailStateKey = `${s.id||''} ${s.name||''}`.toLocaleLowerCase('tr-TR');
@@ -741,6 +853,34 @@ function saveCountryManagement(stateId){
  switchTab('country');
 }
 
+function onFortressGarrisonChange(val, upkeepPerSoldier, fortressCount){
+ const numVal = Math.max(0, Math.floor(Number(val) || 0));
+ const cost = numVal * upkeepPerSoldier;
+ const costTag = document.getElementById("fortress_live_cost_tag");
+ if(costTag) costTag.innerText = `-${money(cost)}`;
+ const costKpi = document.getElementById("fortress_live_cost_kpi");
+ if(costKpi) costKpi.innerText = `-${money(cost)}`;
+ const totalKpi = document.getElementById("fortress_live_total_kpi");
+ if(totalKpi) totalKpi.innerHTML = `${num(numVal)} <span class="fortress-kpi-unit">Asker</span>`;
+ const perKpi = document.getElementById("fortress_live_per_kpi");
+ const remKpi = document.getElementById("fortress_live_rem_kpi");
+ if(fortressCount > 0){
+   const per = Math.floor(numVal / fortressCount);
+   const rem = numVal % fortressCount;
+   if(perKpi) perKpi.innerHTML = `${num(per)} <span class="fortress-kpi-unit">Nefer/Kale</span>`;
+   if(remKpi) remKpi.innerText = rem ? `+${num(rem)} kaleye birer fazla` : 'Eşit dağıtılmış';
+ }
+}
+
+function adjustGarrisonInput(delta, upkeepPerSoldier, fortressCount){
+ const el = document.getElementById("f_country_fortressGarrison");
+ if(!el) return;
+ const current = Math.max(0, Math.floor(Number(el.value) || 0));
+ const next = Math.max(0, current + delta);
+ el.value = next;
+ onFortressGarrisonChange(next, upkeepPerSoldier, fortressCount);
+}
+
 function adjustPopulationBuildingQty(inputId,change){const input=document.getElementById(inputId);if(!input)return;input.value=Math.max(1,Math.floor(Number(input.value)||1)+change);input.dispatchEvent(new Event('input',{bubbles:true}));}
 function buildPopulationBuilding(stateId,key,labelName){
  const s=getState(stateId); if(!s)return;
@@ -760,10 +900,20 @@ function buildPopulationBuilding(stateId,key,labelName){
      return;
  }
  
- const oldPopulation=Math.max(0,Math.floor(Number(s.population)||0));
- const costPerPerson=Math.max(0,Number(db.settings.populationBuildingCostPerPerson?.[key])||0);
- const unitPrice=Math.max(0,Math.round(oldPopulation*costPerPerson));
- const totalCost=unitPrice*qty;
+  const oldPopulation = Math.max(0, Math.floor(Number(s.population) || 0));
+  const costPerPerson = Math.max(0, Number(db.settings.populationBuildingCostPerPerson?.[key]) || 0);
+  const provCount = Math.max(1, ownedCount || 1);
+  const popPerProv = Math.round(oldPopulation / provCount);
+
+  let unitPrice = 0;
+  if (key === 'hastane') {
+    const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
+    const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
+    unitPrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
+  } else {
+    unitPrice = Math.max(0, Math.round(oldPopulation * costPerPerson));
+  }
+  const totalCost = unitPrice * qty;
  if((Number(s.treasury)||0)<totalCost){alert(`Hazine yetersiz! Toplam inşaat maliyeti: ${money(totalCost)}`);return;}
  
  const oldTreasury=Number(s.treasury)||0;

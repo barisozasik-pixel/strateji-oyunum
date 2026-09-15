@@ -290,18 +290,68 @@ function passOneYear(){
             if(s.debtYears>=3)s.happiness=Math.max(0,Number(s.happiness||0)-5);
         }else s.debtYears=0;
         
-        // ADIM 3: NÜFUS, RÜŞT, DOĞUMLAR VE DOĞAL ÖLÜMLER
-        // 1. ÖNCE BÜYÜME: Geçen yıldan devreden çocukların %20'si rüştüne erip yetişkin mükellef olur
-        let currentChildren = Math.max(0, Math.floor(Number(s.children)||0));
-        let maturing = Math.floor(currentChildren * 0.20);
-        if(maturing > 0) {
-            s.children = Math.max(0, currentChildren - maturing);
-            rpt.events.push(`🌱 Genç Nesil: +${num(maturing)} genç rüştüne erip yetişkin mükellef oldu`);
+        // ADIM 3: NÜFUS, ŞİFAHANELER, DOĞAL ÖLÜMLER, ÇOCUK HAVUZU VE EĞİTİM
+        const hospitalCount = Math.max(0, Number(s.hastane) || 0);
+        const hospitalCapacity = Math.max(1, Number(db.settings.hospitalCapacityPerBuilding) || 60000);
+        const totalStatePop = Math.max(1, Number(s.population) || 0);
+        // Sağlık Kapsama Oranı: Şifahanelerin toplam nüfusa koruma oranı (%0 - %100)
+        const hospitalCoverage = Math.min(1.0, (hospitalCount * hospitalCapacity) / totalStatePop);
+
+        // 1. DOĞAL ECEL VE YAŞLILIK VEFATLARI (Yetişkinler ve Eğitimli Sınıf)
+        // Yılın başında önce mevcut yaşlı/yetişkin nüfus eceliyle vefat eder; yeni doğanlar ve yeni mezunlar bu orandan etkilenmez
+        let currentChildren = Math.max(0, Math.floor(Number(s.children) || 0));
+        let currentAdults = Math.max(0, (Number(s.population) || 0) - currentChildren);
+        let deathRate = Math.max(0.0120, 0.0170 - (hospitalCoverage * 0.0040)); // Tarihsel %1.70 - %1.30 bandı
+
+        // A) Yetişkin Halk Vefatı
+        if (currentAdults > 0) {
+            const naturalDeaths = Math.floor(currentAdults * deathRate);
+            if (naturalDeaths > 0) {
+                s.population = Math.max(0, (Number(s.population) || 0) - naturalDeaths);
+                currentAdults = Math.max(0, currentAdults - naturalDeaths);
+                rpt.events.push(`🕊️ Doğal Vefatlar: -${num(naturalDeaths)} kişi (Ecel ve yaşlılık)`);
+            }
         }
 
-        // 2. YENİ DOĞUMLAR: O yıl doğan bebekler çocuk havuzuna eklenir (o yıl hemen yetişkin olamazlar)
-        let totalGrowthPercent = 0;
-        ["hastane", "asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
+        // B) Eğitimli Sınıf Vefatı (Mevcut aydınların eceliyle vefatı)
+        let currentEdu = 0;
+        if (s.educatedPopulation !== undefined && s.educatedPopulation !== null && Number(s.educatedPopulation) > 0) {
+            currentEdu = Math.floor(Number(s.educatedPopulation) || 0);
+        } else {
+            currentEdu = Math.floor(currentAdults * ((Number(s.education) || 0) / 100));
+        }
+        const eduDeaths = Math.floor(currentEdu * deathRate);
+        if (eduDeaths > 0) {
+            currentEdu = Math.max(0, currentEdu - eduDeaths);
+            rpt.events.push(`🕊️ İlim İrfan Kaybı: -${num(eduDeaths)} eğitimli eceliyle vefat etti`);
+        }
+
+        // 2. ÇOCUK HAVUZU: Salgın ve Çocuk Vefatları (Şifahaneler çocukları hayatta tutar)
+        if (currentChildren > 0) {
+            // Sağlıksız devlette çocuk vefat oranı %18, tam şifahaneli devlette %8 seviyesine iner
+            const childDeathRate = Math.max(0.08, 0.18 - (hospitalCoverage * 0.10));
+            const childDeaths = Math.floor(currentChildren * (childDeathRate * 0.15));
+            if (childDeaths > 0) {
+                s.children = Math.max(0, currentChildren - childDeaths);
+                s.population = Math.max(0, (Number(s.population) || 0) - childDeaths);
+                currentChildren = s.children;
+                rpt.events.push(`🕊️ Çocuk Vefatları: -${num(childDeaths)} yavru salgın ve hastalıklardan vefat etti`);
+            }
+        }
+
+        // 3. RÜŞTÜNE ERME: Sağlıklı büyüyen gençlerin %10'u yetişkin halka ve nefer havuzuna katılır
+        let maturing = Math.floor(currentChildren * 0.10);
+        if (maturing > 0) {
+            s.children = Math.max(0, currentChildren - maturing);
+            currentChildren = s.children;
+            currentAdults += maturing; // Gençler artık yetişkin/sivil havuzuna katıldı
+            rpt.events.push(`🌱 Genç Nesil: +${num(maturing)} genç rüştüne erip vergi mükellefi ve nefer havuzuna katıldı`);
+        }
+
+        // 4. YENİ DOĞUMLAR: Taze nesil dünyaya gelir (taban %1.65 + şifahane refahı + binalar)
+        let baseBirthPercent = 1.65 + (hospitalCoverage * 0.10); // %1.65 - %1.75
+        let totalGrowthPercent = baseBirthPercent;
+        ["asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
             if (count > 0) {
                 const growthRate = Math.max(0, Number(db.settings.populationBuildingGrowth?.[key]) || 0);
@@ -309,32 +359,44 @@ function passOneYear(){
                 totalGrowthPercent += (growthRate * count * efficiency);
             }
         });
-        
+
         let newPop = Number(s.population || 0);
         if (totalGrowthPercent > 0) {
             let growthMultiplier = 1 + (totalGrowthPercent / 100);
             let calculatedPop = Math.floor(newPop * growthMultiplier);
             let extraPeople = calculatedPop - newPop;
-          
-            if(extraPeople > 0) {
+
+            if (extraPeople > 0) {
                 s.population = newPop + extraPeople;
-                // Yeni doğanlar çocuk havuzuna eklenir (hemen vergi vermez, askere alınmaz)
                 s.children = (Number(s.children) || 0) + extraPeople;
+                currentChildren = s.children;
                 rpt.events.push(`👶 Doğumlar: +${num(extraPeople)} yeni çocuk nüfusa katıldı`);
             }
         }
 
-        // DOĞAL ÖLÜM (Ecel ve Yaşlılık: Yetişkinlerin %1.5'i, Hastaneler ölüm oranını düşürür)
-        let currentAdults = Math.max(0, (Number(s.population)||0) - (Number(s.children)||0));
-        if(currentAdults > 0) {
-            const hospitalCount = Number(s.hastane)||0;
-            const deathRate = Math.max(0.004, 0.015 - (hospitalCount * 0.002));
-            const naturalDeaths = Math.floor(currentAdults * deathRate);
-            if(naturalDeaths > 0) {
-                s.population = Math.max(0, (Number(s.population)||0) - naturalDeaths);
-                rpt.events.push(`🕊️ Doğal Vefatlar: -${num(naturalDeaths)} kişi (Ecel ve yaşlılık)`);
+        // Şifahane koruma raporu
+        if (hospitalCount > 0) {
+            const protectedPop = Math.min(Number(s.population) || 0, hospitalCount * hospitalCapacity);
+            rpt.events.push(`🏥 Şifahaneler: ${num(hospitalCount)} şifahane ile ${num(protectedPop)} cana (%${(hospitalCoverage * 100).toFixed(1)}) sağlık ve salgın muhafazası sağlandı.`);
+        }
+
+        // 5. MEDRESE / OKUL MEZUNİYETİ: Yetişkin ve sivil halktan yeni ilim talebeleri mezun olur
+        const schoolCount = Number(s.okul) || 0;
+        if (schoolCount > 0) {
+            const capacityPerSchool = Math.max(1, Math.floor(Number(db.settings.schoolCapacityPerBuilding) || 250));
+            const potentialGraduates = schoolCount * capacityPerSchool;
+            const civilianPool = Math.max(0, currentAdults - currentEdu - (s.piyade || 0) - (s.suvari || 0) - (s.nisanci || 0) - (s.fortressGarrison || 0));
+            const actualGraduates = Math.min(civilianPool, potentialGraduates);
+            if (actualGraduates > 0) {
+                currentEdu += actualGraduates;
+                rpt.events.push(`🎓 Medrese Mezunları: +${num(actualGraduates)} genç eğitimini tamamlayıp eğitimli sınıfa katıldı`);
             }
         }
+
+        // Kalıcı kaydet
+        s.educatedPopulation = currentEdu;
+        const totalP = Math.max(1, Number(s.population) || 0);
+        s.education = Math.max(0, Math.min(100, (currentEdu / totalP) * 100));
         
         // ADIM 4: İSYANLAR
         const adv = getAdvisorEffects(s);
@@ -650,9 +712,14 @@ async function openAdmin(){
  <h4 style="margin-top:10px; color:var(--border-gold); font-family:'Oswald';">BAKIM GİDERLERİ</h4><div class="formgrid">${Object.keys(u).map(k=>field("u_"+k,k,u[k],"number")).join("")}</div>
  <h4 style="margin-top:10px; color:var(--blue); font-family:'Oswald';">OKUL AYARLARI</h4>
  <div class="formgrid">
-   ${field("school_capacity","Okul Başına Eğitim Kapasitesi (Kişi)",db.settings.schoolCapacityPerBuilding||500,"number")}
-   ${field("school_upkeep","Okul Başına Yıllık Gider",db.settings.schoolUpkeep||0,"number")}
-   ${field("educated_tax_multiplier","Eğitimli Nüfus Vergi Çarpanı",db.settings.educatedTaxMultiplier??1.5,"number")}
+    ${field("school_capacity","Okul Başına Eğitim Kapasitesi (Kişi)",db.settings.schoolCapacityPerBuilding||500,"number")}
+    ${field("school_upkeep","Okul Başına Yıllık Gider",db.settings.schoolUpkeep||0,"number")}
+    ${field("educated_tax_multiplier","Eğitimli Nüfus Vergi Çarpanı",db.settings.educatedTaxMultiplier??1.5,"number")}
+ </div>
+ <h4 style="margin-top:10px; color:var(--green); font-family:'Oswald';">ŞİFAHANE / SAĞLIK AYARLARI</h4>
+ <div class="formgrid">
+    ${field("hospital_capacity","Şifahane Başına Sağlık Kapasitesi (Kişi)",db.settings.hospitalCapacityPerBuilding||60000,"number")}
+    ${field("hospital_base_cost","Şifahane Taban İnşaat Bedeli (TL)",db.settings.hospitalBaseCost||35000,"number")}
  </div>
  <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">ALTYAPI BİNALARI YILLIK GİDERLERİ (Bina Başı)</h4>
  <div class="formgrid">${Object.keys(iu).map(k=>field("iu_"+k,k,iu[k],"number")).join("")}</div>
@@ -950,6 +1017,8 @@ function saveAdmin(doClose = true){
  const schoolCapacityEl=document.getElementById("f_school_capacity"); if(schoolCapacityEl)db.settings.schoolCapacityPerBuilding=Math.max(0,Math.floor(Number(schoolCapacityEl.value)||0));
  const schoolUpkeepEl=document.getElementById("f_school_upkeep"); if(schoolUpkeepEl)db.settings.schoolUpkeep=Math.max(0,Number(schoolUpkeepEl.value)||0);
  const educatedMultiplierEl=document.getElementById("f_educated_tax_multiplier"); if(educatedMultiplierEl)db.settings.educatedTaxMultiplier=Math.max(0,Number(educatedMultiplierEl.value)||0);
+ const hospCapEl=document.getElementById("f_hospital_capacity"); if(hospCapEl)db.settings.hospitalCapacityPerBuilding=Math.max(1,Math.floor(Number(hospCapEl.value)||60000));
+ const hospBaseEl=document.getElementById("f_hospital_base_cost"); if(hospBaseEl)db.settings.hospitalBaseCost=Math.max(0,Math.floor(Number(hospBaseEl.value)||35000));
  Object.keys(db.settings.prices).forEach(k=>{ const el=document.getElementById("f_p_"+k); if(el) db.settings.prices[k]=Number(el.value||0); });
  Object.keys(db.settings.capacity).forEach(k=>{ const el=document.getElementById("f_c_"+k); if(el) db.settings.capacity[k]=Number(el.value||0); });
  Object.keys(db.settings.upkeep).forEach(k=>{ const el=document.getElementById("f_u_"+k); if(el) db.settings.upkeep[k]=Number(el.value||0); });
