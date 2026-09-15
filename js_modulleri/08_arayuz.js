@@ -505,13 +505,16 @@ function openDetail(id){
   const gunMax = gunCapMax(s);
   const gunPct = gunMax > 0 ? Math.min(100, Math.round((gunCur / gunMax) * 100)) : 0;
   let topHtml = `
-    <div class="capacity-bar-container">
-      <div>
-        <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;color:var(--gold);">💣 TOPHANE-İ ÂMİRE KAPASİTESİ</div>
-        <div class="sub" style="font-size:11px;">Top Ocakları (Dökümhaneler) toplam namlu döküm kapasitesi sağlar.</div>
+    <div class="capacity-hero-box">
+      <div class="capacity-hero-info">
+        <div class="capacity-hero-title">💣 TOPHANE-İ ÂMİRE KAPASİTESİ</div>
+        <div class="capacity-hero-sub">Top Ocakları (Dökümhaneler) toplam namlu döküm kapasitesi sağlar.</div>
       </div>
-      <div style="text-align:right;">
-        <span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--gold);">${num(gunCur)} / ${num(gunMax)} Namlu</span>
+      <div class="capacity-hero-stats">
+        <div class="capacity-hero-badge">
+          <span class="capacity-hero-val">${num(gunCur)} / ${num(gunMax)} Namlu</span>
+          <span class="capacity-hero-pct">%${gunPct} Dolu</span>
+        </div>
         <div class="capacity-bar-track">
           <div class="capacity-bar-fill" style="width:${gunPct}%;"></div>
         </div>
@@ -527,15 +530,18 @@ function openDetail(id){
   const shipMax = shipCapMax(s);
   const shipPct = shipMax > 0 ? Math.min(100, Math.round((shipCur / shipMax) * 100)) : 0;
   let bahriyeHtml = `
-    <div class="capacity-bar-container">
-      <div>
-        <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;color:var(--cyan, #7dd3fc);">⚓ TERSANE-İ ÂMİRE & DONANMA KOTASI</div>
-        <div class="sub" style="font-size:11px;">İnşa edilen Limanlar filonuzun barındırabileceği azami gemi sayısını belirler.</div>
+    <div class="capacity-hero-box">
+      <div class="capacity-hero-info">
+        <div class="capacity-hero-title">⚓ TERSANE-İ ÂMİRE & DONANMA KOTASI</div>
+        <div class="capacity-hero-sub">İnşa edilen Limanlar filonuzun barındırabileceği azami tekne sayısını belirler.</div>
       </div>
-      <div style="text-align:right;">
-        <span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--cyan, #7dd3fc);">${num(shipCur)} / ${num(shipMax)} Tekne</span>
+      <div class="capacity-hero-stats">
+        <div class="capacity-hero-badge">
+          <span class="capacity-hero-val">${num(shipCur)} / ${num(shipMax)} Tekne</span>
+          <span class="capacity-hero-pct">%${shipPct} Dolu</span>
+        </div>
         <div class="capacity-bar-track">
-          <div class="capacity-bar-fill" style="width:${shipPct}%;background:linear-gradient(90deg, #0284c7, #7dd3fc);"></div>
+          <div class="capacity-bar-fill" style="width:${shipPct}%;"></div>
         </div>
       </div>
     </div>
