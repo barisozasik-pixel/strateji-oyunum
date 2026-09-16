@@ -314,34 +314,33 @@ function passOneYear(){
         const hospitalCoverage = Math.min(1.0, (hospitalCount * hospitalCapacity) / totalStatePop);
 
         // 1. DOĞAL ECEL VE YAŞLILIK VEFATLARI (Yetişkinler ve Eğitimli Sınıf)
-        // Yılın başında önce mevcut yaşlı/yetişkin nüfus eceliyle vefat eder; yeni doğanlar ve yeni mezunlar bu orandan etkilenmez
         let currentChildren = Math.max(0, Math.floor(Number(s.children) || 0));
         let currentAdults = Math.max(0, (Number(s.population) || 0) - currentChildren);
         let deathRate = Math.max(0.0120, 0.0170 - (hospitalCoverage * 0.0040)); // Tarihsel %1.70 - %1.30 bandı
 
-        // A) Yetişkin Halk Vefatı
-        if (currentAdults > 0) {
-            const naturalDeaths = Math.floor(currentAdults * deathRate);
-            if (naturalDeaths > 0) {
-                s.population = Math.max(0, (Number(s.population) || 0) - naturalDeaths);
-                currentAdults = Math.max(0, currentAdults - naturalDeaths);
-                rpt.events.push(`🕊️ Doğal Vefatlar: -${num(naturalDeaths)} kişi (Ecel ve yaşlılık)`);
-            }
-        }
-
-        // B) Eğitimli Sınıf Vefatı (Mevcut aydınların eceliyle vefatı)
         let currentEdu = 0;
         if (s.educatedPopulation !== undefined && s.educatedPopulation !== null && Number(s.educatedPopulation) > 0) {
             currentEdu = Math.floor(Number(s.educatedPopulation) || 0);
         } else {
-            currentEdu = Math.floor(currentAdults * ((Number(s.education) || 0) / 100));
+            currentEdu = Math.floor((Number(s.population) || 0) * ((Number(s.education) || 0) / 100));
         }
-        // İlim ve ulema sınıfı şehir/saray refahı ve hekimlere erişim sayesinde halkın yarı ecel oranına tabidir (%0.80 civarı)
+        currentEdu = Math.min(currentAdults, currentEdu);
+
+        // A) Sıradan Yetişkin ve B) Eğitimli Sınıf Vefatları (Eğitimliler hekim ve refahla yarı ecel oranına tabidir)
+        const ordinaryAdults = Math.max(0, currentAdults - currentEdu);
+        const ordinaryDeaths = Math.floor(ordinaryAdults * deathRate);
         const eduDeathRate = deathRate * 0.50;
         const eduDeaths = Math.floor(currentEdu * eduDeathRate);
-        if (eduDeaths > 0) {
+        const totalAdultDeaths = ordinaryDeaths + eduDeaths;
+
+        if (totalAdultDeaths > 0) {
+            s.population = Math.max(0, (Number(s.population) || 0) - totalAdultDeaths);
+            currentAdults = Math.max(0, currentAdults - totalAdultDeaths);
             currentEdu = Math.max(0, currentEdu - eduDeaths);
-            rpt.events.push(`🕊️ İlim İrfan Kaybı: -${num(eduDeaths)} eğitimli eceliyle vefat etti`);
+            rpt.events.push(`🕊️ Doğal Vefatlar: -${num(totalAdultDeaths)} kişi (Ecel ve yaşlılık)`);
+            if (eduDeaths > 0) {
+                rpt.events.push(`🕊️ İlim İrfan Kaybı: -${num(eduDeaths)} eğitimli eceliyle vefat etti`);
+            }
         }
 
         // 2. ÇOCUK HAVUZU: Salgın ve Çocuk Vefatları (Şifahaneler çocukları hayatta tutar)

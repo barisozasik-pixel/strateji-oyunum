@@ -8,10 +8,10 @@ function addLedgerItem(stateId) {
     
     if(type === 'perm') {
         s.permanentLedger = s.permanentLedger || [];
-        s.permanentLedger.push({ desc, amount: amt });
+        s.permanentLedger.push({ desc, amount: amt, type: amt >= 0 ? 'income' : 'expense' });
     } else {
         s.customLedger = s.customLedger || [];
-        s.customLedger.push({ desc, amount: amt });
+        s.customLedger.push({ desc, amount: amt, type: amt >= 0 ? 'income' : 'expense' });
     }
     queueSave(); openDetail(stateId);
 }
@@ -57,16 +57,17 @@ function calcPop(s)
      db.settings.customItems.filter(x => x.category === 'asker' && (!x.faction || x.faction === s.id)).forEach(x => armySize += (s[x.id]||0));
   }
  
-  // SIRADAN HALK (anarşistler ve askerler düşüldükten sonra kalan yetişkinler)
-  let baseCivilian = Math.max(0, adults - anarCount - armySize - (s.fortressGarrison||0));
+  // SİVİL YETİŞKİNLER (Askerler ve Anarşistler ayrıldıktan sonra)
+  const activeMilitary = armySize + (s.fortressGarrison || 0);
+  let baseCivilian = Math.max(0, adults - anarCount - activeMilitary);
   let remCount = baseCivilian;
   
-  // ✅ FIX: Eğitimli halk — doğrudan s.educatedPopulation (kişi sayısı) koda bağlandı
+  // Eğitimli halk — doğrudan s.educatedPopulation (kişi sayısı) koda bağlandı (Fallback: Toplam nüfus * oran)
   let eduCount = 0;
   if(s.educatedPopulation !== undefined && s.educatedPopulation !== null && Number(s.educatedPopulation) > 0) {
       eduCount = Math.floor(Number(s.educatedPopulation) || 0);
   } else {
-      eduCount = Math.floor(adults * (edu / 100));
+      eduCount = Math.floor(pop * (edu / 100));
   }
   eduCount = Math.min(remCount, eduCount);
   let otherCount = Math.max(0, remCount - eduCount);
@@ -75,16 +76,19 @@ function calcPop(s)
   const totalTaxpayers = eduCount + otherCount;
   const calculatedEduRate = totalTaxpayers > 0 ? (eduCount / totalTaxpayers) * 100 : 0;
   
-  // ✅ BOŞTAKİ ELVERİŞLİ ASKER: Doğrudan Sıradan Halk (otherCount) ve Mutluluk üzerinden hesaplanır
+  // ✅ BOŞTAKİ ELVERİŞLİ ASKER (1:1 DÜŞÜM FORMÜLÜ)
+  // Ülkenin toplam asker çıkarma potansiyeli (Tavan): Askere elverişli sıradan yetişkin havuzu
+  let ordinaryAdultPool = Math.max(0, adults - anarCount - eduCount);
   let eligRate = hap * 0.3;
-  let maxElig = Math.floor(otherCount * (eligRate/100));
-  let availableElig = maxElig;
+  let totalEligibleManpower = Math.floor(ordinaryAdultPool * (eligRate / 100));
+  
+  // Boştaki Elverişli Asker = Toplam Asker Potansiyeli - Halihazırda Orduda / Garnizonda Olanlar
+  let availableElig = Math.max(0, totalEligibleManpower - activeMilitary);
   
   const debtYears = Math.max(0, Math.floor(Number(s.debtYears)||0));
   if(debtYears >= 3) availableElig = Math.floor(availableElig * 0.9);
   
-  // ✅ FIX #2: children ve adults eklendi
-  return { anar: anarCount, anarRate, elig: availableElig, maxElig, eligRate: eligRate.toFixed(1), armySize: armySize, garrison: s.fortressGarrison||0, edu: eduCount, eduTotal: adults, eduRate: calculatedEduRate, other: otherCount, remaining: remCount, children, adults };
+  return { anar: anarCount, anarRate, elig: availableElig, maxElig: totalEligibleManpower, eligRate: eligRate.toFixed(1), armySize: armySize, garrison: s.fortressGarrison||0, edu: eduCount, eduTotal: adults, eduRate: calculatedEduRate, other: otherCount, remaining: remCount, children, adults };
 }
 
 
@@ -99,14 +103,20 @@ function calcIncome(s){
 function calcPermIncome(s){
   let t = 0;
   if(s.permanentLedger && s.permanentLedger.length > 0) {
-      s.permanentLedger.forEach(item => { if(item.type === 'income') t += item.amount; });
+      s.permanentLedger.forEach(item => {
+          // Pozitif tutarlar gelir, negatif tutarlar giderdir; net toplamı döndürür
+          t += (Number(item.amount) || 0);
+      });
   }
   return t;
 }
 function calcPermExpense(s){
   let t = 0;
   if(s.permanentLedger && s.permanentLedger.length > 0) {
-      s.permanentLedger.forEach(item => { if(item.type === 'expense') t += item.amount; });
+      s.permanentLedger.forEach(item => {
+          const a = Number(item.amount) || 0;
+          if(a < 0 || item.type === 'expense') t += Math.abs(a);
+      });
   }
   return t;
 }
