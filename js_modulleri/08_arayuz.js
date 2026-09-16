@@ -36,15 +36,32 @@ function renderHome(){
 }
 
 function switchTab(tabId) {
+    if(!tabId) return;
+    try {
+        sessionStorage.setItem('active_main_tab', tabId);
+        localStorage.setItem('active_main_tab', tabId);
+    } catch(e){}
     document.querySelectorAll('.hoi-tab').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     const btn = document.getElementById('tab-btn-' + tabId);
     const content = document.getElementById('tab-content-' + tabId);
     if(btn) btn.classList.add('active');
     if(content) content.classList.add('active');
-    const activeLabel=document.getElementById('mobile-active-tab');
-    if(activeLabel&&btn) activeLabel.textContent=btn.textContent.trim();
+    const activeLabel = document.getElementById('mobile-active-tab');
+    if(activeLabel && btn) activeLabel.textContent = btn.textContent.trim().toUpperCase();
     document.getElementById('player-tabs')?.classList.remove('mobile-open');
+
+    // Alt sekmeli panellerde (Altyapı & Askeriye) son seçili alt sekmeyi daima aktif tut
+    if (tabId === 'altyapi') {
+        let sub = 'askeri_sanayi';
+        try { sub = sessionStorage.getItem('subtab_altyapi') || localStorage.getItem('subtab_altyapi') || 'askeri_sanayi'; } catch(e){}
+        switchSubTab('altyapi', sub);
+    } else if (tabId === 'asker') {
+        let sub = 'kara';
+        try { sub = sessionStorage.getItem('subtab_asker') || localStorage.getItem('subtab_asker') || 'kara'; } catch(e){}
+        switchSubTab('asker', sub);
+    }
+
     // ✅ FIX: Mektuplar sekmesi açılınca okundu işaretle
     if(tabId === 'mektup' && currentId) {
         const letters = db.letters || [];
@@ -59,6 +76,11 @@ function toggleMobileTabs(){
 }
 
 function switchSubTab(group, subId) {
+    if (!group || !subId) return;
+    try {
+        sessionStorage.setItem('subtab_' + group, subId);
+        localStorage.setItem('subtab_' + group, subId);
+    } catch(e){}
     const parent = document.getElementById('tab-content-' + group);
     if (!parent) return;
     parent.querySelectorAll('.sub-tab-btn').forEach(btn => {
@@ -67,7 +89,6 @@ function switchSubTab(group, subId) {
     parent.querySelectorAll('.sub-tab-pane').forEach(pane => {
         pane.classList.toggle('active', pane.getAttribute('data-subtab') === subId);
     });
-    try { sessionStorage.setItem('subtab_' + group, subId); } catch(e){}
 }
 
 const BUILDING_CONSTRUCTION_CONFIG = {
@@ -479,13 +500,31 @@ function openDetail(id){
   ];
   const populationBuildingsHtml = populationBuildings.map(([key,name])=>buildPopulationBuildingCard(s,key,name,imgs[key],canManage)).join('');
 
-  // Aktif alt sekmeleri hatırla
+  // Aktif ana sekme ve alt sekmeleri hatırla
+  let activeMainTab = 'asker';
   let activeAskerSub = 'kara';
   let activeAltyapiSub = 'askeri_sanayi';
   try {
-    activeAskerSub = sessionStorage.getItem('subtab_asker') || 'kara';
-    activeAltyapiSub = sessionStorage.getItem('subtab_altyapi') || 'askeri_sanayi';
+    activeMainTab = sessionStorage.getItem('active_main_tab') || localStorage.getItem('active_main_tab') || 'asker';
+    activeAskerSub = sessionStorage.getItem('subtab_asker') || localStorage.getItem('subtab_asker') || 'kara';
+    activeAltyapiSub = sessionStorage.getItem('subtab_altyapi') || localStorage.getItem('subtab_altyapi') || 'askeri_sanayi';
   } catch(e){}
+  if (activeMainTab === 'intel' && (Number(s.istihbarat_binasi) || 0) <= 0) {
+    activeMainTab = 'asker';
+  }
+
+  const tabTitles = {
+    asker: 'ASKERİYE',
+    altyapi: 'ALTYAPI',
+    maliye: 'MALİYE & HASILA',
+    olaylar: 'OLAYLAR',
+    divan: 'DİVAN',
+    mektup: 'MEKTUPLAR',
+    intel: 'İSTİHBARAT',
+    eylem: 'SİYASET',
+    country: 'ÜLKE YÖNETİMİ'
+  };
+  const activeMobileTitle = tabTitles[activeMainTab] || 'ASKERİYE';
 
   // 1. ASKERİYE SEKMESİ (ALT SEKMELİ)
   const pendingEventCount=getVisiblePendingEvents().length;
@@ -974,45 +1013,45 @@ function openDetail(id){
 
     <!-- SAĞ PANEL: SEKMELER -->
     <div class="content-panel ${detailCardClass} ${isCrimeaDetail ? 'theme-crimea' : isSunDetail ? 'theme-sun' : 'theme-ottoman'}">
-        <button type="button" class="mobile-tab-toggle" onclick="toggleMobileTabs()"><span>☰ <span id="mobile-active-tab">ASKERİYE</span></span></button>
+        <button type="button" class="mobile-tab-toggle" onclick="toggleMobileTabs()"><span>☰ <span id="mobile-active-tab">${activeMobileTitle}</span></span></button>
         <div class="hoi-tabs" id="player-tabs">
-            <div class="hoi-tab active" id="tab-btn-asker" onclick="switchTab('asker')">Askeriye</div>
-            <div class="hoi-tab" id="tab-btn-altyapi" onclick="switchTab('altyapi')">Altyapı</div>
-            <div class="hoi-tab" id="tab-btn-maliye" onclick="switchTab('maliye')">Maliye & Hasıla</div>
-            <div class="hoi-tab" id="tab-btn-olaylar" onclick="switchTab('olaylar')">🎲 Olaylar <span class="badge-count">${pendingEventCount}</span></div>
-            <div class="hoi-tab" id="tab-btn-divan" onclick="switchTab('divan')">👑 Divan (${activeAdvisors.length}/${maxSlots})</div>
-            <div class="hoi-tab" id="tab-btn-mektup" onclick="switchTab('mektup')">Mektuplar ${unreadCount > 0 ? `<span class="badge-count">${unreadCount}</span>` : ''}</div>
-            ${(s.istihbarat_binasi || 0) > 0 ? `<div class="hoi-tab" id="tab-btn-intel" onclick="switchTab('intel')">🕵️ İstihbarat</div>` : ''}
-            <div class="hoi-tab" id="tab-btn-eylem" onclick="switchTab('eylem')">Siyaset</div>
-            <div class="hoi-tab" id="tab-btn-country" onclick="switchTab('country')">Ülke Yönetimi</div>
+            <div class="hoi-tab ${activeMainTab==='asker'?'active':''}" id="tab-btn-asker" onclick="switchTab('asker')">Askeriye</div>
+            <div class="hoi-tab ${activeMainTab==='altyapi'?'active':''}" id="tab-btn-altyapi" onclick="switchTab('altyapi')">Altyapı</div>
+            <div class="hoi-tab ${activeMainTab==='maliye'?'active':''}" id="tab-btn-maliye" onclick="switchTab('maliye')">Maliye & Hasıla</div>
+            <div class="hoi-tab ${activeMainTab==='olaylar'?'active':''}" id="tab-btn-olaylar" onclick="switchTab('olaylar')">🎲 Olaylar <span class="badge-count">${pendingEventCount}</span></div>
+            <div class="hoi-tab ${activeMainTab==='divan'?'active':''}" id="tab-btn-divan" onclick="switchTab('divan')">👑 Divan (${activeAdvisors.length}/${maxSlots})</div>
+            <div class="hoi-tab ${activeMainTab==='mektup'?'active':''}" id="tab-btn-mektup" onclick="switchTab('mektup')">Mektuplar ${unreadCount > 0 ? `<span class="badge-count">${unreadCount}</span>` : ''}</div>
+            ${(s.istihbarat_binasi || 0) > 0 ? `<div class="hoi-tab ${activeMainTab==='intel'?'active':''}" id="tab-btn-intel" onclick="switchTab('intel')">🕵️ İstihbarat</div>` : ''}
+            <div class="hoi-tab ${activeMainTab==='eylem'?'active':''}" id="tab-btn-eylem" onclick="switchTab('eylem')">Siyaset</div>
+            <div class="hoi-tab ${activeMainTab==='country'?'active':''}" id="tab-btn-country" onclick="switchTab('country')">Ülke Yönetimi</div>
         </div>
         
-        <div class="tab-content active" id="tab-content-asker">
+        <div class="tab-content ${activeMainTab==='asker'?'active':''}" id="tab-content-asker">
             ${askeriyeHtml}
         </div>
-        <div class="tab-content" id="tab-content-altyapi">
+        <div class="tab-content ${activeMainTab==='altyapi'?'active':''}" id="tab-content-altyapi">
             ${altyapiHtml}
         </div>
-        <div class="tab-content" id="tab-content-maliye">
+        <div class="tab-content ${activeMainTab==='maliye'?'active':''}" id="tab-content-maliye">
             ${ledgerHtml}
         </div>
-        <div class="tab-content" id="tab-content-olaylar">
+        <div class="tab-content ${activeMainTab==='olaylar'?'active':''}" id="tab-content-olaylar">
             ${olaylarHtml}
         </div>
-        <div class="tab-content" id="tab-content-divan">
+        <div class="tab-content ${activeMainTab==='divan'?'active':''}" id="tab-content-divan">
             ${divanHtml}
         </div>
-        <div class="tab-content" id="tab-content-mektup">
+        <div class="tab-content ${activeMainTab==='mektup'?'active':''}" id="tab-content-mektup">
             ${mektupHtml}
         </div>
         ${(s.istihbarat_binasi || 0) > 0 ? `
-        <div class="tab-content" id="tab-content-intel">
+        <div class="tab-content ${activeMainTab==='intel'?'active':''}" id="tab-content-intel">
             ${istihbaratHtml}
         </div>` : ''}
-        <div class="tab-content" id="tab-content-eylem">
+        <div class="tab-content ${activeMainTab==='eylem'?'active':''}" id="tab-content-eylem">
             ${eylemHtml}
         </div>
-        <div class="tab-content" id="tab-content-country">
+        <div class="tab-content ${activeMainTab==='country'?'active':''}" id="tab-content-country">
             ${countryManagementHtml}
         </div>
     </div>
@@ -1078,6 +1117,16 @@ function openDetail(id){
      svg.parentElement.innerHTML=`<svg class="ottoman-card-svg" viewBox="0 0 992 1586" role="img" aria-label="${esc(s.name)} yönetim özeti"><defs><clipPath id="omFinalPortraitClip"><rect x="96" y="140" width="800" height="412" rx="3"/></clipPath><clipPath id="omFinalFrameClip"><rect x="66" y="105" width="860" height="47"/><rect x="66" y="105" width="48" height="535"/><rect x="878" y="105" width="48" height="535"/><rect x="66" y="545" width="213" height="95"/><rect x="713" y="545" width="213" height="95"/><rect x="258" y="558" width="476" height="34"/><rect x="258" y="558" width="38" height="118"/><rect x="696" y="558" width="38" height="118"/><rect x="258" y="665" width="476" height="11"/></clipPath><linearGradient id="omGoldBar" x1="0" x2="1"><stop stop-color="#6f4814"/><stop offset=".45" stop-color="#d4a744"/><stop offset="1" stop-color="#f0d47e"/></linearGradient></defs>${rulerImgClean?`<image href="${esc(rulerImgClean)}" x="96" y="140" width="800" height="412" preserveAspectRatio="xMidYMin slice" clip-path="url(#omFinalPortraitClip)"/>`:''}<g font-family="Georgia,'Times New Roman',serif" text-anchor="middle"><text x="496" y="99" fill="#f0cf82" font-size="36" font-weight="700">${esc(s.name)}</text><text x="496" y="620" fill="#f0cf82" font-size="34" font-weight="700">${esc(s.ruler||'Lider Yok')}</text><text x="496" y="653" fill="#f0cf82" font-size="19" font-weight="700">${esc(s.title||'Devlet')}</text><text x="496" y="712" fill="#f0cf82" font-size="23" font-weight="700">HALK MUTLULUĞU</text><text x="496" y="812" dominant-baseline="middle" fill="#f0cf82" font-size="70" font-weight="700">%${num(happinessNow)}</text>${adv.happinessBonus!==0?`<text x="496" y="862" fill="#f0cf82" font-size="25" font-weight="700">(${adv.happinessBonus>0?'+':''}${adv.happinessBonus})</text>`:''}<rect x="111" y="948" width="${(770*happinessNow/100).toFixed(1)}" height="7" rx="3.5" fill="url(#omGoldBar)"/><text x="262" y="1039" fill="#f0cf82" font-size="20">VERGİ ORANI</text><text x="262" y="1090" fill="#f0cf82" font-size="43" font-weight="700">%${num(s.tax)}</text><text x="730" y="1039" fill="#f0cf82" font-size="20">TOPLAM NÜFUS</text><text x="730" y="1090" fill="#f0cf82" font-size="39" font-weight="700">${num(s.population)}</text><text x="496" y="1172" fill="#f0cf82" font-size="21">NÜFUS VE SINIF DAĞILIMI</text></g><g font-family="'Roboto Condensed',Arial,sans-serif" font-size="23"><text x="108" y="1242" fill="#e7dcc1">▣  Eğitimli Sınıf (%${educatedRateText})</text><text x="881" y="1242" text-anchor="end" fill="#e7dcc1" font-weight="800">${num(p.edu)}</text><text x="108" y="1309" fill="#e7dcc1">♟  Sıradan Halk</text><text x="881" y="1309" text-anchor="end" fill="#e7dcc1" font-weight="800">${num(p.other)}</text><text x="108" y="1377" fill="#e7dcc1">♜  Boştaki Elverişli Asker</text><text x="881" y="1377" text-anchor="end" fill="#e7dcc1" font-weight="800">${num(p.elig)}</text><text x="108" y="1445" fill="#e7dcc1">⚔  Silahaltındaki Ordu</text><text x="881" y="1445" text-anchor="end" fill="#e7dcc1" font-weight="800">${num(p.armySize)}</text><text x="108" y="1512" fill="#cf4138">Ⓐ  Anarşistler</text><text x="881" y="1512" text-anchor="end" fill="#cf4138" font-weight="800">${adv.stopAnarchy?'0 (Nizam Sağlandı)':num(p.anar)}</text></g><image href="assets/ottoman-management-textured-base-v1.png" x="0" y="0" width="992" height="1586" preserveAspectRatio="none" clip-path="url(#omFinalFrameClip)"/></svg>`;
    }
  }
+
+  // Aktif ana sekme ve alt sekmeleri eksiksiz senkronize et
+  if (typeof switchTab === 'function') {
+    switchTab(activeMainTab);
+  }
+  if (activeMainTab === 'asker' && typeof switchSubTab === 'function') {
+    switchSubTab('asker', activeAskerSub);
+  } else if (activeMainTab === 'altyapi' && typeof switchSubTab === 'function') {
+    switchSubTab('altyapi', activeAltyapiSub);
+  }
 }
 
 function saveCountryManagement(stateId){
