@@ -338,7 +338,7 @@ function openDetail(id){
   const fortressImg = cleanUrl(imgs.fortress);
   const fortressGarrisonImg = cleanUrl(imgs.fortress_garrison);  // 8. ÜLKE YÖNETİMİ: DEMOGRAFİ & YÖNETİM MERKEZİ
   let countryManagementHtml = `<div>
-    <h4 style="color:var(--border-gold);margin:0 0 8px;font-family:'Oswald';">👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</h4>
+    <h4 style="color:var(--theme-accent-gold, var(--border-gold));margin:0 0 8px;font-family:'Oswald';">👶 DEMOGRAFİ & GELECEK NESİL PROJEKSİYONU</h4>
     <p class="sub">Halkınızın demografik yapısı, gelecek nesil büyüme oranları ve vergi mükellefleri.</p>
     <div class="demography-panel">
       <div class="demography-head">
@@ -366,19 +366,19 @@ function openDetail(id){
 
     <!-- HIZLI GEÇİŞ KÖPRÜLERİ -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px;">
-      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--theme-border, var(--line));box-shadow:0 0 10px var(--theme-glow, rgba(0,0,0,0.3));border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div>
           <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--theme-accent-gold, var(--gold));font-size:13px;">🏰 SERHAT KALELERİ GARNİZONU</div>
           <div class="sub" style="font-size:11px;">Vilayet kalelerine asker tertip etmek ve garnizon fermanını mühürlemek için:</div>
         </div>
-        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
+        <button type="button" class="btn unit-buy-btn" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('asker'); switchSubTab('asker','garnizon');">Garnizona Git →</button>
       </div>
-      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="background:rgba(10,12,16,0.85);border:1px solid var(--theme-border, var(--line));box-shadow:0 0 10px var(--theme-glow, rgba(0,0,0,0.3));border-radius:4px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div>
           <div style="font-family:'Oswald',sans-serif;font-weight:700;color:var(--theme-accent-gold, var(--gold));font-size:13px;">🏗️ ŞİFAHANE & SİVİL İMAR</div>
           <div class="sub" style="font-size:11px;">Hastane, Aşevi, Değirmen ve Pazar inşaatı için:</div>
         </div>
-        <button type="button" class="btn gold" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
+        <button type="button" class="btn unit-buy-btn" style="font-size:11px;padding:6px 12px;white-space:nowrap;" onclick="switchTab('altyapi'); switchSubTab('altyapi','sivil_imar');">İmara Git →</button>
       </div>
     </div>
   </div>`;
@@ -863,7 +863,7 @@ function openDetail(id){
  if((s.istihbarat_binasi || 0) > 0) {
     const targetOpts = db.states.filter(x => x.id !== s.id).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
     istihbaratHtml = `<div>
-        <h4 style="color:var(--border-gold); margin:0 0 6px; font-family:'Oswald';">🕵️ DEVLET İSTİHBARAT DAİRESİ</h4>
+        <h4 style="color:var(--theme-accent-gold, var(--border-gold)); margin:0 0 6px; font-family:'Oswald';">🕵️ DEVLET İSTİHBARAT DAİRESİ</h4>
         <p class="sub" style="margin-bottom:12px;">Hedef devlete casus göndererek bilgi toplayın. Sahadaki sis perdesi sebebiyle istihbarat raporlarında %1-%20 arası sapma olabilir.</p>
         <div style="background:rgba(10, 12, 14, 0.6); padding:12px; border:1px solid var(--border-steel); border-radius:4px; margin-bottom:15px;">
             <div class="formgrid">
@@ -896,7 +896,7 @@ function openDetail(id){
   else if (isOwner) tActs = `<button class="btn red" style="flex:1; padding:10px;" onclick="openCampaign('${s.id}')">⚔️ SEFER HAZIRLIĞI</button>`;
  
  eylemHtml += `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">${tActs}</div>`;
- eylemHtml += `<h4 style="color:var(--border-gold); margin:0 0 8px; font-family:'Oswald';">📜 FERMANLAR (Halk Mutluluğu)</h4><div class="unit-grid">`;
+ eylemHtml += `<h4 style="color:var(--theme-accent-gold, var(--border-gold)); margin:0 0 8px; font-family:'Oswald';">📜 FERMANLAR (Halk Mutluluğu)</h4><div class="unit-grid">`;
  EDICTS.forEach(e => {
      let cost = Math.floor(s.population * (db.settings.edictCost[e.id] || 0));
      eylemHtml += `
@@ -917,7 +917,7 @@ function openDetail(id){
  const isPremiumDetail = isOttomanDetail || isCrimeaDetail || isSunDetail;
  const detailCardClass = isCrimeaDetail?'detail-crimea':isSunDetail?'detail-sun':'detail-ottoman';
  const detailCardAsset = isCrimeaDetail?'assets/crimea-management-textured-base-v1.png':isSunDetail?'assets/sun-management-textured-base-v1.png':'assets/ottoman-management-textured-base-v1.png';
- const detailAccent = isCrimeaDetail?'#d5a0d1':isSunDetail?'#9fd3f2':'#f0cf82';
+ const detailAccent = isCrimeaDetail?'#d5a0d1':isSunDetail?'#70a3cc':'#f0cf82';
  const happinessNow=Math.max(0,Math.min(100,s.happiness+adv.happinessBonus));
  const omGClr=happinessNow>=60?'var(--green)':happinessNow>=30?'#d4a940':'var(--red)';
  const totalTaxpayers = (p.edu || 0) + (p.other || 0);
