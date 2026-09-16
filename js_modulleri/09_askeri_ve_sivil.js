@@ -34,6 +34,24 @@ function buyBulk(id,key, labelName)
  if(s.treasury<totalCost){alert(`Hazine yetersiz! Toplam maliyet: ${money(totalCost)}`);return}
  const p = calcPop(s);
  if(["piyade","suvari","nisanci"].includes(key) && p.elig < qty){alert("Elverişli nüfus yetersiz!");return}
+  if(key.includes("liman")){
+    const coastalCount = typeof getOwnedCoastalProvinceCount === 'function' ? getOwnedCoastalProvinceCount(id) : 0;
+    if(coastalCount <= 0){
+      alert("⛔ KARAYA KİLİTLİ DEVLET: Denize kıyısı olan bir toprağa sahip olmadan tersane/liman inşa edemezsiniz!");
+      return;
+    }
+    const portStatus = typeof getTotalPortCount === 'function' ? getTotalPortCount(s) : { total: (s.kucuk_liman||0)+(s.orta_liman||0)+(s.buyuk_liman||0) };
+    if((portStatus.total + qty) > coastalCount){
+      alert(`⛔ KIYI KOTASI DOLU: Haritada ${coastalCount} adet deniz toprağınız var. En fazla ${coastalCount} adet Liman inşa edebilirsiniz! (Mevcut: ${portStatus.current || 0}, Yapımda: ${portStatus.inQueue || 0})`);
+      return;
+    }
+  }
+  if(key.includes("gemi")){
+    if(typeof stateHasSeaAccess === 'function' && !stateHasSeaAccess(id)){
+      alert("⛔ KARAYA KİLİTLİ DEVLET: Denize kıyısı olan bir toprağa sahip olmadan savaş gemisi inşa edemezsiniz!");
+      return;
+    }
+  }
  if(key.includes("gemi") && (shipCapacity(s) + qty) > shipCapMax(s)){alert("Limanda boş kapasite yok.");return}
  if(key.includes("top") && (gunCapacity(s) + qty) > gunCapMax(s)){alert("Top ocağında boş kapasite yok.");return}
  

@@ -119,6 +119,7 @@ async function showApp(session){
  
  await loadDB();
  await loadEventAssets();
+ if (typeof loadCoastalAssets === 'function') await loadCoastalAssets();
  setupGameRealtime();
  renderTopActions();
   if (currentId) {

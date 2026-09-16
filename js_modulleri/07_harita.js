@@ -19,6 +19,19 @@ function getProvinceDisplayColor(provinceId,detail={},owner=null)
   return normalizeMapColor(rawColor);
 }
 function getOwnedMapProvinceIds(stateId){return Object.entries(db.mapProvinceOwners||{}).filter(([,ownerId])=>ownerId===stateId).map(([provinceId])=>provinceId);}
+
+function stateHasSeaAccess(stateId){
+  if(!window.COASTAL_PROVINCES || window.COASTAL_PROVINCES.size === 0) return true;
+  const owned = getOwnedMapProvinceIds(stateId);
+  if(!owned || owned.length === 0) return false;
+  return owned.some(id => window.COASTAL_PROVINCES.has(id));
+}
+
+function getOwnedCoastalProvinceCount(stateId){
+  if(!window.COASTAL_PROVINCES) return 0;
+  const owned = getOwnedMapProvinceIds(stateId);
+  return owned.filter(id => window.COASTAL_PROVINCES.has(id)).length;
+}
 function refreshMapFortressCounts(){
  const popBuildings = ["hastane","asevi","su_degirmeni","kervansaray","pazar","okul"];
  db.states.forEach(s=>{
@@ -48,10 +61,49 @@ function refreshMapFortressCounts(){
        addLog({stateId:s.id, stateName:s.name, action:`Toprak kaybı: ${lost} adet ${key} kaybedildi (kota: ${next} toprak)`, qty:lost, cost:0});
      }
    });
+
+   // ✅ Kıyı toprağı kaybedildiyse limanları da kıyı kotasına göre kırp
+   const coastalNext = getOwnedCoastalProvinceCount(s.id);
+   let currentTotalPorts = (s.kucuk_liman||0) + (s.orta_liman||0) + (s.buyuk_liman||0);
+   if(currentTotalPorts > coastalNext) {
+     let portsToTrim = currentTotalPorts - coastalNext;
+     for(const pKey of ["kucuk_liman", "orta_liman", "buyuk_liman"]) {
+       if((s[pKey]||0) > 0 && portsToTrim > 0) {
+         const trimAmt = Math.min(s[pKey]||0, portsToTrim);
+         s[pKey] -= trimAmt;
+         portsToTrim -= trimAmt;
+         addLog({stateId:s.id, stateName:s.name, action:`Kıyı toprağı kaybı: ${trimAmt} adet ${pKey} kaybedildi (Kalan kıyı: ${coastalNext})`, qty:trimAmt, cost:0});
+       }
+     }
+   }
  });
 }
 function redistributeMapGarrisonsForStateIds(stateIds){for(const stateId of new Set(stateIds)){const s=getState(stateId);if(s&&getOwnedMapProvinceIds(s.id).length)distributeFortressGarrisonToMap(s,s.fortressGarrison||0);}}
 function distributeFortressGarrisonToMap(s,total){const ids=getOwnedMapProvinceIds(s.id),safeTotal=Math.max(0,Math.floor(Number(total)||0));s.fortressCount=ids.length;s.fortressGarrison=safeTotal;db.mapProvinceDetails=db.mapProvinceDetails||{};const base=ids.length?Math.floor(safeTotal/ids.length):0,remainder=ids.length?safeTotal%ids.length:0;ids.forEach((id,index)=>{const old=db.mapProvinceDetails[id]||{};db.mapProvinceDetails[id]={...old,countryName:s.name,garrison:base+(index<remainder?1:0),color:old.color||s.color||'#c5a059'};});return {count:ids.length,base,remainder};}
+
+let _coastalAssetsLoading = false;
+async function loadCoastalAssets(){
+  if(window.COASTAL_PROVINCES && window.COASTAL_PROVINCES.size > 0) return true;
+  if(_coastalAssetsLoading) return;
+  _coastalAssetsLoading = true;
+  try {
+    let res = await fetch('harita/kiyi_topraklari.json?v=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) res = await fetch('kiyi_topraklari.json?v=' + Date.now(), {cache:'no-store'});
+    if(res.ok) {
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.kiyi_vilayetleri || []);
+      window.COASTAL_PROVINCES = new Set(list);
+      return true;
+    }
+  } catch(e) {
+    console.warn('Kıyı toprakları listesi yüklenemedi:', e);
+  } finally {
+    _coastalAssetsLoading = false;
+  }
+  return false;
+}
+// Hemen arka planda yüklemeyi tetikle
+loadCoastalAssets();
 
 let _mapAssetsLoading=false;
 async function loadMapAssets(){
@@ -59,14 +111,17 @@ async function loadMapAssets(){
  if(_mapAssetsLoading)return;
  _mapAssetsLoading=true;
  try{
-  const [svgResponse,configResponse]=await Promise.all([
-    fetch('MapChart_Map.svg?v=57',{cache:'no-store'}),
-    fetch('map-config.json?v=57',{cache:'no-store'})
-  ]);
-  if(!svgResponse.ok)throw new Error('MapChart_Map.svg yüklenemedi: HTTP '+svgResponse.status);
-  if(!configResponse.ok)throw new Error('map-config.json yüklenemedi: HTTP '+configResponse.status);
-  mapSvgCache=await svgResponse.text();
-  mapConfigCache=await configResponse.json();
+  loadCoastalAssets();
+  let svgRes = await fetch('harita/MapChart_Map.svg?v=58',{cache:'no-store'});
+  if(!svgRes.ok) svgRes = await fetch('MapChart_Map.svg?v=58',{cache:'no-store'});
+  if(!svgRes.ok) throw new Error('MapChart_Map.svg yüklenemedi: HTTP '+svgRes.status);
+
+  let cfgRes = await fetch('harita/map-config.json?v=58',{cache:'no-store'});
+  if(!cfgRes.ok) cfgRes = await fetch('map-config.json?v=58',{cache:'no-store'});
+  if(!cfgRes.ok) throw new Error('map-config.json yüklenemedi: HTTP '+cfgRes.status);
+
+  mapSvgCache=await svgRes.text();
+  mapConfigCache=await cfgRes.json();
  }finally{ _mapAssetsLoading=false; }
 }
 

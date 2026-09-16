@@ -110,6 +110,14 @@ function getBuildingStatus(s, key) {
   return { currentCount, inProgress, total: currentCount + inProgress, queue, minYears };
 }
 
+function getTotalPortCount(s) {
+  const current = (Number(s?.kucuk_liman) || 0) + (Number(s?.orta_liman) || 0) + (Number(s?.buyuk_liman) || 0);
+  const inQueue = (s?.constructionQueue || []).reduce((sum, item) => {
+    return ['kucuk_liman', 'orta_liman', 'buyuk_liman'].includes(item.key) ? sum + (Number(item.qty) || 0) : sum;
+  }, 0);
+  return { current, inQueue, total: current + inQueue };
+}
+
 function calculateBuildingCost(s, key, baseUnitPrice, qty) {
   qty = Math.max(1, Math.floor(Number(qty) || 1));
   const isScalable = (key === 'hastane' || key === 'okul');
@@ -175,7 +183,27 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     const disbandBtn = isMilitary && count > 0 
         ? `<button type="button" class="btn population-disband-btn" title="Terhis Et (Bakım Masrafını Düşür)" onclick="${isCustom ? `disbandCustomUnit('${s.id}','${key}','${esc(name)}')` : `disbandUnit('${s.id}','${key}','${esc(name)}')`}">⚔ TERHİS</button>` 
         : '';
-    const actionsHtml = canManage && premiumStyle
+    const hasSea = (typeof stateHasSeaAccess === 'function') ? stateHasSeaAccess(s.id) : true;
+    const isNavyBlocked = (key.includes("liman") || key.includes("gemi")) && !hasSea;
+    
+    // ⚓ Liman Kotası Kontrolü (1 Deniz Toprağı = 1 Liman)
+    const isPort = key.includes("liman");
+    let isPortQuotaFull = false;
+    let portQuotaInfo = null;
+    if (isPort && hasSea) {
+      const coastalCount = typeof getOwnedCoastalProvinceCount === 'function' ? getOwnedCoastalProvinceCount(s.id) : 0;
+      const portStatus = typeof getTotalPortCount === 'function' ? getTotalPortCount(s) : { total: (s.kucuk_liman||0)+(s.orta_liman||0)+(s.buyuk_liman||0) };
+      if (portStatus.total >= coastalCount) {
+        isPortQuotaFull = true;
+        portQuotaInfo = { current: portStatus.total, max: coastalCount };
+      }
+    }
+
+    const actionsHtml = isNavyBlocked
+    ? `<div style="text-align:center; padding:6px 8px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#fca5a5; font-size:11px; font-weight:bold; border-radius:4px; margin-top:4px; line-height:1.3;" title="Karaya kilitli devletler liman veya donanma inşa edemez. Denize kıyısı olan bir vilayet fethetmelisiniz.">⚓ DENİZE KIYISI YOK<div style="font-size:9px; font-weight:normal; opacity:0.85; margin-top:2px;">(Karaya Kilitli)</div>${disbandBtn ? `<div style="margin-top:6px;">${disbandBtn}</div>` : ''}</div>`
+    : isPortQuotaFull
+    ? `<div style="text-align:center; padding:6px 8px; background:rgba(234,179,8,0.14); border:1px solid rgba(234,179,8,0.4); color:#fef08a; font-size:11px; font-weight:bold; border-radius:4px; margin-top:4px; line-height:1.3;" title="Kıyı kotanız dolu (${portQuotaInfo.current}/${portQuotaInfo.max}). Yeni bir liman inşa edebilmek için yeni bir kıyı toprağı fethetmelisiniz.">⚓ KIYI KOTASI DOLU<div style="font-size:9px; font-weight:normal; opacity:0.85; margin-top:2px;">(${portQuotaInfo.max}/${portQuotaInfo.max} Kıyı Limanlı)</div></div>`
+    : canManage && premiumStyle
     ? `<div class="population-buy-line"><div class="population-qty-control"><input id="qty_${s.id}_${key}" type="number" min="1" value="1" aria-label="Alınacak adet" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})"><button type="button" class="population-qty-step" aria-label="Adedi artır" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',1)">▲</button><button type="button" class="population-qty-step" aria-label="Adedi azalt" onclick="adjustPopulationBuildingQty('qty_${s.id}_${key}',-1)">▼</button></div><button class="btn population-build-btn" onclick="${isCustom ? `buyCustomBulk('${s.id}','${key}','${esc(name)}')` : `buyBulk('${s.id}','${key}','${esc(name)}')`}">${isInfrastructure?'🔨 İNŞA ET':'⚔ AL'}</button>${disbandBtn}</div><div id="tot_${s.id}_${key}" class="population-total">Toplam: ${money(displayPrice)}</div>`
     : canManage ? `<div class="unit-buy-row">
          <input id="qty_${s.id}_${key}" type="number" min="1" value="1" oninput="updateBuildingPriceLabel('${s.id}','${key}',${baseUnitPrice})">
@@ -624,10 +652,14 @@ function openDetail(id){
   // 2. ALTYAPI SEKMESİ (ALT SEKMELİ)
   const iu = db.settings.infrastructureUpkeep || {};
 
+  const coastalCount = typeof getOwnedCoastalProvinceCount === 'function' ? getOwnedCoastalProvinceCount(s.id) : 0;
+  const totalPortObj = typeof getTotalPortCount === 'function' ? getTotalPortCount(s) : { current: (s.kucuk_liman||0)+(s.orta_liman||0)+(s.buyuk_liman||0), total: (s.kucuk_liman||0)+(s.orta_liman||0)+(s.buyuk_liman||0) };
+  const portCapStr = `${totalPortObj.total} / ${coastalCount} Kıyı`;
+
   let askeriSanayiHtml = `<div class="unit-grid">`;
-  askeriSanayiHtml += buildUnitCard(s, 'kucuk_liman', 'Küçük Liman', imgs.kucuk_liman, db.settings.prices.kucuk_liman, iu.kucuk_liman||0, '', canManage, false, true);
-  askeriSanayiHtml += buildUnitCard(s, 'orta_liman', 'Orta Liman', imgs.orta_liman, db.settings.prices.orta_liman, iu.orta_liman||0, '', canManage, false, true);
-  askeriSanayiHtml += buildUnitCard(s, 'buyuk_liman', 'Büyük Liman', imgs.buyuk_liman, db.settings.prices.buyuk_liman, iu.buyuk_liman||0, '', canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'kucuk_liman', 'Küçük Liman', imgs.kucuk_liman, db.settings.prices.kucuk_liman, iu.kucuk_liman||0, portCapStr, canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'orta_liman', 'Orta Liman', imgs.orta_liman, db.settings.prices.orta_liman, iu.orta_liman||0, portCapStr, canManage, false, true);
+  askeriSanayiHtml += buildUnitCard(s, 'buyuk_liman', 'Büyük Liman', imgs.buyuk_liman, db.settings.prices.buyuk_liman, iu.buyuk_liman||0, portCapStr, canManage, false, true);
   askeriSanayiHtml += buildUnitCard(s, 'kucuk_ocak', 'Küçük Top Ocağı', imgs.kucuk_ocak, db.settings.prices.kucuk_ocak, iu.kucuk_ocak||0, '', canManage, false, true);
   askeriSanayiHtml += buildUnitCard(s, 'orta_ocak', 'Orta Top Ocağı', imgs.orta_ocak, db.settings.prices.orta_ocak, iu.orta_ocak||0, '', canManage, false, true);
   askeriSanayiHtml += buildUnitCard(s, 'buyuk_ocak', 'Büyük Top Ocağı', imgs.buyuk_ocak, db.settings.prices.buyuk_ocak, iu.buyuk_ocak||0, '', canManage, false, true);
