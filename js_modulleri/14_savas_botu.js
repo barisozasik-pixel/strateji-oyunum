@@ -484,9 +484,9 @@ Format:
         });
         
         if (!response.ok) {
-            if((response.status === 503 || response.status === 429) && retryCount < 3) {
+            if((response.status === 503 || response.status === 429) && retryCount < 4) {
                 console.warn(`Gemini API Meşgul (${response.status}), tekrar deneniyor... (${retryCount + 1}. deneme)`);
-                let waitTime = response.status === 429 ? 4000 : 2000;
+                let waitTime = response.status === 429 ? 10000 : 2000;
                 await new Promise(r => setTimeout(r, waitTime));
                 return window.evaluateTurnWithGemini(retryCount + 1);
             }
