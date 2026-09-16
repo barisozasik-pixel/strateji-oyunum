@@ -719,7 +719,8 @@ function openDetail(id){
  </div>`;
 
  const adv = getAdvisorEffects(s);
- const baseTax = (Number(s.baseTaxPerPerson)||5) * ((Number(s.tax)||0)/100);
+ const baseTaxPer = Number(db?.settings?.baseTaxPerPerson ?? s.baseTaxPerPerson ?? 5);
+ const baseTax = baseTaxPer * ((Number(s.tax)||0)/100);
  const actualBaseTax = baseTax * (1 + (adv.taxBonus / 100));
 
  ledgerHtml += `

@@ -58,7 +58,6 @@ function openStateForm(id=null){
         ${field("treasury","Hazine (Altın)",s.treasury,"number")}
         ${field("tax","Vergi Oranı %",s.tax,"number")}
         ${field("happiness","Mutluluk %",s.happiness,"number")}
-        ${field("baseTaxPerPerson","Kişi Başı Temel Vergi",s.baseTaxPerPerson,"number")}
         ${field("civilExpense","Sivil Gider (Yıllık)",s.civilExpense,"number")}
         <div class="full" style="background:rgba(197, 160, 89, 0.15); border:1px solid var(--border-gold); padding:10px; border-radius:5px;">
            ${field("advisorSlots","Divan Üyesi Kotası (Kaç Danışman Seçebilir?)",s.advisorSlots||3,"number")}
@@ -112,10 +111,11 @@ function openStateForm(id=null){
 function field(k,l,v,t="text"){return `<div><label style="font-weight:bold; margin-bottom:4px; display:block; color:var(--text);">${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}" style="width:100%; padding:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:4px;"></div>`}
 
 function saveState(id){
- const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","educatedPopulation","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","educatedPopulation","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
  if(db.settings.customItems) { db.settings.customItems.forEach(item => keys.push(item.id)); }
  const o={};
  keys.forEach(k=>o[k]=["name","ownerEmail","ruler","rulerImage","bgImage","title","color"].includes(k)?document.getElementById("f_"+k).value:Number(document.getElementById("f_"+k).value||0));
+ o.baseTaxPerPerson = Number(db.settings?.baseTaxPerPerson || 5);
  
  // Nüfus Ekle/Çıkar İşlemi
  const popModifier = Number(document.getElementById("f_pop_modifier")?.value || 0);
@@ -669,8 +669,8 @@ async function openAdmin(){
    <!-- TOP NAVIGATION TABS -->
    <div class="admin-v2-nav-tabs">
      <button id="admin-tab-btn-askeriye" class="admin-v2-tab-btn active" onclick="switchAdminTab('askeriye')"><span>⚔️</span><span>ASKERİYE & DONANMA</span></button>
-     <button id="admin-tab-btn-nufus" class="admin-v2-tab-btn" onclick="switchAdminTab('nufus')"><span>🏥</span><span>NÜFUS & ŞEHİR BİNALARI</span></button>
-     <button id="admin-tab-btn-maliye" class="admin-v2-tab-btn" onclick="switchAdminTab('maliye')"><span>💰</span><span>MALİYE & MEDRESE STANDARDI</span></button>
+     <button id="admin-tab-btn-nufus" class="admin-v2-tab-btn" onclick="switchAdminTab('nufus')"><span>🏥</span><span>NÜFUS, SAĞLIK & EĞİTİM BİNALARI</span></button>
+     <button id="admin-tab-btn-maliye" class="admin-v2-tab-btn" onclick="switchAdminTab('maliye')"><span>💰</span><span>MALİYE & VERGİ SİSTEMİ</span></button>
      <button id="admin-tab-btn-divan" class="admin-v2-tab-btn" onclick="switchAdminTab('divan')"><span>👑</span><span>DİVAN PAŞALARI (${(db.advisors||[]).length})</span></button>
      <button id="admin-tab-btn-ozel" class="admin-v2-tab-btn" onclick="switchAdminTab('ozel')"><span>🌟</span><span>ÖZEL BİRİMLER</span></button>
      <button id="admin-tab-btn-sistem" class="admin-v2-tab-btn" onclick="switchAdminTab('sistem')"><span>🖼️</span><span>SİSTEM & İŞLEMLER</span></button>
@@ -817,100 +817,128 @@ async function openAdmin(){
 
      </div>
 
-     <!-- TAB 2: NÜFUS & ŞEHİR BİNALARI -->
-     <div id="admin-content-nufus" class="admin-v2-tab-content" style="display:none;">
-       <!-- ŞİFAHANE (HASTANE) KUTUSU -->
-       <div class="admin-v2-card" style="background:linear-gradient(135deg, rgba(16,48,28,0.45), #181c24); border-color:rgba(46,204,113,0.4); margin-bottom:16px;">
-         <div class="admin-v2-card-header">
-           <span style="color:#2ecc71; font-size:15px;">🏥 ŞİFAHANE (HASTANE) VE SAĞLIK SİSTEMİ</span>
-           <span class="admin-v2-badge">Salgın & Ecel Önleyici</span>
-         </div>
-         <div class="admin-v2-grid-3" style="margin-top:6px;">
-           ${v2Field("f_pg_hastane", "Nüfus Artış Oranı (%)", pg.hastane||0.5, "number", "admin-v2-input-green")}
-           ${v2Field("f_pc_hastane", "Kişi Başı İnşa Maliyeti (TL)", pc.hastane||0.10, "number", "admin-v2-input-price")}
-           ${v2Field("f_pbu_hastane", "Yıllık Bakım Gideri (Bina Başı TL)", pbu.hastane||0, "number", "admin-v2-input-upkeep")}
-         </div>
-         <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">İnşa Fiyatı = Toplam Nüfus × Kişi Başı Çarpan olarak dinamik hesaplanır.</p>
-       </div>
+      <!-- TAB 2: NÜFUS, SAĞLIK & EĞİTİM BİNALARI -->
+      <div id="admin-content-nufus" class="admin-v2-tab-content" style="display:none;">
+        <div class="admin-v2-grid-2" style="margin-bottom:16px;">
+          <!-- ŞİFAHANE (SAĞLIK) KUTUSU -->
+          <div class="admin-v2-card" style="background:linear-gradient(135deg, rgba(16,48,28,0.45), #181c24); border-color:rgba(46,204,113,0.4);">
+            <div class="admin-v2-card-header">
+              <span style="color:#2ecc71; font-size:14px;">🏥 ŞİFAHANE (HASTANE) VE SAĞLIK SİSTEMİ</span>
+              <span class="admin-v2-badge">Salgın & Ecel Önleyici</span>
+            </div>
+            <div class="admin-v2-grid-2" style="margin-top:4px;">
+              ${v2Field("f_pg_hastane", "Nüfus Artış Oranı (%)", pg.hastane||0.5, "number", "admin-v2-input-green")}
+              ${v2Field("f_pc_hastane", "Kişi Başı İnşa Maliyeti (TL)", pc.hastane||0.10, "number", "admin-v2-input-price")}
+            </div>
+            <div style="margin-top:6px;">
+              ${v2Field("f_pbu_hastane", "Yıllık Bakım Gideri (Bina Başı TL)", pbu.hastane||8000, "number", "admin-v2-input-upkeep")}
+            </div>
+            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">İnşa Fiyatı = Toplam Nüfus × Kişi Başı Çarpan olarak dinamik hesaplanır.</p>
+          </div>
 
-       <!-- DİĞER NÜFUS BİNALARI TABLOSU -->
-       <div class="admin-v2-table-wrap">
-         <div style="padding:10px 14px; background:#0f1217; border-bottom:1px solid #282f3d; display:flex; justify-content:space-between; align-items:center;">
-           <span style="font-family:'Oswald'; color:#f0cf82; font-size:13px;">🌾 DOĞUM VE NÜFUS ARTIŞ BİNALARI (DİNAMİK ÖLÇEK)</span>
-           <span style="font-size:11px; color:#8c8270;">Fiyat = Nüfus × Kişi Başı TL</span>
-         </div>
-         <table class="admin-v2-table">
-           <thead>
-             <tr>
-               <th>Bina Adı</th>
-               <th>Kişi Başı İnşaat (TL)</th>
-               <th>Yıllık Bakım (Bina Başı TL)</th>
-               <th>Nüfus Artış Bonusu (%)</th>
-             </tr>
-           </thead>
-           <tbody>
-             <tr>
-               <td><b>🍲 Aşevi</b></td>
-               <td><input id="f_pc_asevi" type="number" step="0.01" value="${esc(pc.asevi||0.05)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
-               <td><input id="f_pbu_asevi" type="number" value="${esc(pbu.asevi||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
-               <td><input id="f_pg_asevi" type="number" step="0.1" value="${esc(pg.asevi||0.4)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
-             </tr>
-             <tr>
-               <td><b>⚙️ Su Değirmeni</b></td>
-               <td><input id="f_pc_su_degirmeni" type="number" step="0.01" value="${esc(pc.su_degirmeni||0.08)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
-               <td><input id="f_pbu_su_degirmeni" type="number" value="${esc(pbu.su_degirmeni||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
-               <td><input id="f_pg_su_degirmeni" type="number" step="0.1" value="${esc(pg.su_degirmeni||0.6)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
-             </tr>
-             <tr>
-               <td><b>🐫 Kervansaray</b></td>
-               <td><input id="f_pc_kervansaray" type="number" step="0.01" value="${esc(pc.kervansaray||0.12)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
-               <td><input id="f_pbu_kervansaray" type="number" value="${esc(pbu.kervansaray||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
-               <td><input id="f_pg_kervansaray" type="number" step="0.1" value="${esc(pg.kervansaray||0.3)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
-             </tr>
-             <tr>
-               <td><b>⚖️ Pazar Yeri</b></td>
-               <td><input id="f_pc_pazar" type="number" step="0.01" value="${esc(pc.pazar||0.10)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
-               <td><input id="f_pbu_pazar" type="number" value="${esc(pbu.pazar||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
-               <td><input id="f_pg_pazar" type="number" step="0.1" value="${esc(pg.pazar||0.4)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
-             </tr>
-           </tbody>
-         </table>
-       </div>
-     </div>
+          <!-- MEDRESE (OKUL & EĞİTİM ALTYAPISI) KUTUSU -->
+          <div class="admin-v2-card" style="background:linear-gradient(135deg, rgba(19,34,53,0.45), #181c24); border-color:rgba(52,152,219,0.4);">
+            <div class="admin-v2-card-header">
+              <span style="color:#3498db; font-size:14px;">🎓 MEDRESE (OKUL) VE EĞİTİM ALTYAPISI</span>
+              <span class="admin-v2-card-badge" style="background:#1a2a3d; color:#3498db;">Talebe Yetiştirir</span>
+            </div>
+            <div class="admin-v2-grid-2" style="margin-top:4px;">
+              ${v2Field("f_p_okul", "Okul İnşaat Fiyatı (TL)", p.okul||100000, "number", "admin-v2-input-price")}
+              ${v2Field("f_school_capacity", "Okul Talebe Kapasitesi (Kişi)", db.settings.schoolCapacityPerBuilding||500, "number", "admin-v2-input-green")}
+            </div>
+            <div style="margin-top:6px;">
+              ${v2Field("f_school_upkeep", "Okul Yıllık Gideri (Bina Başı TL)", db.settings.schoolUpkeep||10000, "number", "admin-v2-input-upkeep")}
+            </div>
+            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">Her medrese 500 talebeyi eğitir. Yetişen eğitimli sınıf, Maliye sekmesindeki çarpanla daha çok vergi verir.</p>
+          </div>
+        </div>
 
-     <!-- TAB 3: MALİYE & MEDRESE STANDARDI -->
-     <div id="admin-content-maliye" class="admin-v2-tab-content" style="display:none;">
-       <div class="admin-v2-grid-2">
-         <!-- MEDRESE KUTUSU -->
-         <div class="admin-v2-card" style="border-color:rgba(52,152,219,0.35);">
-           <div class="admin-v2-card-header"><span style="color:#3498db;">🎓 MEDRESE & EĞİTİMLİ SINIF</span></div>
-           <div class="admin-v2-grid-2">
-             ${v2Field("f_school_capacity", "Okul Kapasitesi (Talebe / Kişi)", db.settings.schoolCapacityPerBuilding||500, "number", "admin-v2-input-green")}
-             ${v2Field("f_school_upkeep", "Okul Yıllık Gideri (TL)", db.settings.schoolUpkeep||10000, "number", "admin-v2-input-upkeep")}
-           </div>
-           <div class="admin-v2-grid-2" style="margin-top:6px;">
-             ${v2Field("f_educated_tax_multiplier", "Eğitimli Sınıf Vergi Çarpanı", db.settings.educatedTaxMultiplier??1.5, "number", "admin-v2-input-camp")}
-             ${v2Field("f_p_okul", "Okul İnşaat Fiyatı (TL)", p.okul||100000, "number", "admin-v2-input-price")}
-           </div>
-           <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">Eski eğitim yüzdesi kaldırılmıştır; okulların eğittiği kişi sayısı doğrudan vergi çarpanıyla çarpılır.</p>
-         </div>
+        <!-- DİĞER NÜFUS BİNALARI TABLOSU -->
+        <div class="admin-v2-table-wrap">
+          <div style="padding:10px 14px; background:#0f1217; border-bottom:1px solid #282f3d; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-family:'Oswald'; color:#f0cf82; font-size:13px;">🌾 DOĞUM VE NÜFUS ARTIŞ BİNALARI (DİNAMİK ÖLÇEK)</span>
+            <span style="font-size:11px; color:#8c8270;">Fiyat = Nüfus × Kişi Başı TL</span>
+          </div>
+          <table class="admin-v2-table">
+            <thead>
+              <tr>
+                <th>Bina Adı</th>
+                <th>Kişi Başı İnşaat (TL)</th>
+                <th>Yıllık Bakım (Bina Başı TL)</th>
+                <th>Nüfus Artış Bonusu (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>🍲 Aşevi</b></td>
+                <td><input id="f_pc_asevi" type="number" step="0.01" value="${esc(pc.asevi||0.05)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
+                <td><input id="f_pbu_asevi" type="number" value="${esc(pbu.asevi||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
+                <td><input id="f_pg_asevi" type="number" step="0.1" value="${esc(pg.asevi||0.4)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
+              </tr>
+              <tr>
+                <td><b>⚙️ Su Değirmeni</b></td>
+                <td><input id="f_pc_su_degirmeni" type="number" step="0.01" value="${esc(pc.su_degirmeni||0.08)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
+                <td><input id="f_pbu_su_degirmeni" type="number" value="${esc(pbu.su_degirmeni||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
+                <td><input id="f_pg_su_degirmeni" type="number" step="0.1" value="${esc(pg.su_degirmeni||0.6)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
+              </tr>
+              <tr>
+                <td><b>🐫 Kervansaray</b></td>
+                <td><input id="f_pc_kervansaray" type="number" step="0.01" value="${esc(pc.kervansaray||0.12)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
+                <td><input id="f_pbu_kervansaray" type="number" value="${esc(pbu.kervansaray||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
+                <td><input id="f_pg_kervansaray" type="number" step="0.1" value="${esc(pg.kervansaray||0.3)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
+              </tr>
+              <tr>
+                <td><b>⚖️ Pazar Yeri</b></td>
+                <td><input id="f_pc_pazar" type="number" step="0.01" value="${esc(pc.pazar||0.10)}" class="admin-v2-input admin-v2-input-price" style="width:140px;"></td>
+                <td><input id="f_pbu_pazar" type="number" value="${esc(pbu.pazar||0)}" class="admin-v2-input admin-v2-input-upkeep" style="width:140px;"></td>
+                <td><input id="f_pg_pazar" type="number" step="0.1" value="${esc(pg.pazar||0.4)}" class="admin-v2-input admin-v2-input-green" style="width:120px;"> %</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-         <!-- HARİTA İSTİHBARATI & FERMANLAR -->
-         <div class="admin-v2-card">
-           <div class="admin-v2-card-header"><span style="color:#f0cf82;">📜 FERMANLAR & İSTİHBARAT</span></div>
-           ${v2Field("f_map_intel_cost", "İstihbaratsız Oyuncu Harita Rapor Ücreti (TL)", db.settings.mapIntelReportCost||100000, "number", "admin-v2-input-price")}
-           <label style="font-size:11px; font-weight:600; color:#8c8270; margin-top:6px;">Ferman Nüfus Başı Maliyet Çarpanları:</label>
-           <div class="admin-v2-grid-3" style="gap:8px;">
-             ${v2Field("f_ec_erzak", "Erzak", ec.erzak||2, "number")}
-             ${v2Field("f_ec_karakol", "Karakol", ec.karakol||1.5, "number")}
-             ${v2Field("f_ec_panayir", "Panayır", ec.panayir||1, "number")}
-             ${v2Field("f_ec_ibadethane", "İbadethane", ec.ibadethane||3, "number")}
-             ${v2Field("f_ec_anit", "Anıt", ec.anit||2.5, "number")}
-             ${v2Field("f_ec_denetim", "Denetim", ec.denetim||0.5, "number")}
-           </div>
-         </div>
-       </div>
-     </div>
+      <!-- TAB 3: MALİYE & VERGİ SİSTEMİ -->
+      <div id="admin-content-maliye" class="admin-v2-tab-content" style="display:none;">
+        <div class="admin-v2-grid-2">
+          <!-- GENEL VERGİ VE GELİR STANDARDI (TÜM DEVLETLER İÇİN ORTAK) -->
+          <div class="admin-v2-card" style="background:linear-gradient(135deg, rgba(36,30,18,0.5), #181c24); border-color:rgba(197,160,89,0.5);">
+            <div class="admin-v2-card-header">
+              <span style="color:#f0cf82; font-size:14px;">👑 GENEL VERGİ VE GELİR STANDARDI</span>
+              <span class="admin-v2-card-badge" style="background:#3d331a; color:#f1c40f;">Tüm Devletler</span>
+            </div>
+            ${v2Field("f_base_tax_per_person", "Kişi Başı Taban Vergi (TL / Yıl)", db.settings.baseTaxPerPerson||5, "number", "admin-v2-input-price")}
+            <div style="margin-top:6px;">
+              ${v2Field("f_educated_tax_multiplier", "Eğitimli Sınıf (Medrese Mezunu) Vergi Çarpanı", db.settings.educatedTaxMultiplier??1.5, "number", "admin-v2-input-camp")}
+            </div>
+            <div style="margin-top:10px; padding:10px 12px; background:#0e1117; border:1px solid rgba(197,160,89,0.25); border-radius:4px;">
+              <div style="font-size:11px; font-weight:700; color:#f0cf82; font-family:'Oswald';">📐 VERGİ MATEMATİĞİ:</div>
+              <p style="margin:4px 0 0; font-size:11px; color:#8c8270; line-height:1.4;">
+                Gelir = [(Sıradan Nüfus × Taban) + (Eğitimli × Taban × Çarpan)] × (% Vergi Oranı).<br>
+                Belirlenen taban vergi, oyundaki tüm devletler için ortak taban olarak uygulanır.
+              </p>
+            </div>
+          </div>
+
+          <!-- FERMANLAR & İSTİHBARAT -->
+          <div class="admin-v2-card">
+            <div class="admin-v2-card-header">
+              <span style="color:#f0cf82; font-size:14px;">📜 FERMANLAR & İSTİHBARAT MASRAFLARI</span>
+              <span class="admin-v2-card-badge" style="background:#1e2530; color:#bdc3c7;">İdare Giderleri</span>
+            </div>
+            ${v2Field("f_map_intel_cost", "İstihbaratsız Oyuncu Harita Rapor Ücreti (TL)", db.settings.mapIntelReportCost||100000, "number", "admin-v2-input-price")}
+            <label style="font-size:11px; font-weight:600; color:#8c8270; margin-top:6px;">Ferman Nüfus Başı Maliyet Çarpanları:</label>
+            <div class="admin-v2-grid-3" style="gap:8px;">
+              ${v2Field("f_ec_erzak", "Erzak", ec.erzak||2, "number")}
+              ${v2Field("f_ec_karakol", "Karakol", ec.karakol||1.5, "number")}
+              ${v2Field("f_ec_panayir", "Panayır", ec.panayir||1, "number")}
+              ${v2Field("f_ec_ibadethane", "İbadethane", ec.ibadethane||3, "number")}
+              ${v2Field("f_ec_anit", "Anıt", ec.anit||2.5, "number")}
+              ${v2Field("f_ec_denetim", "Denetim", ec.denetim||0.5, "number")}
+            </div>
+          </div>
+        </div>
+      </div>
 
      <!-- TAB 4: DİVAN PAŞALARI -->
      <div id="admin-content-divan" class="admin-v2-tab-content" style="display:none;">
@@ -1314,6 +1342,11 @@ function removeCustomItem(id){
    saveAdmin(false);
 }
 function saveAdmin(doClose = true){
+ const baseTaxEl = document.getElementById("f_base_tax_per_person");
+ if(baseTaxEl){
+   db.settings.baseTaxPerPerson = Math.max(1, Number(baseTaxEl.value)||5);
+   (db.states||[]).forEach(s => { s.baseTaxPerPerson = db.settings.baseTaxPerPerson; });
+ }
  const mapIntelCostEl=document.getElementById("f_map_intel_cost"); if(mapIntelCostEl)db.settings.mapIntelReportCost=Math.max(0,Number(mapIntelCostEl.value)||0);
  const schoolCapacityEl=document.getElementById("f_school_capacity"); if(schoolCapacityEl)db.settings.schoolCapacityPerBuilding=Math.max(0,Math.floor(Number(schoolCapacityEl.value)||0));
  const schoolUpkeepEl=document.getElementById("f_school_upkeep"); if(schoolUpkeepEl)db.settings.schoolUpkeep=Math.max(0,Number(schoolUpkeepEl.value)||0);

@@ -191,6 +191,7 @@ const defaultSettings={
  schoolCapacityPerBuilding:500,
  schoolUpkeep:10000,
  educatedTaxMultiplier:1.5,
+ baseTaxPerPerson:5,
  infrastructureUpkeep:{kucuk_liman:1100,orta_liman:2100,buyuk_liman:3400,kucuk_ocak:750,orta_ocak:1350,buyuk_ocak:2200,istihbarat_binasi:2000},
  edictCost:{erzak:2, karakol:1.5, panayir:1, ibadethane:3, anit:2.5, denetim:0.5},
  campaignCost:{piyade:2, suvari:5, nisanci:3, kucuk_top:200, orta_top:500, buyuk_top:1000, kucuk_gemi:400, orta_gemi:800, buyuk_gemi:1500},
