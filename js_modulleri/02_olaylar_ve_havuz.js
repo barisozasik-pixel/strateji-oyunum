@@ -179,7 +179,7 @@ function initSupabase(){
 }
 
 const defaultSettings={
- prices:{piyade:21,suvari:40,nisanci:30,kucuk_top:6500,orta_top:16000,buyuk_top:32000,kucuk_gemi:38000,orta_gemi:72000,buyuk_gemi:135000,kucuk_liman:75000,orta_liman:145000,buyuk_liman:260000,kucuk_ocak:55000,orta_ocak:110000,buyuk_ocak:195000,okul:100000,istihbarat_binasi:150000},
+ prices:{piyade:21,suvari:40,nisanci:30,fortress_garrison:25,kucuk_top:6500,orta_top:16000,buyuk_top:32000,kucuk_gemi:38000,orta_gemi:72000,buyuk_gemi:135000,kucuk_liman:75000,orta_liman:145000,buyuk_liman:260000,kucuk_ocak:55000,orta_ocak:110000,buyuk_ocak:195000,okul:100000,istihbarat_binasi:150000},
  capacity:{kucuk_liman:6,orta_liman:12,buyuk_liman:20,kucuk_ocak:10,orta_ocak:20,buyuk_ocak:35},
  upkeep:{piyade:35,suvari:55,nisanci:45,kucuk_top:350,orta_top:750,buyuk_top:1400,kucuk_gemi:1200,orta_gemi:2200,buyuk_gemi:3800},
  garrisonUpkeep:{fortress:8},

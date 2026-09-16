@@ -710,15 +710,18 @@ async function openAdmin(){
            </div>
          </div>
 
-         <div class="admin-v2-card" style="margin-top:14px; background:#12161f; border-color:rgba(197,160,89,0.35);">
-           <div class="admin-v2-card-header"><span style="color:#f0cf82;">🏰 KALE GARNİZONU YILLIK GİDERİ</span></div>
-           <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-             <p style="margin:0; font-size:12px; color:#8c8270; max-width:600px;">Serhat kalelerinde bekleyen garnizon askeri başına hazineden kesilen yıllık bakım ödeneğidir.</p>
-             <div style="min-width:220px;">
-               ${v2Field("f_gu_fortress", "Asker Başı Yıllık Gider (TL)", gu.fortress||8, "number", "admin-v2-input-upkeep")}
-             </div>
-           </div>
-         </div>
+          <div class="admin-v2-card" style="margin-top:14px; background:#12161f; border-color:rgba(197,160,89,0.35);">
+            <div class="admin-v2-card-header"><span>🏰 KALE GARNİZONU (ALIM VE BAKIM)</span><span class="admin-v2-card-badge" style="background:#262a33;color:#f0cf82;">Garnizon</span></div>
+            <div class="admin-v2-grid-2" style="margin-top:10px;">
+              <div>
+                ${v2Field("f_p_fortress_garrison", "Garnizon Asker Alım Fiyatı (TL)", p.fortress_garrison||25, "number", "admin-v2-input-price")}
+              </div>
+              <div>
+                ${v2Field("f_gu_fortress", "Asker Başı Yıllık Gider (TL)", gu.fortress||8, "number", "admin-v2-input-upkeep")}
+              </div>
+            </div>
+            <p style="margin:10px 0 0; font-size:12px; color:#8c8270;">Serhat kalelerine konuşlandırılan muhafız garnizon askerlerinin tek seferlik donatım/alım bedeli ve hazineden kesilen yıllık bakım ödeneğidir.</p>
+          </div>
        </div>
 
        <!-- SUBTAB 1.2: TOPÇULAR & DÖKÜMHANE -->
@@ -827,13 +830,17 @@ async function openAdmin(){
               <span class="admin-v2-badge">Salgın & Ecel Önleyici</span>
             </div>
             <div class="admin-v2-grid-2" style="margin-top:4px;">
+              ${v2Field("f_hospital_base_cost", "Şifahane Taban Fiyatı (TL)", db?.settings?.hospitalBaseCost||35000, "number", "admin-v2-input-price")}
+              ${v2Field("f_hospital_capacity", "Sağlık Kapasitesi (Kişi)", db?.settings?.hospitalCapacityPerBuilding||60000, "number", "admin-v2-input-green")}
+            </div>
+            <div class="admin-v2-grid-2" style="margin-top:6px;">
+              ${v2Field("f_pc_hastane", "Kişi Başı Ek Maliyet (TL)", pc.hastane||0.10, "number", "admin-v2-input-price")}
               ${v2Field("f_pg_hastane", "Nüfus Artış Oranı (%)", pg.hastane||0.5, "number", "admin-v2-input-green")}
-              ${v2Field("f_pc_hastane", "Kişi Başı İnşa Maliyeti (TL)", pc.hastane||0.10, "number", "admin-v2-input-price")}
             </div>
             <div style="margin-top:6px;">
               ${v2Field("f_pbu_hastane", "Yıllık Bakım Gideri (Bina Başı TL)", pbu.hastane||8000, "number", "admin-v2-input-upkeep")}
             </div>
-            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">İnşa Fiyatı = Toplam Nüfus × Kişi Başı Çarpan olarak dinamik hesaplanır.</p>
+            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">İnşa Fiyatı = Taban Fiyat + (Vilayet Nüfusu × Kişi Başı Çarpan) olarak dinamik hesaplanır.</p>
           </div>
 
           <!-- MEDRESE (OKUL & EĞİTİM ALTYAPISI) KUTUSU -->
@@ -1354,6 +1361,7 @@ function saveAdmin(doClose = true){
  const hospCapEl=document.getElementById("f_hospital_capacity"); if(hospCapEl)db.settings.hospitalCapacityPerBuilding=Math.max(1,Math.floor(Number(hospCapEl.value)||60000));
  const hospBaseEl=document.getElementById("f_hospital_base_cost"); if(hospBaseEl)db.settings.hospitalBaseCost=Math.max(0,Math.floor(Number(hospBaseEl.value)||35000));
  Object.keys(db.settings.prices).forEach(k=>{ const el=document.getElementById("f_p_"+k); if(el) db.settings.prices[k]=Number(el.value||0); });
+ const garrisonPriceEl=document.getElementById("f_p_fortress_garrison"); if(garrisonPriceEl) db.settings.prices.fortress_garrison=Math.max(0,Number(garrisonPriceEl.value)||25);
  Object.keys(db.settings.capacity).forEach(k=>{ const el=document.getElementById("f_c_"+k); if(el) db.settings.capacity[k]=Number(el.value||0); });
  Object.keys(db.settings.upkeep).forEach(k=>{ const el=document.getElementById("f_u_"+k); if(el) db.settings.upkeep[k]=Number(el.value||0); });
  Object.keys(db.settings.garrisonUpkeep).forEach(k=>{ const el=document.getElementById("f_gu_"+k); if(el) db.settings.garrisonUpkeep[k]=Math.max(0,Number(el.value||0)); });
