@@ -93,11 +93,12 @@ function calcPop(s)
 
 
 function calcIncome(s){
+  const adv = getAdvisorEffects(s);
   const p = calcPop(s);
-  const baseTaxPer = Number(db?.settings?.baseTaxPerPerson ?? s.baseTaxPerPerson ?? 5);
-  const baseTax = baseTaxPer * ((Number(s.tax)||0)/100);
-  const adjustedBaseTax = baseTax * (1 + (adv.taxBonus / 100));
-  const educatedMultiplier = Math.max(0, Number(db.settings.educatedTaxMultiplier??1.5));
+  const baseTaxPer = Number(db?.settings?.baseTaxPerPerson ?? s?.baseTaxPerPerson ?? 5);
+  const baseTax = baseTaxPer * ((Number(s?.tax)||0)/100);
+  const adjustedBaseTax = baseTax * (1 + ((adv?.taxBonus || 0) / 100));
+  const educatedMultiplier = Math.max(0, Number(db?.settings?.educatedTaxMultiplier ?? 1.5));
   return Math.floor((p.other * adjustedBaseTax) + (p.edu * adjustedBaseTax * educatedMultiplier));
 }
 function calcPermIncome(s){

@@ -344,7 +344,8 @@ function openDetail(id){
  document.getElementById("mapScreen")?.classList.add("hidden");
  document.getElementById("detail").classList.remove("hidden");
  
- const bgImgClean = cleanUrl(s.bgImage);
+ try {
+  const bgImgClean = cleanUrl(s.bgImage);
  if(bgImgClean) {
     document.body.style.background = `linear-gradient(rgba(13,15,18,0.85), rgba(13,15,18,0.85)), url('${esc(bgImgClean)}') fixed center/cover`;
  } else {
@@ -361,7 +362,7 @@ function openDetail(id){
  const advSalary = calcAdvisorExpenses(s);
  const fortressGarrisonExpense = calcFortressGarrisonExpense(s);
  const populationBuildingExpense = calcPopulationBuildingExpense(s);
- const schoolExpense = Math.max(0,Number(s.okul)||0)*Math.max(0,Number(db.settings.schoolUpkeep)||0);
+ const schoolExpense = Math.max(0,Number(s.okul)||0)*Math.max(0,Number(db?.settings?.schoolUpkeep)||0);
  const infrastructureExpense = calcInfrastructureExpense(s);
  const totalExpenses = calcExpenses(s);
  
@@ -375,7 +376,7 @@ function openDetail(id){
  const canManage = isAdmin || isOwner;
  const editBtn = isAdmin ? `<button class="btn gold" onclick="openStateForm('${s.id}')">✎ DÜZENLE</button>` : ``;
  const rulerImgClean = cleanUrl(s.rulerImage);
- const imgs = db.settings.images || {};
+ const imgs = db?.settings?.images || {};
 
   const myLetters = (db.letters || [])
     .filter(l => (l.toStateId === s.id || l.fromStateId === s.id) && !(l.deletedBy || []).includes(s.id))
@@ -728,7 +729,7 @@ function openDetail(id){
     <!-- GELİR DETAYLARI -->
     <div class="finance-panel finance-income">
         <h4 style="color:var(--green); margin:0 0 6px; font-family:'Oswald';">📥 GELİR DETAYLARI</h4>
-        <div class="list-item" style="padding:4px 6px; font-size:12px;"><span>Eğitimli Sınıf Vergisi (${Number(db.settings.educatedTaxMultiplier??1.5)}x)</span><b style="color:var(--green)">${money(Math.floor(p.edu * actualBaseTax * Math.max(0,Number(db.settings.educatedTaxMultiplier??1.5))))}</b></div>
+        <div class="list-item" style="padding:4px 6px; font-size:12px;"><span>Eğitimli Sınıf Vergisi (${Number(db?.settings?.educatedTaxMultiplier ?? 1.5)}x)</span><b style="color:var(--green)">${money(Math.floor(p.edu * actualBaseTax * Math.max(0,Number(db?.settings?.educatedTaxMultiplier ?? 1.5))))}</b></div>
         <div class="list-item" style="padding:4px 6px; font-size:12px;"><span>Sıradan Halk Vergisi (1.0x)</span><b style="color:var(--green)">${money(Math.floor(p.other * actualBaseTax))}</b></div>
         <div class="list-item" style="padding:4px 6px; font-size:12px;"><span>Sabit Antlaşma Gelirleri</span><b style="color:var(--green)">${money(permInc)}</b></div>
         <div class="finance-total">
@@ -1160,6 +1161,16 @@ function openDetail(id){
   } else if (activeMainTab === 'altyapi' && typeof switchSubTab === 'function') {
     switchSubTab('altyapi', activeAltyapiSub);
   }
+ } catch(err) {
+  console.error("openDetail render hatası:", err);
+  document.getElementById("detail").innerHTML = `
+    <div style="padding:40px 20px; text-align:center; max-width:600px; margin:40px auto; background:#181c24; border:1px solid var(--red); border-radius:8px;">
+      <h3 style="color:var(--red); font-family:'Oswald'; margin-bottom:10px;">⚠️ DEVLET BİLGİLERİ YÜKLENİRKEN BİR HATA OLUŞTU</h3>
+      <p style="color:#d0cbc2; font-size:13px; margin-bottom:20px;">Hata detayı: ${esc(err.message)}</p>
+      <button class="btn gold" onclick="renderHome()">← ANA SAYFAYA DÖN</button>
+    </div>
+  `;
+ }
 }
 
 function saveCountryManagement(stateId){

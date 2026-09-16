@@ -907,9 +907,9 @@ async function openAdmin(){
               <span style="color:#f0cf82; font-size:14px;">👑 GENEL VERGİ VE GELİR STANDARDI</span>
               <span class="admin-v2-card-badge" style="background:#3d331a; color:#f1c40f;">Tüm Devletler</span>
             </div>
-            ${v2Field("f_base_tax_per_person", "Kişi Başı Taban Vergi (TL / Yıl)", db.settings.baseTaxPerPerson||5, "number", "admin-v2-input-price")}
+            ${v2Field("f_base_tax_per_person", "Kişi Başı Taban Vergi (TL / Yıl)", db?.settings?.baseTaxPerPerson||5, "number", "admin-v2-input-price")}
             <div style="margin-top:6px;">
-              ${v2Field("f_educated_tax_multiplier", "Eğitimli Sınıf (Medrese Mezunu) Vergi Çarpanı", db.settings.educatedTaxMultiplier??1.5, "number", "admin-v2-input-camp")}
+              ${v2Field("f_educated_tax_multiplier", "Eğitimli Sınıf (Medrese Mezunu) Vergi Çarpanı", db?.settings?.educatedTaxMultiplier??1.5, "number", "admin-v2-input-camp")}
             </div>
             <div style="margin-top:10px; padding:10px 12px; background:#0e1117; border:1px solid rgba(197,160,89,0.25); border-radius:4px;">
               <div style="font-size:11px; font-weight:700; color:#f0cf82; font-family:'Oswald';">📐 VERGİ MATEMATİĞİ:</div>
