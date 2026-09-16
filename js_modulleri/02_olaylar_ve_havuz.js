@@ -179,9 +179,9 @@ function initSupabase(){
 }
 
 const defaultSettings={
- prices:{piyade:21,suvari:40,nisanci:30,kucuk_top:10000,orta_top:25000,buyuk_top:45000,kucuk_gemi:65000,orta_gemi:95000,buyuk_gemi:130000,kucuk_liman:100000,orta_liman:180000,buyuk_liman:300000,kucuk_ocak:80000,orta_ocak:150000,buyuk_ocak:250000,okul:120000,istihbarat_binasi:200000},
- capacity:{kucuk_liman:5,orta_liman:7,buyuk_liman:10,kucuk_ocak:10,orta_ocak:20,buyuk_ocak:35},
- upkeep:{piyade:35,suvari:55,nisanci:45,kucuk_top:7500,orta_top:15000,buyuk_top:25000,kucuk_gemi:20000,orta_gemi:35000,buyuk_gemi:50000},
+ prices:{piyade:21,suvari:40,nisanci:30,kucuk_top:6500,orta_top:16000,buyuk_top:32000,kucuk_gemi:38000,orta_gemi:72000,buyuk_gemi:135000,kucuk_liman:75000,orta_liman:145000,buyuk_liman:260000,kucuk_ocak:55000,orta_ocak:110000,buyuk_ocak:195000,okul:100000,istihbarat_binasi:150000},
+ capacity:{kucuk_liman:6,orta_liman:12,buyuk_liman:20,kucuk_ocak:10,orta_ocak:20,buyuk_ocak:35},
+ upkeep:{piyade:35,suvari:55,nisanci:45,kucuk_top:350,orta_top:750,buyuk_top:1400,kucuk_gemi:1200,orta_gemi:2200,buyuk_gemi:3800},
  garrisonUpkeep:{fortress:8},
  populationBuildingGrowth:{hastane:0.5,asevi:0.4,su_degirmeni:0.6,kervansaray:0.3,pazar:0.4},
  populationBuildingCostPerPerson:{hastane:0.10,asevi:0.05,su_degirmeni:0.08,kervansaray:0.12,pazar:0.10},
@@ -191,9 +191,9 @@ const defaultSettings={
  schoolCapacityPerBuilding:500,
  schoolUpkeep:10000,
  educatedTaxMultiplier:1.5,
- infrastructureUpkeep:{kucuk_liman:0,orta_liman:0,buyuk_liman:0,kucuk_ocak:0,orta_ocak:0,buyuk_ocak:0,istihbarat_binasi:0},
+ infrastructureUpkeep:{kucuk_liman:1100,orta_liman:2100,buyuk_liman:3400,kucuk_ocak:750,orta_ocak:1350,buyuk_ocak:2200,istihbarat_binasi:2000},
  edictCost:{erzak:2, karakol:1.5, panayir:1, ibadethane:3, anit:2.5, denetim:0.5},
- campaignCost:{piyade:2, suvari:5, nisanci:3, kucuk_top:200, orta_top:500, buyuk_top:1000},
+ campaignCost:{piyade:2, suvari:5, nisanci:3, kucuk_top:200, orta_top:500, buyuk_top:1000, kucuk_gemi:400, orta_gemi:800, buyuk_gemi:1500},
  schoolEducation:2,
  mapIntelReportCost:100000,
  images:{piyade:"",suvari:"",nisanci:"",kucuk_top:"",orta_top:"",buyuk_top:"",kucuk_gemi:"",orta_gemi:"",buyuk_gemi:"",kucuk_liman:"",orta_liman:"",buyuk_liman:"",kucuk_ocak:"",orta_ocak:"",buyuk_ocak:"",okul:"",istihbarat_binasi:"",fortress:"",fortress_garrison:"",hastane:"",asevi:"",su_degirmeni:"",kervansaray:"",pazar:""},
@@ -316,7 +316,11 @@ function mergeStateThreeWay(base,local,remote,path="",conflicts=[]){
  });
  return merged;
 }
-function closeModal(){document.getElementById("modal").classList.remove("show")}
+function closeModal(){
+ const box = document.querySelector("#modal .modalbox");
+ if(box) box.classList.remove("admin-modal-wide");
+ document.getElementById("modal").classList.remove("show");
+}
 function modal(html){document.getElementById("modalContent").innerHTML=html;document.getElementById("modal").classList.add("show")}
 function toast(msg,ok=false){document.getElementById("syncText").textContent=(ok?"✓ ":"⚠ ")+msg}
 
