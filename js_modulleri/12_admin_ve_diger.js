@@ -60,7 +60,6 @@ function openStateForm(id=null){
         ${field("happiness","Mutluluk %",s.happiness,"number")}
         ${field("baseTaxPerPerson","Kişi Başı Temel Vergi",s.baseTaxPerPerson,"number")}
         ${field("civilExpense","Sivil Gider (Yıllık)",s.civilExpense,"number")}
-        ${field("education","Eski Eğitim %",s.education,"number")}
         <div class="full" style="background:rgba(197, 160, 89, 0.15); border:1px solid var(--border-gold); padding:10px; border-radius:5px;">
            ${field("advisorSlots","Divan Üyesi Kotası (Kaç Danışman Seçebilir?)",s.advisorSlots||3,"number")}
         </div>
@@ -113,7 +112,7 @@ function openStateForm(id=null){
 function field(k,l,v,t="text"){return `<div><label style="font-weight:bold; margin-bottom:4px; display:block; color:var(--text);">${l}</label><input id="f_${k}" type="${t}" value="${esc(v)}" style="width:100%; padding:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:4px;"></div>`}
 
 function saveState(id){
- const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","education","educatedPopulation","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
+ const keys=["name","ownerEmail","ruler","rulerImage","bgImage","title","color","treasury","population","tax","educatedPopulation","baseTaxPerPerson","civilExpense","advisorSlots","piyade","suvari","nisanci","kucuk_top","orta_top","buyuk_top","kucuk_gemi","orta_gemi","buyuk_gemi","kucuk_liman","orta_liman","buyuk_liman","kucuk_ocak","orta_ocak","buyuk_ocak","okul","istihbarat_binasi","hastane","asevi","su_degirmeni","kervansaray","pazar"];
  if(db.settings.customItems) { db.settings.customItems.forEach(item => keys.push(item.id)); }
  const o={};
  keys.forEach(k=>o[k]=["name","ownerEmail","ruler","rulerImage","bgImage","title","color"].includes(k)?document.getElementById("f_"+k).value:Number(document.getElementById("f_"+k).value||0));
@@ -571,213 +570,576 @@ function showYearReportModal() {
     modal(html);
 }
  
-function switchAdminTab(tabId){
- document.querySelectorAll('#modalContent .admin-hoi-tab').forEach(el=>el.classList.remove('active'));
- document.querySelectorAll('#modalContent .admin-tab-content').forEach(el=>el.classList.remove('active'));
- document.getElementById('admin-tab-btn-'+tabId)?.classList.add('active');
- document.getElementById('admin-tab-'+tabId)?.classList.add('active');
-}
+let currentAdminTab = 'maliye';
 
-function organizeAdminTabs(){
- const root=document.getElementById('modalContent');
- if(!root)return;
- const children=Array.from(root.children);
- const title=children.find(el=>el.tagName==='H2');
- const footer=children.find(el=>el.classList?.contains('actions')&&el.querySelector?.('[onclick*="saveAdmin"]'));
- const defs=[
-   ['actions','⚙️ İşlemler'],['divan','👑 Divan'],['strategic','⭐ Stratejik Bölgeler'],['images','🖼️ Görseller'],
-   ['custom','🌟 Özel Birimler'],['economy','💰 Fiyatlar & Ordu'],['population','🏰 Nüfus & Garnizon']
- ];
- const panels={};
- defs.forEach(([id])=>{const panel=document.createElement('div');panel.id='admin-tab-'+id;panel.className='admin-tab-content'+(id==='actions'?' active':'');panels[id]=panel;});
- let current='actions';
- children.forEach(node=>{
-   if(node===title||node===footer)return;
-   if(node.tagName==='H4'){
-     const heading=(node.textContent||'').toLocaleUpperCase('tr-TR');
-     if(heading.includes('DİVAN'))current='divan';
-     else if(heading.includes('STRATEJİK'))current='strategic';
-     else if(heading.includes('GÖRSEL'))current='images';
-     else if(heading.includes('ÖZEL BİRİM'))current='custom';
-     else if(heading.includes('GARNİZON')||heading.includes('NÜFUS'))current='population';
-     else if(heading.includes('SATIN ALMA')||heading.includes('KAPASİTE')||heading.includes('BAKIM')||heading.includes('FERMAN')||heading.includes('SEFER')||heading.includes('OKUL'))current='economy';
-   }
-   panels[current].appendChild(node);
- });
- const tabs=document.createElement('div');
- tabs.className='hoi-tabs';
- tabs.innerHTML=defs.map(([id,label])=>`<div id="admin-tab-btn-${id}" class="admin-hoi-tab${id==='actions'?' active':''}" onclick="switchAdminTab('${id}')">${label}</div>`).join('');
- const panelWrap=document.createElement('div');
- defs.forEach(([id])=>panelWrap.appendChild(panels[id]));
- root.replaceChildren(...[title,tabs,panelWrap,footer].filter(Boolean));
-}
+window.closeAdminModal = function() {
+    const mb = document.querySelector('.modalbox');
+    if(mb) mb.classList.remove('admin-modal-wide');
+    closeModal();
+};
 
-async function openAdmin(){
- if(!isAdmin) return;
- try{if(!mapConfigCache)await loadMapAssets();}catch(_){} 
- const p=db.settings.prices,u=db.settings.upkeep,c=db.settings.capacity,ec=db.settings.edictCost,cc=db.settings.campaignCost,gu=db.settings.garrisonUpkeep,pg=db.settings.populationBuildingGrowth,pc=db.settings.populationBuildingCostPerPerson,pbu=db.settings.populationBuildingUpkeep,iu=db.settings.infrastructureUpkeep;
- const img=db.settings.images||{};
- const stateOpts = `<option value="">🌍 Tümü (Herkes Alabilir)</option>` + db.states.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
- 
- let customHtml = (db.settings.customItems||[]).map(x => {
-    let fName = x.faction ? (getState(x.faction)?.name || "Silinmiş") : "Tümü";
-    let safeIcon = cleanUrl(x.icon);
-    return `<div class="list-item">
-      <div style="display:flex; align-items:center;">
-         ${safeIcon ? `<img src="${esc(safeIcon)}" style="width:32px;height:32px;object-fit:cover;margin-right:8px;border-radius:2px;">` : ''}
-         <div><b>${esc(x.name)}</b> <span class="badge">${esc(fName)}</span><br><span class="sub" style="font-size:11px;">(${x.category}) Fyt:${num(x.price)} | Bkm:${num(x.upkeep)} | İkm:${num(x.campCost||0)}</span></div>
-      </div>
-      <button class="btn red small" onclick="removeCustomItem('${x.id}')">SİL</button>
-    </div>`
- }).join("");
+window.switchAdminSidebarTab = function(tabId) {
+    currentAdminTab = tabId;
+    document.querySelectorAll('.admin-sidebar-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-content-panel').forEach(pane => pane.classList.remove('active'));
+    const btn = document.getElementById('admin-sb-' + tabId);
+    if(btn) btn.classList.add('active');
+    const pane = document.getElementById('admin-pane-' + tabId);
+    if(pane) pane.classList.add('active');
+};
+window.switchAdminTab = window.switchAdminSidebarTab;
 
- let advisorsHtml = (db.advisors||[]).map((a, idx) => {
-    let fName = a.faction ? (getState(a.faction)?.name || "Özel Devlet") : (a.targetName || "Tümü");
-    return `<div class="list-item" style="flex-direction:column; align-items:stretch;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div><b>${esc(a.name)}</b> <span class="stars-span">${'★'.repeat(a.stars||1)}</span> <span class="sub">(${esc(a.role)})</span> <span class="badge">${esc(fName)}</span></div>
+window.calcTaxPreview = function(val) {
+    const b = Math.max(0, Number(val) || 0);
+    const p100 = Math.round(100000 * b * 0.20);
+    const p1m = Math.round(1000000 * b * 0.20);
+    const p15m = Math.round(15000000 * b * 0.25 * 1.25);
+    const e1 = document.getElementById('prev_100k');
+    const e2 = document.getElementById('prev_1m');
+    const e3 = document.getElementById('prev_15m');
+    if(e1) e1.textContent = `~${money(p100)} / yıl (%20 Vergi)`;
+    if(e2) e2.textContent = `~${money(p1m)} / yıl (%20 Vergi)`;
+    if(e3) e3.textContent = `~${money(p15m)} / yıl (%25 Vergi)`;
+};
+
+async function openAdmin(initialTab = null){
+    if(!isAdmin) return;
+    try{if(!mapConfigCache)await loadMapAssets();}catch(_){}
+    if(initialTab) currentAdminTab = initialTab;
+
+    const p=db.settings.prices||{}, u=db.settings.upkeep||{}, c=db.settings.capacity||{},
+          ec=db.settings.edictCost||{}, cc=db.settings.campaignCost||{},
+          gu=db.settings.garrisonUpkeep||{}, pg=db.settings.populationBuildingGrowth||{},
+          pc=db.settings.populationBuildingCostPerPerson||{}, pbu=db.settings.populationBuildingUpkeep||{},
+          iu=db.settings.infrastructureUpkeep||{};
+    const img=db.settings.images||{};
+    const stateOpts = `<option value="">🌍 Tümü (Herkes Alabilir)</option>` + db.states.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+
+    const edictLabels = {
+        erzak: "🍞 Erzak Dağıtımı",
+        karakol: "🛡️ Asayiş Karakolu",
+        panayir: "🎪 Panayır / Şenlik",
+        ibadethane: "🕌 İbadethane / Hayrat",
+        anit: "🏛️ Anıt İnşası",
+        denetim: "⚖️ Pazar Denetimi",
+        relief_fund: "💰 Afet Yardım Fonu",
+        infrastructure: "🏗️ İmar & Bayındırlık"
+    };
+
+    const imgLabels = {
+        piyade: "Piyade Resmi",
+        suvari: "Süvari Resmi",
+        nisanci: "Nişancı Resmi",
+        kucuk_top: "Küçük Top Resmi",
+        orta_top: "Orta Top Resmi",
+        buyuk_top: "Büyük Top Resmi",
+        kucuk_gemi: "Küçük Gemi Resmi",
+        orta_gemi: "Orta Gemi Resmi",
+        buyuk_gemi: "Büyük Gemi Resmi",
+        kucuk_liman: "Küçük Liman Resmi",
+        orta_liman: "Orta Liman Resmi",
+        buyuk_liman: "Büyük Liman Resmi",
+        kucuk_ocak: "Küçük Top Ocağı Resmi",
+        orta_ocak: "Orta Top Ocağı Resmi",
+        buyuk_ocak: "Büyük Top Ocağı Resmi",
+        okul: "Okul / Medrese Resmi",
+        istihbarat_binasi: "İstihbarat Dairesi Resmi",
+        fortress: "Kale Resmi",
+        fortress_garrison: "Kale Garnizonu Resmi",
+        hastane: "Hastane / Şifahane Resmi",
+        asevi: "Aşevi Resmi",
+        su_degirmeni: "Su Değirmeni Resmi",
+        kervansaray: "Kervansaray Resmi",
+        pazar: "Pazar Resmi"
+    };
+
+    let customHtml = (db.settings.customItems||[]).map(x => {
+        let fName = x.faction ? (getState(x.faction)?.name || "Silinmiş") : "Tümü";
+        let safeIcon = cleanUrl(x.icon);
+        return `<div class="list-item" style="display:flex; justify-content:space-between; align-items:center; background:#181c25; border:1px solid rgba(197, 160, 89, 0.2); padding:8px 12px; margin-bottom:6px; border-radius:4px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+             ${safeIcon ? `<img src="${esc(safeIcon)}" style="width:36px;height:36px;object-fit:cover;border-radius:3px;border:1px solid var(--border-gold);">` : ''}
+             <div>
+                <b style="color:#f0cf82; font-family:'Oswald',sans-serif;">${esc(x.name)}</b> <span class="badge">${esc(fName)}</span>
+                <div class="sub" style="font-size:11px; margin-top:2px;">Kategori: <b>${x.category==='asker'?'Askeri Birlik':'Altyapı'}</b> | Fyt: <span style="color:var(--gold);">${money(x.price)}</span> | Bkm: <span style="color:var(--red);">${money(x.upkeep)}/yıl</span> | İkm: ${money(x.campCost||0)}</div>
+             </div>
+          </div>
+          <button class="btn red small" onclick="removeCustomItem('${x.id}')">SİL</button>
+        </div>`;
+    }).join("");
+
+    let advisorsHtml = (db.advisors||[]).map((a) => {
+        let fName = a.faction ? (getState(a.faction)?.name || "Özel Devlet") : (a.targetName || "Tümü");
+        return `<div class="list-item" style="flex-direction:column; align-items:stretch; background:#181c25; border:1px solid rgba(197, 160, 89, 0.25); padding:10px 12px; margin-bottom:8px; border-radius:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                ${a.icon ? `<img src="${esc(cleanUrl(a.icon))}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border-gold);">` : ''}
+                <div>
+                    <b style="color:#f0cf82; font-family:'Oswald',sans-serif; font-size:13px;">${esc(a.name)}</b>
+                    <span style="color:#f39c12; font-size:12px; margin-left:4px;">${'★'.repeat(a.stars||1)}</span>
+                    <span class="sub" style="margin-left:4px;">(${esc(a.role)})</span>
+                    <span class="badge" style="margin-left:6px;">${esc(fName)}</span>
+                </div>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <button class="btn gold small" style="padding:3px 8px;" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openEditAdvisorModal('${a.id}')">DÜZENLE</button>
+                <button class="btn red small" style="padding:3px 8px;" onclick="removeAdvisor('${a.id}')">SİL</button>
+            </div>
+          </div>
+          <div style="font-size:11px; margin-top:6px; display:flex; flex-wrap:wrap; gap:10px; color:#cbd5e1; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+            <span>Maaş: <b style="color:var(--gold);">${money(a.salary)}/yıl</b></span>
+            <span>Yaş: <b>${a.ageYears||5} / ${a.maxAge||20}</b></span>
+            ${a.buff ? `<span style="color:var(--green)">✓ ${esc(a.buff)}</span>` : ''}
+            ${a.debuff ? `<span style="color:var(--red)">✗ ${esc(a.debuff)}</span>` : ''}
+          </div>
+        </div>`;
+    }).join("");
+
+    // Dynamic unhandled keys fallback
+    const standardUnitKeys = ['piyade','suvari','nisanci'];
+    const standardArtKeys = ['kucuk_top','orta_top','buyuk_top'];
+    const standardArtFoundryKeys = ['kucuk_ocak','orta_ocak','buyuk_ocak'];
+    const standardNavyKeys = ['kucuk_gemi','orta_gemi','buyuk_gemi'];
+    const standardPortKeys = ['kucuk_liman','orta_liman','buyuk_liman'];
+    const standardInfraKeys = ['okul','istihbarat_binasi'];
+    const standardPopKeys = ['hastane','asevi','su_degirmeni','kervansaray','pazar'];
+    const handledPrices = new Set([...standardUnitKeys, ...standardArtKeys, ...standardArtFoundryKeys, ...standardNavyKeys, ...standardPortKeys, ...standardInfraKeys, ...standardPopKeys]);
+    const extraPrices = Object.keys(p).filter(k => !handledPrices.has(k));
+    let extraPricesHtml = "";
+    if(extraPrices.length > 0) {
+        extraPricesHtml = `<div class="full" style="margin-top:10px;"><b style="color:var(--border-gold); font-size:11px;">DİĞER BİRİM / BİNA FİYATLARI:</b></div>` +
+            extraPrices.map(k => field("p_" + k, k, p[k], "number")).join("");
+    }
+
+    const handledUpkeep = new Set([...standardUnitKeys, ...standardArtKeys, ...standardNavyKeys]);
+    const extraUpkeep = Object.keys(u).filter(k => !handledUpkeep.has(k));
+    let extraUpkeepHtml = "";
+    if(extraUpkeep.length > 0) {
+        extraUpkeepHtml = `<div class="full" style="margin-top:10px;"><b style="color:var(--border-gold); font-size:11px;">DİĞER BAKIM GİDERLERİ:</b></div>` +
+            extraUpkeep.map(k => field("u_" + k, k, u[k], "number")).join("");
+    }
+
+    modal(`
+    <div class="admin-header">
+      <div class="admin-header-title-box">
+        <span style="font-size:24px;">🏛️</span>
         <div>
-            <button class="btn gold small" style="padding:2px 6px;" onclick="openEditAdvisorModal('${a.id}')">DÜZENLE</button>
-            <button class="btn red small" style="padding:2px 6px;" onclick="removeAdvisor('${a.id}')">SİL</button>
+          <h2 class="admin-header-title">KÜRESEL AYARLAR & SARAY DİVANI</h2>
+          <p class="admin-header-sub">Sol menüden daire seçin. Tüm küresel fiyatlar, çarpanlar ve divan ayarları.</p>
         </div>
       </div>
-      <div style="font-size:11px; margin-top:3px;"><span style="color:var(--green)">Artı: ${esc(a.buff)}</span> | <span style="color:var(--red)">Eksi: ${esc(a.debuff)}</span> | <span style="color:var(--gold)">Maaş: ${money(a.salary)}/yıl</span> | <span style="color:var(--muted)">Yaş: ${a.ageYears||5}/${a.maxAge||20}</span></div>
-    </div>`;
- }).join("");
+      <div class="admin-header-actions">
+        <button class="btn red small" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openWarGarrisonModal();">⚔️ SAVAŞ</button>
+        <button class="btn gold small" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openEventHistoryAdmin();">🎲 OLAY GEÇMİŞİ</button>
+        <button class="btn blue small" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openEventPoolAdmin();">🗂️ 100 OLAY HAVUZU</button>
+        <button class="btn blue small" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openAdminLetters();">✉️ MEKTUPLAR</button>
+        <button class="btn red small" style="padding:5px 9px; font-size:16px; line-height:1;" onclick="closeAdminModal()" title="Kapat">✕</button>
+      </div>
+    </div>
 
- modal(`<h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20;background:var(--panel);padding:8px 0;margin-top:0;">⚙ KÜRESEL AYARLAR <button class="btn red" style="font-size:18px;line-height:1;padding:7px 11px;" onclick="closeModal()" title="Küresel ayarları kapat">✕</button></h2>
- <div class="actions" style="margin:8px 0;"><button class="btn red" onclick="openWarGarrisonModal()">⚔️ SAVAŞ</button><button class="btn gold" onclick="openEventHistoryAdmin()">🎲 OLAY GEÇMİŞİ / SEÇİMLER</button><button class="btn blue" onclick="openEventPoolAdmin()">🗂️ 100 OLAY HAVUZU</button><button class="btn blue" onclick="openAdminLetters()">✉️ MEKTUPLAR</button></div>
+    <div class="admin-body">
+      <!-- SOL MENÜ (SIDEBAR) -->
+      <div class="admin-sidebar">
+        <div class="admin-sidebar-section-title">YÖNETİM DAİRELERİ</div>
+        
+        <button id="admin-sb-maliye" class="admin-sidebar-btn ${currentAdminTab==='maliye'?'active':''}" onclick="switchAdminSidebarTab('maliye')">
+          <span class="admin-sidebar-btn-icon">💰</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">MALİYE & VERGİ</span>
+            <span class="admin-sidebar-btn-sub">Vergi tabanı & fermanlar</span>
+          </div>
+        </button>
 
- <h4 style="color:var(--border-gold); margin:12px 0 6px; font-family:'Oswald';">👑 DİVAN PAŞALARI YÖNETİMİ (${(db.advisors||[]).length} Paşa)</h4>
- <p class="sub" style="margin-bottom:8px;">Paşaların ömürlerini, yıldızlarını, maaşlarını ve çarpanlarını düzenleyin.</p>
- <div style="margin-bottom:12px; max-height:220px; overflow:auto;">${advisorsHtml || "<p class='sub'>Paşa yok.</p>"}</div>
- 
- <div class="formgrid" style="background:rgba(10, 12, 14, 0.7); padding:10px; border-radius:3px; border:1px solid var(--border-gold); margin-bottom:15px;">
-    <div class="full" style="color:var(--border-gold); font-size:12px; font-weight:bold; font-family:'Oswald';">➕ YENİ PAŞA / DANIŞMAN EKLE</div>
-    ${field("adv_new_name", "Paşa İsmi", "", "text")}
-    ${field("adv_new_role", "Unvanı / Rolü", "", "text")}
-    <div><label>Yıldız Seviyesi</label><select id="f_adv_new_stars"><option value="1">1 Yıldız (★)</option><option value="2">2 Yıldız (★★)</option><option value="3" selected>3 Yıldız (★★★)</option><option value="4">4 Yıldız (★★★★)</option><option value="5">5 Yıldız (★★★★★)</option></select></div>
-    <div><label>Hangi Devlete Özel?</label><select id="f_adv_new_faction">${stateOpts}</select></div>
-    ${field("adv_new_salary", "Yıllık Maaş (TL)", "25000", "number")}
-    ${field("adv_new_ageYears", "Başlangıç / Mevcut Yaş (Yıl)", "1", "number")}
-    ${field("adv_new_maxAge", "Ölüm / Maksimum Yaş (Yıl)", "70", "number")}
-    ${field("adv_new_icon", "Resim URL (İsteğe Bağlı)", "", "text")}
+        <button id="admin-sb-askeriye" class="admin-sidebar-btn ${currentAdminTab==='askeriye'?'active':''}" onclick="switchAdminSidebarTab('askeriye')">
+          <span class="admin-sidebar-btn-icon">⚔️</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">ASKERİYE & DONANMA</span>
+            <span class="admin-sidebar-btn-sub">Birlikler, ocaklar, tersaneler</span>
+          </div>
+        </button>
 
-    <div class="full" style="color:var(--gold); font-size:11px; font-weight:bold; margin-top:6px;">MATEMATİKSEL ÇARPANLAR:</div>
-    ${field("adv_new_taxBonus", "Vergi Geliri Etkisi (+/- %)", "0", "number")}
-    ${field("adv_new_milUpkeepDiscount", "Ordu Bakım İndirimi (%)", "0", "number")}
-    ${field("adv_new_navyUpkeepDiscount", "Donanma Bakım İndirimi (%)", "0", "number")}
-    ${field("adv_new_artUpkeepDiscount", "Topçu Bakım İndirimi (%)", "0", "number")}
-    ${field("adv_new_recruitDiscount", "Asker Alım İndirimi (%)", "0", "number")}
-    ${field("adv_new_infraDiscount", "Bina Yapım İndirimi (%)", "0", "number")}
-    ${field("adv_new_happinessBonus", "Mutluluk Bonusu (+/- Puan)", "0", "number")}
-    <div><label>İsyan / Anarşiyi Sıfırla?</label><select id="f_adv_new_stopAnarchy"><option value="false">Hayır</option><option value="true">Evet (%0 Yapar)</option></select></div>
-    <div class="full"><label>Casusluk Sapmasını Sıfırla (Net Bilgi)?</label><select id="f_adv_new_spyAccuracyBonus"><option value="false">Hayır</option><option value="true">Evet (Tam Kesin Veri)</option></select></div>
+        <button id="admin-sb-nufus" class="admin-sidebar-btn ${currentAdminTab==='nufus'?'active':''}" onclick="switchAdminSidebarTab('nufus')">
+          <span class="admin-sidebar-btn-icon">🏥</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">NÜFUS & BİNALAR</span>
+            <span class="admin-sidebar-btn-sub">Şifahane, aşevi, değirmen</span>
+          </div>
+        </button>
 
-    <div class="full">${field("adv_new_buff", "Artı Açıklaması (Görsel Metin)", "", "text")}</div>
-    <div class="full">${field("adv_new_debuff", "Eksi Açıklaması (Görsel Metin)", "", "text")}</div>
-    <div class="full actions"><button class="btn green" style="width:100%;" onclick="addNewAdvisor()">➕ PAŞAYI KAYDET</button></div>
- </div>
+        <button id="admin-sb-divan" class="admin-sidebar-btn ${currentAdminTab==='divan'?'active':''}" onclick="switchAdminSidebarTab('divan')">
+          <span class="admin-sidebar-btn-icon">👑</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">DİVAN PAŞALARI</span>
+            <span class="admin-sidebar-btn-sub">${(db.advisors||[]).length} Danışman & Vezir</span>
+          </div>
+        </button>
 
- <h4 style="color:var(--border-gold); margin:16px 0 6px; font-family:'Oswald';">⭐ DEĞERLİ / STRATEJİK BÖLGELER</h4>
- <div class="list-item" style="display:block;">
-   <p class="sub" style="margin:0 0 8px;">Haritadaki toprakları işaretle. Stratejik Görünüm'de sticker gösterilir ve oyuncu bölgeye tıkladığında açıklama, mevcut sahip ve garnizon bilgisinin yanında görünür.</p>
-   <button class="btn gold" style="width:100%;" onclick="openStrategicRegionAdmin()">⭐ STRATEJİK BÖLGELERİ YÖNET</button>
- </div>
+        <button id="admin-sb-ozel" class="admin-sidebar-btn ${currentAdminTab==='ozel'?'active':''}" onclick="switchAdminSidebarTab('ozel')">
+          <span class="admin-sidebar-btn-icon">🌟</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">ÖZEL BİRİMLER</span>
+            <span class="admin-sidebar-btn-sub">Devlet birlikleri & strateji</span>
+          </div>
+        </button>
 
- <h4 style="color:var(--border-gold); margin:12px 0 6px; font-family:'Oswald';">🖼️ BİRLİK & BİNA GÖRSELLERİ (URL)</h4>
- <div class="formgrid" style="background:rgba(10, 12, 14, 0.7); padding:10px; border-radius:3px; border:1px solid var(--border-steel);">
-    ${field("img_piyade", "Piyade Resmi URL", img.piyade||"", "text")}
-    ${field("img_suvari", "Süvari Resmi URL", img.suvari||"", "text")}
-    ${field("img_nisanci", "Nişancı Resmi URL", img.nisanci||"", "text")}
-    ${field("img_kucuk_top", "Küçük Top Resmi URL", img.kucuk_top||"", "text")}
-    ${field("img_orta_top", "Orta Top Resmi URL", img.orta_top||"", "text")}
-    ${field("img_buyuk_top", "Büyük Top Resmi URL", img.buyuk_top||"", "text")}
-    ${field("img_kucuk_gemi", "Küçük Gemi Resmi URL", img.kucuk_gemi||"", "text")}
-    ${field("img_orta_gemi", "Orta Gemi Resmi URL", img.orta_gemi||"", "text")}
-    ${field("img_buyuk_gemi", "Büyük Gemi Resmi URL", img.buyuk_gemi||"", "text")}
-    ${field("img_kucuk_liman", "Küçük Liman Resmi URL", img.kucuk_liman||"", "text")}
-    ${field("img_orta_liman", "Orta Liman Resmi URL", img.orta_liman||"", "text")}
-    ${field("img_buyuk_liman", "Büyük Liman Resmi URL", img.buyuk_liman||"", "text")}
-    ${field("img_kucuk_ocak", "Küçük Top Ocağı Resmi URL", img.kucuk_ocak||"", "text")}
-    ${field("img_orta_ocak", "Orta Top Ocağı Resmi URL", img.orta_ocak||"", "text")}
-    ${field("img_buyuk_ocak", "Büyük Top Ocağı Resmi URL", img.buyuk_ocak||"", "text")}
-    ${field("img_okul", "Okul Resmi URL", img.okul||"", "text")}
-    ${field("img_istihbarat_binasi", "İstihbarat Dairesi Resmi URL", img.istihbarat_binasi||"", "text")}
-    ${field("img_fortress", "Kale Resmi URL", img.fortress||"", "text")}
-    ${field("img_fortress_garrison", "Kale Garnizonu Resmi URL", img.fortress_garrison||"", "text")}
-    ${field("img_hastane", "Hastane Resmi URL", img.hastane||"", "text")}
-    ${field("img_asevi", "Aşevi Resmi URL", img.asevi||"", "text")}
-    ${field("img_su_degirmeni", "Su Değirmeni Resmi URL", img.su_degirmeni||"", "text")}
-    ${field("img_kervansaray", "Kervansaray Resmi URL", img.kervansaray||"", "text")}
-    ${field("img_pazar", "Pazar Resmi URL", img.pazar||"", "text")}
- </div>
+        <button id="admin-sb-gorsel" class="admin-sidebar-btn ${currentAdminTab==='gorsel'?'active':''}" onclick="switchAdminSidebarTab('gorsel')">
+          <span class="admin-sidebar-btn-icon">🖼️</span>
+          <div class="admin-sidebar-btn-texts">
+            <span class="admin-sidebar-btn-title">GÖRSELLER & SİSTEM</span>
+            <span class="admin-sidebar-btn-sub">Birim resimleri & istihbarat</span>
+          </div>
+        </button>
+      </div>
 
- <h4 style="color:var(--border-gold); margin:16px 0 6px; font-family:'Oswald';">🌟 ÖZEL BİRİM / BİNA EKLE</h4>
- <div style="margin-bottom:12px; max-height:180px; overflow:auto;">${customHtml || "<p class='sub'>Özel birim yok.</p>"}</div>
- <div class="formgrid" style="background:rgba(10, 12, 14, 0.7); padding:10px; border-radius:3px; border:1px solid var(--border-gold);">
-    ${field("ci_name", "Birim Adı", "", "text")}
-    <div class="full"><label>Hangi Devlete Özel?</label><select id="f_ci_faction">${stateOpts}</select></div>
-    <div><label>Kategori</label><select id="f_ci_cat"><option value="asker">Askeri Birlik</option><option value="altyapi">Altyapı / Bina</option></select></div>
-    ${field("ci_icon", "Resim URL (Direct Link)", "", "text")}
-    ${field("ci_price", "Satın Alma Fiyatı", "0", "number")}
-    ${field("ci_upkeep", "Yıllık Bakım Gideri", "0", "number")}
-    ${field("ci_campCost", "Sefer İkmal Maliyeti", "0", "number")}
-    <div class="full actions"><button class="btn green" style="width:100%;" onclick="addCustomItem()">➕ BİRİMİ KAYDET</button></div>
- </div>
+      <!-- SAĞ İÇERİK ALANI -->
+      <div class="admin-main-panel">
+        
+        <!-- 1. MALİYE & VERGİ TABI -->
+        <div id="admin-pane-maliye" class="admin-tab-content-panel ${currentAdminTab==='maliye'?'active':''}">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">💰 SADE MALİYE VE VERGİ KONTROL MERKEZİ</span>
+              <span class="badge" style="color:var(--green); border-color:var(--green);">✨ Sadeleştirilmiş Vergi v3.0</span>
+            </div>
+            <p class="sub" style="margin-bottom:12px; line-height:1.5;">
+              Vatandaşların yıllık ödeyeceği vergi miktarı, devletin belirlediği vergi oranı (%20, %25 vb.) ve temel vergi tabanına göre otomatik hesaplanır. Formül: <code>Nüfus × Vergi Oranı (%) × Kişi Başı Temel Vergi</code>.
+            </p>
+            
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+              <div style="background:#181c25; padding:12px; border-radius:4px; border:1px solid rgba(197, 160, 89, 0.3);">
+                <label style="color:var(--gold); font-weight:bold; margin-bottom:4px;">📊 CANLI VERGİ GELİRİ PROJEKSİYONU</label>
+                <div style="font-size:12px; margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                  <div style="display:flex; justify-content:space-between; background:#101319; padding:6px 8px; border-radius:3px;">
+                    <span style="color:#94a3b8;">100.000 Kişilik Beylik:</span>
+                    <b id="prev_100k" style="color:#f0cf82;">~20.000 TL / yıl (%20 Vergi)</b>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; background:#101319; padding:6px 8px; border-radius:3px;">
+                    <span style="color:#94a3b8;">1.000.000 Kişilik Devlet:</span>
+                    <b id="prev_1m" style="color:#f0cf82;">~200.000 TL / yıl (%20 Vergi)</b>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; background:#101319; padding:6px 8px; border-radius:3px; border:1px solid rgba(197,160,89,0.3);">
+                    <span style="color:#e2e8f0; font-weight:bold;">15 Milyonluk Cihan Devleti:</span>
+                    <b id="prev_15m" style="color:var(--green); font-weight:bold;">~4.700.000 TL / yıl (%25 Vergi)</b>
+                  </div>
+                </div>
+                <p class="sub" style="font-size:11px; margin-top:8px; color:#94a3b8;">
+                  💡 <i>15 Milyonluk bir imparatorluk yılda ~4.7 Milyon TL kazanır, 1.5 Milyon orduya ~3.5 Milyon TL öder, hazineye ~1.2 Milyon TL kâr kalır.</i>
+                </p>
+              </div>
 
- <h4 style="margin-top:14px; color:var(--border-gold); font-family:'Oswald';">SATIN ALMA FİYATLARI</h4><div class="formgrid">${Object.keys(p).map(k=>field("p_"+k,k,p[k],"number")).join("")}</div>
- <h4 style="margin-top:10px; color:var(--border-gold); font-family:'Oswald';">KAPASİTELER</h4><div class="formgrid">${Object.keys(c).map(k=>field("c_"+k,k,c[k],"number")).join("")}</div>
- <h4 style="margin-top:10px; color:var(--border-gold); font-family:'Oswald';">BAKIM GİDERLERİ</h4><div class="formgrid">${Object.keys(u).map(k=>field("u_"+k,k,u[k],"number")).join("")}</div>
- <h4 style="margin-top:10px; color:var(--blue); font-family:'Oswald';">OKUL AYARLARI</h4>
- <div class="formgrid">
-    ${field("school_capacity","Okul Başına Eğitim Kapasitesi (Kişi)",db.settings.schoolCapacityPerBuilding||500,"number")}
-    ${field("school_upkeep","Okul Başına Yıllık Gider",db.settings.schoolUpkeep||0,"number")}
-    ${field("educated_tax_multiplier","Eğitimli Nüfus Vergi Çarpanı",db.settings.educatedTaxMultiplier??1.5,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">ALTYAPI BİNALARI YILLIK GİDERLERİ (Bina Başı)</h4>
- <div class="formgrid">${Object.keys(iu).map(k=>field("iu_"+k,k,iu[k],"number")).join("")}</div>
- <p class="sub">Eğitimli nüfus artık yüzdeyle değil, okul kapasitesiyle kişi olarak hesaplanır. Çarpan 1,5 ise eğitimli kişi normal verginin 1,5 katını verir.</p>
- <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">GARNİZON YILLIK GİDERLERİ (Asker Başı)</h4>
- <div class="formgrid">
-   ${field("gu_fortress","Kale Garnizonu Asker Başı / Yıl",gu.fortress,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--green); font-family:'Oswald';">NÜFUS BİNALARI ARTIŞ ORANLARI (%)</h4>
- <div class="formgrid">
-   ${field("pg_hastane","Hastane Nüfus Artışı (%)",pg.hastane,"number")}
-   ${field("pg_asevi","Aşevi Nüfus Artışı (%)",pg.asevi,"number")}
-   ${field("pg_su_degirmeni","Su Değirmeni Nüfus Artışı (%)",pg.su_degirmeni,"number")}
-   ${field("pg_kervansaray","Kervansaray Nüfus Artışı (%)",pg.kervansaray,"number")}
-   ${field("pg_pazar","Pazar Nüfus Artışı (%)",pg.pazar,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">NÜFUS BİNALARI YILLIK GİDERLERİ (Bina Başı)</h4>
- <div class="formgrid">
-   ${field("pbu_hastane","Hastane Yıllık Gideri",pbu.hastane,"number")}
-   ${field("pbu_asevi","Aşevi Yıllık Gideri",pbu.asevi,"number")}
-   ${field("pbu_su_degirmeni","Su Değirmeni Yıllık Gideri",pbu.su_degirmeni,"number")}
-   ${field("pbu_kervansaray","Kervansaray Yıllık Gideri",pbu.kervansaray,"number")}
-   ${field("pbu_pazar","Pazar Yıllık Gideri",pbu.pazar,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--gold); font-family:'Oswald';">NÜFUSA GÖRE BİNA MALİYETİ (Kişi Başı TL)</h4>
- <p class="sub">Güncel bina fiyatı = devletin toplam nüfusu × kişi başı maliyet.</p>
- <div class="formgrid">
-   ${field("pc_hastane","Hastane Kişi Başı Maliyet",pc.hastane,"number")}
-   ${field("pc_asevi","Aşevi Kişi Başı Maliyet",pc.asevi,"number")}
-   ${field("pc_su_degirmeni","Su Değirmeni Kişi Başı Maliyet",pc.su_degirmeni,"number")}
-   ${field("pc_kervansaray","Kervansaray Kişi Başı Maliyet",pc.kervansaray,"number")}
-   ${field("pc_pazar","Pazar Kişi Başı Maliyet",pc.pazar,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--green); font-family:'Oswald';">NÜFUS SAĞLIK & ŞİFAHANE SİSTEMİ</h4>
- <div class="formgrid">
-    ${field("hospital_capacity","Şifahane Başına Sağlık Kapasitesi (Kişi)",db.settings.hospitalCapacityPerBuilding||60000,"number")}
-    ${field("hospital_base_cost","Şifahane Taban İnşaat Bedeli (TL)",db.settings.hospitalBaseCost||35000,"number")}
- </div>
- <h4 style="margin-top:10px; color:var(--blue); font-family:'Oswald';">HARİTA İSTİHBARATI</h4>
- <div class="formgrid">${field("map_intel_cost","İstihbaratsız Oyuncu Rapor Ücreti",db.settings.mapIntelReportCost||0,"number")}</div>
- <h4 style="margin-top:10px; color:var(--gold); font-family:'Oswald';">FERMAN ÇARPANLARI</h4><div class="formgrid">${Object.keys(ec).map(k=>field("ec_"+k,k,ec[k],"number")).join("")}</div>
- <h4 style="margin-top:10px; color:var(--red); font-family:'Oswald';">SEFER & İKMAL (Birim Başı)</h4><div class="formgrid">${Object.keys(cc).map(k=>field("cc_"+k,k,cc[k],"number")).join("")}</div>
- <div class="actions" style="margin-top:14px"><button class="btn" onclick="closeModal()">İPTAL</button><button class="btn blue" onclick="saveAdmin(true)">KAYDET</button></div>`);
- organizeAdminTabs();
+              <div style="background:#181c25; padding:12px; border-radius:4px; border:1px solid rgba(52, 152, 219, 0.3);">
+                <label style="color:var(--blue); font-weight:bold; margin-bottom:4px;">🎓 MEDRESE & EĞİTİMLİ SINIF AYARLARI</label>
+                <div class="formgrid" style="margin-top:6px;">
+                  ${field("school_capacity","Okul Başına Kapasite (Kişi)",db.settings.schoolCapacityPerBuilding||500,"number")}
+                  ${field("school_upkeep","Okul Başı Yıllık Gider (TL)",db.settings.schoolUpkeep||0,"number")}
+                  <div class="full">
+                    ${field("educated_tax_multiplier","Eğitimli Nüfus Vergi Çarpanı",db.settings.educatedTaxMultiplier??1.5,"number")}
+                    <p class="sub" style="font-size:11px; color:#38bdf8; margin:4px 0 0;">
+                      ✓ Eğitimli vatandaşlar normal halkın katı kadar (Örn: 1.5x) vergi öder. Eski Eğitim % kaldırılmıştır.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HALK FERMANLARI HARCAMALARI -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">📜 HALK FERMANI HARCAMALARI (Kişi Başı TL)</span>
+              <span class="sub">Hükümdar ferman ilan ettiğinde nüfus başına hazineden kesilecek miktar.</span>
+            </div>
+            <div class="formgrid">
+              ${Object.keys(ec).map(k=>field("ec_"+k, edictLabels[k] || k, ec[k], "number")).join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. ASKERİYE & DONANMA TABI -->
+        <div id="admin-pane-askeriye" class="admin-tab-content-panel ${currentAdminTab==='askeriye'?'active':''}">
+          <!-- KARA BİRLİKLERİ -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">⚔️ KARA BİRLİKLERİ (FİYAT, BAKIM & İKMAL)</span>
+            </div>
+            <div class="formgrid">
+              ${field("p_piyade", "Piyade Satın Alma", p.piyade||21, "number")}
+              ${field("u_piyade", "Piyade Yıllık Bakım", u.piyade||35, "number")}
+              ${field("cc_piyade", "Piyade Sefer İkmali", cc.piyade||2, "number")}
+              
+              ${field("p_suvari", "Süvari Satın Alma", p.suvari||40, "number")}
+              ${field("u_suvari", "Süvari Yıllık Bakım", u.suvari||55, "number")}
+              ${field("cc_suvari", "Süvari Sefer İkmali", cc.suvari||5, "number")}
+
+              ${field("p_nisanci", "Nişancı Satın Alma", p.nisanci||30, "number")}
+              ${field("u_nisanci", "Nişancı Yıllık Bakım", u.nisanci||45, "number")}
+              ${field("cc_nisanci", "Nişancı Sefer İkmali", cc.nisanci||3, "number")}
+            </div>
+          </div>
+
+          <!-- TOPÇULAR VE DÖKÜMHANELER -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">💣 TOPÇULAR & TOP OCAKLARI (DÖKÜMHANELER)</span>
+            </div>
+            <div class="formgrid">
+              <div class="full" style="color:var(--border-gold); font-size:12px; font-weight:bold; border-bottom:1px solid rgba(197,160,89,0.2); padding-bottom:4px; margin-top:4px;">TOP BİRLİKLERİ (FİYAT, BAKIM, İKMAL):</div>
+              ${field("p_kucuk_top", "Küçük Top Fiyatı", p.kucuk_top||10000, "number")}
+              ${field("u_kucuk_top", "Küçük Top Bakımı", u.kucuk_top||7500, "number")}
+              ${field("cc_kucuk_top", "Küçük Top İkmal", cc.kucuk_top||200, "number")}
+
+              ${field("p_orta_top", "Orta Top Fiyatı", p.orta_top||25000, "number")}
+              ${field("u_orta_top", "Orta Top Bakımı", u.orta_top||15000, "number")}
+              ${field("cc_orta_top", "Orta Top İkmal", cc.orta_top||500, "number")}
+
+              ${field("p_buyuk_top", "Büyük Top (Şahi) Fiyatı", p.buyuk_top||45000, "number")}
+              ${field("u_buyuk_top", "Büyük Top Bakımı", u.buyuk_top||25000, "number")}
+              ${field("cc_buyuk_top", "Büyük Top İkmal", cc.buyuk_top||1000, "number")}
+
+              <div class="full" style="color:var(--border-gold); font-size:12px; font-weight:bold; border-bottom:1px solid rgba(197,160,89,0.2); padding-bottom:4px; margin-top:10px;">TOP OCAKLARI / DÖKÜMHANE BİNALARI (FİYAT, KAPASİTE, BAKIM):</div>
+              ${field("p_kucuk_ocak", "Küçük Ocak Fiyatı", p.kucuk_ocak||80000, "number")}
+              ${field("c_kucuk_ocak", "Küçük Ocak Kapasitesi", c.kucuk_ocak||10, "number")}
+              ${field("iu_kucuk_ocak", "Küçük Ocak Yıllık Bakımı", iu.kucuk_ocak||0, "number")}
+
+              ${field("p_orta_ocak", "Orta Ocak Fiyatı", p.orta_ocak||150000, "number")}
+              ${field("c_orta_ocak", "Orta Ocak Kapasitesi", c.orta_ocak||20, "number")}
+              ${field("iu_orta_ocak", "Orta Ocak Yıllık Bakımı", iu.orta_ocak||0, "number")}
+
+              ${field("p_buyuk_ocak", "Büyük Ocak Fiyatı", p.buyuk_ocak||250000, "number")}
+              ${field("c_buyuk_ocak", "Büyük Ocak Kapasitesi", c.buyuk_ocak||35, "number")}
+              ${field("iu_buyuk_ocak", "Büyük Ocak Yıllık Bakımı", iu.buyuk_ocak||0, "number")}
+            </div>
+          </div>
+
+          <!-- DONANMA VE TERSANELER -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">⛵ DONANMA GEMİLERİ & TERSANELER (LİMANLAR)</span>
+            </div>
+            <div class="formgrid">
+              <div class="full" style="color:var(--border-gold); font-size:12px; font-weight:bold; border-bottom:1px solid rgba(197,160,89,0.2); padding-bottom:4px; margin-top:4px;">GEMİ BİRLİKLERİ (FİYAT, BAKIM, İKMAL):</div>
+              ${field("p_kucuk_gemi", "Küçük Gemi Fiyatı", p.kucuk_gemi||65000, "number")}
+              ${field("u_kucuk_gemi", "Küçük Gemi Bakımı", u.kucuk_gemi||20000, "number")}
+              ${field("cc_kucuk_gemi", "Küçük Gemi İkmal", cc.kucuk_gemi||0, "number")}
+
+              ${field("p_orta_gemi", "Orta Gemi Fiyatı", p.orta_gemi||95000, "number")}
+              ${field("u_orta_gemi", "Orta Gemi Bakımı", u.orta_gemi||35000, "number")}
+              ${field("cc_orta_gemi", "Orta Gemi İkmal", cc.orta_gemi||0, "number")}
+
+              ${field("p_buyuk_gemi", "Büyük Gemi Fiyatı", p.buyuk_gemi||130000, "number")}
+              ${field("u_buyuk_gemi", "Büyük Gemi Bakımı", u.buyuk_gemi||50000, "number")}
+              ${field("cc_buyuk_gemi", "Büyük Gemi İkmal", cc.buyuk_gemi||0, "number")}
+
+              <div class="full" style="color:var(--border-gold); font-size:12px; font-weight:bold; border-bottom:1px solid rgba(197,160,89,0.2); padding-bottom:4px; margin-top:10px;">TERSANE / LİMAN BİNALARI (FİYAT, KAPASİTE, BAKIM):</div>
+              ${field("p_kucuk_liman", "Küçük Liman Fiyatı", p.kucuk_liman||100000, "number")}
+              ${field("c_kucuk_liman", "Küçük Liman Kapasitesi", c.kucuk_liman||5, "number")}
+              ${field("iu_kucuk_liman", "Küçük Liman Yıllık Bakımı", iu.kucuk_liman||0, "number")}
+
+              ${field("p_orta_liman", "Orta Liman Fiyatı", p.orta_liman||180000, "number")}
+              ${field("c_orta_liman", "Orta Liman Kapasitesi", c.orta_liman||7, "number")}
+              ${field("iu_orta_liman", "Orta Liman Yıllık Bakımı", iu.orta_liman||0, "number")}
+
+              ${field("p_buyuk_liman", "Büyük Liman Fiyatı", p.buyuk_liman||300000, "number")}
+              ${field("c_buyuk_liman", "Büyük Liman Kapasitesi", c.buyuk_liman||10, "number")}
+              ${field("iu_buyuk_liman", "Büyük Liman Yıllık Bakımı", iu.buyuk_liman||0, "number")}
+            </div>
+          </div>
+
+          <!-- GARNİZON & ALTYAPI BİNALARI -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🛡️ GARNİZON VE ALTYAPI BİNALARI</span>
+            </div>
+            <div class="formgrid">
+              ${field("gu_fortress", "Kale Garnizonu Asker Başı / Yıl", gu.fortress||8, "number")}
+              ${field("p_okul", "Okul / Medrese İnşa Fiyatı", p.okul||120000, "number")}
+              ${field("p_istihbarat_binasi", "İstihbarat Dairesi İnşa Fiyatı", p.istihbarat_binasi||200000, "number")}
+              ${field("iu_istihbarat_binasi", "İstihbarat Dairesi Yıllık Bakımı", iu.istihbarat_binasi||0, "number")}
+              ${iu.okul !== undefined ? field("iu_okul", "Okul Yıllık Bakımı", iu.okul, "number") : ''}
+              ${extraPricesHtml}
+              ${extraUpkeepHtml}
+              <div class="full" style="margin-top:10px;"><b style="color:var(--border-gold); font-size:11px;">SEFER & İKMAL GİDERLERİ:</b></div>
+              ${Object.keys(cc).map(k=>field("cc_"+k, k + " Sefer İkmal", cc[k], "number")).join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. NÜFUS & ŞEHİR BİNALARI TABI -->
+        <div id="admin-pane-nufus" class="admin-tab-content-panel ${currentAdminTab==='nufus'?'active':''}">
+          <!-- SAĞLIK SİSTEMİ & ŞİFAHANE -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🏥 NÜFUS SAĞLIK & ŞİFAHANE SİSTEMİ</span>
+              <span class="badge" style="color:var(--green); border-color:var(--green);">Salgın Direnci & Doğal Ömür</span>
+            </div>
+            <p class="sub" style="margin-bottom:12px;">Şifahaneler nüfusun salgın hastalıklardan kırılmasını önler ve doğal ecel oranını düşürür.</p>
+            <div class="formgrid">
+              ${field("hospital_capacity", "Şifahane Başına Sağlık Kapasitesi (Kişi)", db.settings.hospitalCapacityPerBuilding||60000, "number")}
+              ${field("hospital_base_cost", "Şifahane Taban İnşaat Bedeli (TL)", db.settings.hospitalBaseCost||35000, "number")}
+              ${field("pg_hastane", "Şifahane Nüfus Artış Oranı (%)", pg.hastane||0.5, "number")}
+              ${field("pbu_hastane", "Şifahane Yıllık Gideri (Bina Başı)", pbu.hastane||0, "number")}
+              ${field("pc_hastane", "Şifahane Kişi Başı İnşaat Maliyeti (TL)", pc.hastane||0.10, "number")}
+            </div>
+          </div>
+
+          <!-- NÜFUS ARTIŞI ORANLARI -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🌾 NÜFUS BİNALARI DOĞAL ARTIŞ ORANLARI (%)</span>
+            </div>
+            <div class="formgrid">
+              ${field("pg_asevi", "Aşevi Nüfus Artışı (%)", pg.asevi||0.4, "number")}
+              ${field("pg_su_degirmeni", "Su Değirmeni Nüfus Artışı (%)", pg.su_degirmeni||0.6, "number")}
+              ${field("pg_kervansaray", "Kervansaray Nüfus Artışı (%)", pg.kervansaray||0.3, "number")}
+              ${field("pg_pazar", "Pazar Nüfus Artışı (%)", pg.pazar||0.4, "number")}
+            </div>
+          </div>
+
+          <!-- NÜFUS BİNALARI YILLIK GİDERLERİ -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">💸 NÜFUS BİNALARI YILLIK BAKIM GİDERLERİ (Bina Başı)</span>
+            </div>
+            <div class="formgrid">
+              ${field("pbu_asevi", "Aşevi Yıllık Gideri", pbu.asevi||0, "number")}
+              ${field("pbu_su_degirmeni", "Su Değirmeni Yıllık Gideri", pbu.su_degirmeni||0, "number")}
+              ${field("pbu_kervansaray", "Kervansaray Yıllık Gideri", pbu.kervansaray||0, "number")}
+              ${field("pbu_pazar", "Pazar Yıllık Gideri", pbu.pazar||0, "number")}
+            </div>
+          </div>
+
+          <!-- NÜFUSA GÖRE BİNA MALİYETİ -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🧱 NÜFUSA GÖRE BİNA İNŞAAT MALİYETİ (Kişi Başı TL)</span>
+              <span class="sub">Bina Fiyatı = Devlet Nüfusu × Kişi Başı Maliyet</span>
+            </div>
+            <div class="formgrid">
+              ${field("pc_asevi", "Aşevi Kişi Başı Maliyet", pc.asevi||0.05, "number")}
+              ${field("pc_su_degirmeni", "Su Değirmeni Kişi Başı Maliyet", pc.su_degirmeni||0.08, "number")}
+              ${field("pc_kervansaray", "Kervansaray Kişi Başı Maliyet", pc.kervansaray||0.12, "number")}
+              ${field("pc_pazar", "Pazar Kişi Başı Maliyet", pc.pazar||0.10, "number")}
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. DİVAN PAŞALARI TABI -->
+        <div id="admin-pane-divan" class="admin-tab-content-panel ${currentAdminTab==='divan'?'active':''}">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">👑 DİVAN PAŞALARI VE DANIŞMANLAR (${(db.advisors||[]).length} Paşa)</span>
+            </div>
+            <p class="sub" style="margin-bottom:12px;">Paşaların görev sürelerini, maaşlarını ve özelliklerini düzenleyin veya yeni paşa atayın.</p>
+            <div style="max-height:280px; overflow-y:auto; margin-bottom:16px; padding-right:4px;">
+              ${advisorsHtml || "<p class='sub' style='padding:10px;'>Henüz kayıtlı paşa bulunmamaktadır.</p>"}
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">➕ YENİ PAŞA / DANIŞMAN EKLE</span>
+            </div>
+            <div class="formgrid">
+              ${field("adv_new_name", "Paşa İsmi", "", "text")}
+              ${field("adv_new_role", "Unvanı / Rolü", "", "text")}
+              <div><label>Yıldız Seviyesi</label><select id="f_adv_new_stars"><option value="1">1 Yıldız (★)</option><option value="2">2 Yıldız (★★)</option><option value="3" selected>3 Yıldız (★★★)</option><option value="4">4 Yıldız (★★★★)</option><option value="5">5 Yıldız (★★★★★)</option></select></div>
+              <div><label>Hangi Devlete Özel?</label><select id="f_adv_new_faction">${stateOpts}</select></div>
+              ${field("adv_new_salary", "Yıllık Maaş (TL)", "25000", "number")}
+              ${field("adv_new_ageYears", "Başlangıç Yaşı (Yıl)", "1", "number")}
+              ${field("adv_new_maxAge", "Maksimum / Ölüm Yaşı (Yıl)", "70", "number")}
+              ${field("adv_new_icon", "Resim URL (İsteğe Bağlı)", "", "text")}
+
+              <div class="full" style="color:var(--gold); font-size:11px; font-weight:bold; margin-top:8px; border-bottom:1px solid rgba(197,160,89,0.2); padding-bottom:4px;">MATEMATİKSEL ETKİLER & ÇARPANLAR:</div>
+              ${field("adv_new_taxBonus", "Vergi Geliri Etkisi (+/- %)", "0", "number")}
+              ${field("adv_new_milUpkeepDiscount", "Ordu Bakım İndirimi (%)", "0", "number")}
+              ${field("adv_new_navyUpkeepDiscount", "Donanma Bakım İndirimi (%)", "0", "number")}
+              ${field("adv_new_artUpkeepDiscount", "Topçu Bakım İndirimi (%)", "0", "number")}
+              ${field("adv_new_recruitDiscount", "Asker Alım İndirimi (%)", "0", "number")}
+              ${field("adv_new_infraDiscount", "Bina Yapım İndirimi (%)", "0", "number")}
+              ${field("adv_new_happinessBonus", "Mutluluk Bonusu (+/- Puan)", "0", "number")}
+              <div><label>İsyan / Anarşiyi Sıfırla?</label><select id="f_adv_new_stopAnarchy"><option value="false">Hayır</option><option value="true">Evet (%0 Yapar)</option></select></div>
+              <div class="full"><label>Casusluk Sapmasını Sıfırla (Net Bilgi)?</label><select id="f_adv_new_spyAccuracyBonus"><option value="false">Hayır</option><option value="true">Evet (Tam Kesin Veri)</option></select></div>
+
+              <div class="full">${field("adv_new_buff", "Artı Açıklaması (Görsel Metin)", "", "text")}</div>
+              <div class="full">${field("adv_new_debuff", "Eksi Açıklaması (Görsel Metin)", "", "text")}</div>
+              <div class="full actions" style="margin-top:10px;"><button class="btn green" style="width:100%; font-weight:bold;" onclick="addNewAdvisor()">➕ PAŞAYI KAYDET</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. ÖZEL BİRİMLER & STRATEJİ TABI -->
+        <div id="admin-pane-ozel" class="admin-tab-content-panel ${currentAdminTab==='ozel'?'active':''}">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">⭐ DEĞERLİ VE STRATEJİK BÖLGELER</span>
+            </div>
+            <p class="sub" style="margin-bottom:10px;">Haritadaki önemli vilayetleri işaretleyin. Oyuncular bu bölgelere tıkladığında özel simgeler ve garnizon bilgisi görünür.</p>
+            <button class="btn gold" style="width:100%; font-weight:bold;" onclick="document.querySelector('.modalbox')?.classList.remove('admin-modal-wide'); openStrategicRegionAdmin();">⭐ STRATEJİK BÖLGELERİ YÖNET</button>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🌟 DEVLETLERE ÖZEL BİRİMLER & BİNALAR</span>
+            </div>
+            <div style="max-height:220px; overflow-y:auto; margin-bottom:14px; padding-right:4px;">
+              ${customHtml || "<p class='sub' style='padding:10px;'>Kayıtlı özel birim veya bina bulunmamaktadır.</p>"}
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">➕ YENİ ÖZEL BİRİM / BİNA EKLE</span>
+            </div>
+            <div class="formgrid">
+              ${field("ci_name", "Birim Adı", "", "text")}
+              <div class="full"><label>Hangi Devlete Özel?</label><select id="f_ci_faction">${stateOpts}</select></div>
+              <div><label>Kategori</label><select id="f_ci_cat"><option value="asker">Askeri Birlik</option><option value="altyapi">Altyapı / Bina</option></select></div>
+              ${field("ci_icon", "Resim URL (Doğrudan Link)", "", "text")}
+              ${field("ci_price", "Satın Alma Fiyatı (TL)", "0", "number")}
+              ${field("ci_upkeep", "Yıllık Bakım Gideri (TL)", "0", "number")}
+              ${field("ci_campCost", "Sefer İkmal Maliyeti", "0", "number")}
+              <div class="full actions" style="margin-top:10px;"><button class="btn green" style="width:100%; font-weight:bold;" onclick="addCustomItem()">➕ BİRİMİ KAYDET</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. GÖRSELLER & SİSTEM TABI -->
+        <div id="admin-pane-gorsel" class="admin-tab-content-panel ${currentAdminTab==='gorsel'?'active':''}">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🗺️ HARİTA İSTİHBARATI</span>
+            </div>
+            <div class="formgrid">
+              ${field("map_intel_cost", "İstihbaratsız Oyuncu Rapor Ücreti (TL)", db.settings.mapIntelReportCost||0, "number")}
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <span class="admin-card-title">🖼️ BİRLİK & BİNA RESİM URL'LERİ</span>
+              <span class="sub">Tüm askeri birlik ve sivil binaların kart görselleri.</span>
+            </div>
+            <div class="formgrid">
+              ${Object.keys(imgLabels).map(k => field("img_" + k, imgLabels[k], img[k]||"", "text")).join("")}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ALT BUTON VE DURUM BARI -->
+    <div class="admin-footer">
+      <span class="sub" style="color:#94a3b8;">💡 Değişikliklerin kaydedilmesi için <b>TÜMÜNÜ KAYDET</b> butonuna basınız.</span>
+      <div style="display:flex; gap:10px;">
+        <button class="btn" onclick="closeAdminModal()">İPTAL</button>
+        <button class="btn green" style="padding:8px 24px; font-weight:bold;" onclick="saveAdmin(true)">💾 TÜMÜNÜ KAYDET</button>
+      </div>
+    </div>
+    `);
+
+    const mb = document.querySelector('.modalbox');
+    if(mb) mb.classList.add('admin-modal-wide');
 }
 
 // ---------------- SAVAŞTA GARNİZON KAYIPLARI (ADMİN) ----------------
@@ -1056,7 +1418,16 @@ function saveAdmin(doClose = true){
      if(el) db.settings.images[k] = cleanUrl(el.value);
  });
 
- if(doClose){ closeModal(); queueSave(); if(currentId) openDetail(currentId); } else { queueSave(); openAdmin(); }
+ if(doClose){
+     const mb = document.querySelector('.modalbox');
+     if(mb) mb.classList.remove('admin-modal-wide');
+     closeModal();
+     queueSave();
+     if(currentId) openDetail(currentId);
+ } else {
+     queueSave();
+     openAdmin(currentAdminTab);
+ }
 }
 
 window.addEventListener("load",init);
