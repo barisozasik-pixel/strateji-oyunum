@@ -1487,6 +1487,45 @@ input[type="color"] { padding: 0; height: 36px; cursor: pointer; }
     box-shadow: 0 16px 50px rgba(0,0,0,0.9) !important;
 }
 
+.modalbox.admin-modal-wide #modalContent {
+    height: 100% !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    flex: 1 !important;
+}
+
+/* Performans Optimizasyonu: 80+ kutudaki GPU blur kasmasını sıfırlar */
+.modalbox.admin-modal-wide input,
+.modalbox.admin-modal-wide select,
+.modalbox.admin-modal-wide textarea {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #151922 !important;
+}
+
+/* Şık Altın Temalı Kaydırma Çubuğu */
+.admin-main-panel::-webkit-scrollbar,
+.admin-sidebar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.admin-main-panel::-webkit-scrollbar-track,
+.admin-sidebar::-webkit-scrollbar-track {
+    background: #0c0e13;
+}
+.admin-main-panel::-webkit-scrollbar-thumb,
+.admin-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(197, 160, 89, 0.4);
+    border-radius: 4px;
+}
+.admin-main-panel::-webkit-scrollbar-thumb:hover,
+.admin-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(197, 160, 89, 0.8);
+}
+
 .admin-header {
     display: flex;
     justify-content: space-between;
