@@ -1,4 +1,4 @@
-// --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI 3.8 FLASH) ---
+// --- MULTIPLAYER CANLI SAVAŞ ODASI (SUPABASE + GEMINI 3.5 FLASH & AUTO-FALLBACK) ---
 
 let currentBattleSubscription = null;
 let currentActiveBattleId = null;
@@ -37,9 +37,9 @@ window.initGlobalBattleListener = function() {
 };
 setTimeout(window.initGlobalBattleListener, 3000);
 
-// --- GEMİNİ API VE MODEL KONTROLÜ ---
+// --- GEMİNİ API VE MODEL KONTROLÜ (VARSAYILAN: gemini-3.5-flash) ---
 window.getGeminiModel = function() {
-    return localStorage.getItem("OSMOYUN_GEMINI_MODEL") || "gemini-3.8-flash";
+    return localStorage.getItem("OSMOYUN_GEMINI_MODEL") || "gemini-3.5-flash";
 };
 
 window.setGeminiModel = function(modelName) {
@@ -57,7 +57,7 @@ window.clearGeminiApiKey = function() {
 
 window.promptChangeModel = function() {
     const current = getGeminiModel();
-    const chosen = prompt("Kullanmak istediğiniz Gemini model adını girin (Örn: gemini-3.8-flash, gemini-2.0-flash):", current);
+    const chosen = prompt("Kullanmak istediğiniz Gemini model adını girin (Örn: gemini-3.5-flash, gemini-3.8-flash, gemini-2.0-flash):", current);
     if(chosen && chosen.trim()) {
         localStorage.setItem("OSMOYUN_GEMINI_MODEL", chosen.trim());
         if(typeof toast === 'function') toast(`YZ Modeli güncellendi: ${chosen.trim()}`, true);
@@ -67,32 +67,45 @@ window.promptChangeModel = function() {
 
 window.saveAndVerifyLobbyKey = async function() {
     const keyVal = document.getElementById('lobby_api_key')?.value.trim();
-    const modelVal = document.getElementById('lobby_model_name')?.value.trim() || "gemini-3.8-flash";
+    const modelVal = document.getElementById('lobby_model_name')?.value.trim() || "gemini-3.5-flash";
     if(!keyVal) return alert("Lütfen API anahtarını girin!");
     
     const btn = document.getElementById('btn_verify_key');
     if(btn) { btn.innerText = "⏳ Doğrulanıyor..."; btn.disabled = true; }
     
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelVal}:generateContent`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": keyVal
-            },
-            body: JSON.stringify({contents: [{parts: [{text: "merhaba"}]}]})
-        });
-        
-        if(!response.ok) {
-            throw new Error(`Reddedildi (HTTP ${response.status}) - Model: ${modelVal}. Lütfen anahtarın ve model adının doğruluğunu kontrol edin.`);
+    const testModels = [...new Set([modelVal, "gemini-3.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"])];
+    let verifiedModel = null;
+    let lastErr = "";
+
+    for (const m of testModels) {
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": keyVal
+                },
+                body: JSON.stringify({contents: [{parts: [{text: "merhaba"}]}]})
+            });
+            
+            if (response.ok) {
+                verifiedModel = m;
+                break;
+            } else {
+                lastErr = `HTTP ${response.status}`;
+            }
+        } catch(e) {
+            lastErr = e.message;
         }
-        
+    }
+
+    if(verifiedModel) {
         localStorage.setItem("OSMOYUN_GEMINI_KEY", keyVal);
-        localStorage.setItem("OSMOYUN_GEMINI_MODEL", modelVal);
-        alert(`✅ Başarılı! API Anahtarı ve Model (${modelVal}) doğrulandı.`);
+        localStorage.setItem("OSMOYUN_GEMINI_MODEL", verifiedModel);
+        alert(`✅ Başarılı! API Anahtarı doğrulandı. (Aktif Model: ${verifiedModel})`);
         openBattleLobby();
-    } catch(e) {
-        alert("❌ Hata: " + e.message);
+    } else {
+        alert(`❌ Anahtar doğrulanamadı: ${lastErr}. Lütfen anahtarı kontrol edin.`);
         if(btn) { btn.innerText = "Doğrula ve Kaydet"; btn.disabled = false; }
     }
 };
@@ -133,11 +146,11 @@ window.openBattleLobby = async function() {
         actionsHtml = `
             <div style="background:rgba(231,76,60,0.1); padding:10px; margin-bottom:15px; border-radius:4px; border:1px solid #e74c3c;">
                 <label style="color:#e74c3c; font-weight:bold; display:block; text-align:center;">⚠️ YZ Hakem İçin API Anahtarı ve Model</label>
-                <p style="font-size:11px; margin:5px 0; text-align:center;">Savaş başlatabilmek için geçerli bir Gemini anahtarı ve model adı girin.</p>
+                <p style="font-size:11px; margin:5px 0; text-align:center;">Savaş başlatabilmek için geçerli bir Gemini anahtarı girin.</p>
                 <input type="text" id="lobby_api_key" placeholder="AIza..." style="width:100%; margin-bottom:6px;">
                 <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
                     <span style="font-size:11px; color:var(--muted); white-space:nowrap;">Model:</span>
-                    <input type="text" id="lobby_model_name" value="${currentModel}" placeholder="gemini-3.8-flash" style="flex:1;">
+                    <input type="text" id="lobby_model_name" value="${currentModel}" placeholder="gemini-3.5-flash" style="flex:1;">
                 </div>
                 <button id="btn_verify_key" class="btn green" style="width:100%;" onclick="saveAndVerifyLobbyKey()">Doğrula ve Kaydet</button>
             </div>
@@ -208,7 +221,6 @@ window.createBattleSubmit = async function() {
     const attState = getState(attId);
     const defState = getState(defId);
     
-    // Tüyosuz, saf atmosferik ve coğrafi hava durumları
     const havaDurumlari = [
         '☀️ Açık ve Kuru Meydan',
         '🌧️ Şiddetli Sağanak Yağış ve Balçık Zemin',
@@ -219,16 +231,25 @@ window.createBattleSubmit = async function() {
     ];
     const secilenHava = havaDurumlari[Math.floor(Math.random() * havaDurumlari.length)];
 
-    const attTop = (attState.kucuk_top||0) + (attState.orta_top||0) + (attState.buyuk_top||0);
-    const defTop = (defState.kucuk_top||0) + (defState.orta_top||0) + (defState.buyuk_top||0);
-
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
     const { data, error } = await supabaseClient.from('savaslar').insert([{
         bolge: loc,
         saldiran_id: attState.name,
         savunan_id: defState.name,
-        saldiran_ordu: {Piyade: attState.piyade||0, Nişancı: attState.nisanci||0, Süvari: attState.suvari||0, Topçu: attTop, Moral: 100},
-        savunan_ordu: {Piyade: defState.piyade||0, Nişancı: defState.nisanci||0, Süvari: defState.suvari||0, Topçu: defTop, Moral: 100},
+        saldiran_ordu: {
+            Piyade: Number(attState.piyade || 0),
+            Nişancı: Number(attState.nisanci || 0),
+            Süvari: Number(attState.suvari || 0),
+            Topçu: (attState.kucuk_top || 0) + (attState.orta_top || 0) + (attState.buyuk_top || 0),
+            Moral: 100
+        },
+        savunan_ordu: {
+            Piyade: Number(defState.piyade || 0),
+            Nişancı: Number(defState.nisanci || 0),
+            Süvari: Number(defState.suvari || 0),
+            Topçu: (defState.kucuk_top || 0) + (defState.orta_top || 0) + (defState.buyuk_top || 0),
+            Moral: 100
+        },
         durum: 'aktif'
     }]).select('*');
 
@@ -253,27 +274,74 @@ window.openBattleRoom = async function(savasId) {
     if(bErr) return alert("Savaş odası bulunamadı!");
     currentBattleData = bData;
 
+    // Eski savaşlarda nişancı alanı boş kalmışsa db.states verisiyle senkronize et
+    if (typeof db !== 'undefined' && db.states) {
+        const attState = db.states.find(s => s.name === bData.saldiran_id);
+        const defState = db.states.find(s => s.name === bData.savunan_id);
+        let sOrdu = bData.saldiran_ordu || {};
+        let dOrdu = bData.savunan_ordu || {};
+        let needPatch = false;
+
+        if ((sOrdu.Nişancı === undefined || sOrdu.Nişancı === 0) && attState && (attState.nisanci || 0) > 0) {
+            sOrdu.Nişancı = Number(attState.nisanci);
+            needPatch = true;
+        }
+        if ((dOrdu.Nişancı === undefined || dOrdu.Nişancı === 0) && defState && (defState.nisanci || 0) > 0) {
+            dOrdu.Nişancı = Number(defState.nisanci);
+            needPatch = true;
+        }
+        if (needPatch) {
+            bData.saldiran_ordu = sOrdu;
+            bData.savunan_ordu = dOrdu;
+            supabaseClient.from('savaslar').update({ saldiran_ordu: sOrdu, savunan_ordu: dOrdu }).eq('id', savasId);
+        }
+    }
+
     const myStateName = getMyStateName();
-    currentBattleRole = myStateName === bData.saldiran_id ? 'saldiran'
-                       : myStateName === bData.savunan_id ? 'savunan'
-                       : null;
-    const isParticipant = currentBattleRole !== null;
     const isGameMaster = typeof isAdmin !== 'undefined' ? isAdmin : false;
 
+    if (myStateName === bData.saldiran_id) {
+        currentBattleRole = 'saldiran';
+    } else if (myStateName === bData.savunan_id) {
+        currentBattleRole = 'savunan';
+    } else if (isGameMaster) {
+        currentBattleRole = currentBattleRole || 'saldiran';
+    } else {
+        currentBattleRole = null;
+    }
+
+    const canSendOrders = (currentBattleRole !== null);
+
     let chatInputHtml = "";
-    if (isParticipant) {
+    if (canSendOrders) {
+        let adminRoleSwitchHtml = "";
+        if (isGameMaster) {
+            adminRoleSwitchHtml = `
+                <div style="background:rgba(197,160,89,0.12); border:1px solid var(--border-gold); padding:6px 10px; border-radius:4px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <span style="font-size:11px; font-weight:bold; color:var(--gold);">👑 Yönetici / Test Modu — Emir Verilecek Taraf:</span>
+                    <div style="display:flex; gap:6px;">
+                        <button type="button" id="btn_role_att" class="btn" style="padding:3px 10px; font-size:11px; ${currentBattleRole==='saldiran'?'background:#c0392b;color:#fff;border-color:#e74c3c;':'opacity:0.6;'}" onclick="setAdminBattleRole('saldiran')">🗡️ ${bData.saldiran_id}</button>
+                        <button type="button" id="btn_role_def" class="btn" style="padding:3px 10px; font-size:11px; ${currentBattleRole==='savunan'?'background:#2980b9;color:#fff;border-color:#3498db;':'opacity:0.6;'}" onclick="setAdminBattleRole('savunan')">🛡️ ${bData.savunan_id}</button>
+                    </div>
+                </div>
+            `;
+        }
+
         chatInputHtml += `
             <div style="margin-top:10px;">
-                <div style="font-size:11px; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between;">
-                    <span>📜 Gizli Harp Emrin (Düşman göremez):</span>
-                    <span>Hızlı Taktik Seç:</span>
+                ${adminRoleSwitchHtml}
+                <div style="font-size:11px; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                    <span id="active_role_badge" style="font-weight:bold; color:${currentBattleRole==='saldiran'?'#e74c3c':'#3498db'};">
+                        ${currentBattleRole==='saldiran' ? `🗡️ ${bData.saldiran_id} Gizli Harp Emri:` : `🛡️ ${bData.savunan_id} Gizli Harp Emri:`}
+                    </span>
+                    <span style="color:var(--gold); font-size:11px; font-weight:bold;">⚡ Hızlı Taktik Seç:</span>
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
-                    <button type="button" class="btn" style="font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.06);" onclick="applyQuickTactic('🏹 Hilal Taktiği & Sahte Ricat:')">🏹 Hilal Taktiği</button>
-                    <button type="button" class="btn" style="font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.06);" onclick="applyQuickTactic('🛡️ Tabur Cengi (Kalkan & Siper):')">🛡️ Tabur Cengi</button>
-                    <button type="button" class="btn" style="font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.06);" onclick="applyQuickTactic('🐎 Kanat Kuşatması:')">🐎 Kanat Kuşatması</button>
-                    <button type="button" class="btn" style="font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.06);" onclick="applyQuickTactic('💣 Topçu Barajı Ateşi:')">💣 Topçu Barajı</button>
-                    <button type="button" class="btn" style="font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.06);" onclick="applyQuickTactic('⚡ Yarma Taarruzu:')">⚡ Yarma Taarruzu</button>
+                <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;">
+                    <button type="button" class="btn" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-gold); background:rgba(197,160,89,0.15); color:var(--gold);" onclick="applyQuickTactic('🏹 Hilal Taktiği & Sahte Ricat:')">🏹 Hilal Taktiği</button>
+                    <button type="button" class="btn" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-gold); background:rgba(197,160,89,0.15); color:var(--gold);" onclick="applyQuickTactic('🛡️ Tabur Cengi (Kalkan & Siper):')">🛡️ Tabur Cengi</button>
+                    <button type="button" class="btn" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-gold); background:rgba(197,160,89,0.15); color:var(--gold);" onclick="applyQuickTactic('🐎 Kanat Kuşatması:')">🐎 Kanat Kuşatması</button>
+                    <button type="button" class="btn" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-gold); background:rgba(197,160,89,0.15); color:var(--gold);" onclick="applyQuickTactic('💣 Topçu Barajı Ateşi:')">💣 Topçu Barajı</button>
+                    <button type="button" class="btn" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-gold); background:rgba(197,160,89,0.15); color:var(--gold);" onclick="applyQuickTactic('⚡ Yarma Taarruzu:')">⚡ Yarma Taarruzu</button>
                 </div>
                 <div style="display:flex; gap:5px;">
                     <input type="text" id="chat_input" placeholder="Gizli taktik emrini yaz..." style="flex:1;" onkeypress="if(event.key==='Enter') sendBattleMessage()">
@@ -292,7 +360,7 @@ window.openBattleRoom = async function(savasId) {
             <div style="margin-top:10px; padding:10px; background:rgba(46, 204, 113, 0.1); border:1px solid #2ecc71; border-radius:4px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                     <label style="color:#2ecc71; font-size:11px; font-weight:bold;">🛡️ YÖNETİCİ KONTROLLERİ</label>
-                    <small style="color:var(--gold); font-size:10px;">Model: ${getGeminiModel()}</small>
+                    <small style="color:var(--gold); font-size:10px;">Öncelikli Model: ${getGeminiModel()}</small>
                 </div>
                 <button class="btn green" style="width:100%;" onclick="evaluateTurnWithGemini()" title="Turu Değerlendirir">⚔️ Turu Değerlendir (Yapay Zeka Hakem)</button>
             </div>`;
@@ -333,6 +401,49 @@ window.openBattleRoom = async function(savasId) {
     setupRealtimeSubscription(savasId);
 };
 
+window.setAdminBattleRole = function(role) {
+    currentBattleRole = role;
+    renderOwnArmyInfo();
+    const btnAtt = document.getElementById('btn_role_att');
+    const btnDef = document.getElementById('btn_role_def');
+    const badge = document.getElementById('active_role_badge');
+    
+    if(btnAtt) {
+        if(role === 'saldiran') {
+            btnAtt.style.background = '#c0392b';
+            btnAtt.style.color = '#fff';
+            btnAtt.style.borderColor = '#e74c3c';
+            btnAtt.style.opacity = '1';
+        } else {
+            btnAtt.style.background = '';
+            btnAtt.style.color = '';
+            btnAtt.style.borderColor = '';
+            btnAtt.style.opacity = '0.6';
+        }
+    }
+    if(btnDef) {
+        if(role === 'savunan') {
+            btnDef.style.background = '#2980b9';
+            btnDef.style.color = '#fff';
+            btnDef.style.borderColor = '#3498db';
+            btnDef.style.opacity = '1';
+        } else {
+            btnDef.style.background = '';
+            btnDef.style.color = '';
+            btnDef.style.borderColor = '';
+            btnDef.style.opacity = '0.6';
+        }
+    }
+    if(badge && currentBattleData) {
+        badge.style.color = role === 'saldiran' ? '#e74c3c' : '#3498db';
+        badge.innerHTML = role === 'saldiran' 
+            ? `🗡️ ${currentBattleData.saldiran_id} Gizli Harp Emri:` 
+            : `🛡️ ${currentBattleData.savunan_id} Gizli Harp Emri:`;
+    }
+    const input = document.getElementById('chat_input');
+    if(input) input.focus();
+};
+
 window.applyQuickTactic = function(prefix) {
     const input = document.getElementById('chat_input');
     if(!input) return;
@@ -346,10 +457,10 @@ window.renderOwnArmyInfo = function() {
 
     if(currentBattleRole === 'saldiran') {
         const o = currentBattleData.saldiran_ordu || {};
-        el.innerHTML = `<span style="color:#e74c3c; font-weight:bold;">🗡️ Saldıran Kolordusu (${currentBattleData.saldiran_id})</span>: 🧍${o.Piyade||0} 🎯${o["Nişancı"]||0} 🐎${o["Süvari"]||0} 💣${o["Topçu"]||0} | 🛡️ Moral: <b style="color:${(o.Moral||100)>50?'#2ecc71':'#e74c3c'}">%${o.Moral||100}</b>`;
+        el.innerHTML = `<span style="color:#e74c3c; font-weight:bold;">🗡️ Saldıran Kolordusu (${currentBattleData.saldiran_id})</span>: 🧍${o.Piyade||0} 🎯${o.Nişancı||0} Nişancı 🐎${o.Süvari||0} 💣${o.Topçu||0} | 🛡️ Moral: <b style="color:${(o.Moral||100)>50?'#2ecc71':'#e74c3c'}">%${o.Moral||100}</b>`;
     } else if(currentBattleRole === 'savunan') {
         const o = currentBattleData.savunan_ordu || {};
-        el.innerHTML = `<span style="color:#3498db; font-weight:bold;">🛡️ Savunan Kolordusu (${currentBattleData.savunan_id})</span>: 🧍${o.Piyade||0} 🎯${o["Nişancı"]||0} 🐎${o["Süvari"]||0} 💣${o["Topçu"]||0} | 🛡️ Moral: <b style="color:${(o.Moral||100)>50?'#2ecc71':'#e74c3c'}">%${o.Moral||100}</b>`;
+        el.innerHTML = `<span style="color:#3498db; font-weight:bold;">🛡️ Savunan Kolordusu (${currentBattleData.savunan_id})</span>: 🧍${o.Piyade||0} 🎯${o.Nişancı||0} Nişancı 🐎${o.Süvari||0} 💣${o.Topçu||0} | 🛡️ Moral: <b style="color:${(o.Moral||100)>50?'#2ecc71':'#e74c3c'}">%${o.Moral||100}</b>`;
     } else {
         el.innerHTML = `<span style="color:var(--muted)">👁️ İzleyici modundasın — cephedeki ordu sayıları gizlidir.</span>`;
     }
@@ -371,7 +482,6 @@ window.appendMessageToChat = function(msg) {
     const chatBox = document.getElementById('live_chat_box');
     if(!chatBox) return;
     
-    // Meydan şartlarını banner'a çek
     if(msg.gonderen === 'Sistem') {
         const match = msg.mesaj.match(/(?:Meydan Şartları|Hava Durumu):\s*([^\n\r(]+)/);
         if(match) {
@@ -384,7 +494,11 @@ window.appendMessageToChat = function(msg) {
     const isGameMaster = typeof isAdmin !== 'undefined' ? isAdmin : false;
     let isSystem = msg.gonderen === 'Sistem';
     let isGM = msg.gonderen.includes('Game Master');
-    let isMe = msg.gonderen === currentUser;
+    
+    let isMySide = false;
+    if(currentBattleRole === 'saldiran' && msg.gonderen === currentBattleData?.saldiran_id) isMySide = true;
+    if(currentBattleRole === 'savunan' && msg.gonderen === currentBattleData?.savunan_id) isMySide = true;
+    if(msg.gonderen === currentUser) isMySide = true;
     
     let color = "var(--text)";
     let bg = "rgba(0,0,0,0.3)";
@@ -396,8 +510,7 @@ window.appendMessageToChat = function(msg) {
     let align = isSystem ? "center" : "left";
     let safeMsg = msg.mesaj.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     
-    // Düşmanın yazdığı taktikleri gizle! (Sadece GM ve yazan kişinin kendisi bilsin)
-    if(!isSystem && !isGM && !isMe && !isGameMaster) {
+    if(!isSystem && !isGM && !isGameMaster && !isMySide) {
         safeMsg = `<div style="font-style:italic; color:var(--gold); display:flex; align-items:center; gap:6px;">
             <span>📜</span> <span><b>${msg.gonderen}</b> gizli harp emrini mühürledi...</span>
         </div>`;
@@ -424,21 +537,21 @@ window.formatGeminiResponse = function(raw) {
         out += `<b>♟️ Manevra ve Taktik Üstünlük:</b> ${obj.adim_2_taktik_carpismasi}<br><br>`;
         out += `<i>${obj.savas_raporu}</i><br><br>`;
         
-        let attO = obj.saldiran_oluler || {piyade:0, nisanci:0, suvari:0, topcu:0};
-        let attK = obj.saldiran_kalan || {piyade:0, nisanci:0, suvari:0, topcu:0, moral:100};
-        let defO = obj.savunan_oluler || {piyade:0, nisanci:0, suvari:0, topcu:0};
-        let defK = obj.savunan_kalan || {piyade:0, nisanci:0, suvari:0, topcu:0, moral:100};
+        let attO = obj.saldiran_oluler || {};
+        let attK = obj.saldiran_kalan || {};
+        let defO = obj.savunan_oluler || {};
+        let defK = obj.savunan_kalan || {};
 
         let attName = currentBattleData ? currentBattleData.saldiran_id : "Saldıran";
         let defName = currentBattleData ? currentBattleData.savunan_id : "Savunan";
 
         out += `<div style="background:rgba(231,76,60,0.1); padding:6px 10px; border-left:3px solid #e74c3c; margin-bottom:6px; border-radius:2px;">`;
         out += `<b>🗡️ ${attName} Kayıpları:</b> 💀${attO.piyade||0} Piyade, 🎯${attO.nisanci||0} Nişancı, 🐎${attO.suvari||0} Süvari, 💣${attO.topcu||0} Topçu<br>`;
-        out += `<small style="color:#e74c3c">Kalan Ordu: 🧍${attK.piyade||0} | 🎯${attK.nisanci||0} | 🐎${attK.suvari||0} | 💣${attK.topcu||0} | <b>%${attK.moral||100} Moral</b></small></div>`;
+        out += `<small style="color:#e74c3c">Kalan Ordu: 🧍${attK.piyade||0} | 🎯${attK.nisanci||0} Nişancı | 🐎${attK.suvari||0} | 💣${attK.topcu||0} | <b>%${attK.moral||100} Moral</b></small></div>`;
 
         out += `<div style="background:rgba(52,152,219,0.1); padding:6px 10px; border-left:3px solid #3498db; margin-bottom:10px; border-radius:2px;">`;
         out += `<b>🛡️ ${defName} Kayıpları:</b> 💀${defO.piyade||0} Piyade, 🎯${defO.nisanci||0} Nişancı, 🐎${defO.suvari||0} Süvari, 💣${defO.topcu||0} Topçu<br>`;
-        out += `<small style="color:#3498db">Kalan Ordu: 🧍${defK.piyade||0} | 🎯${defK.nisanci||0} | 🐎${defK.suvari||0} | 💣${defK.topcu||0} | <b>%${defK.moral||100} Moral</b></small></div>`;
+        out += `<small style="color:#3498db">Kalan Ordu: 🧍${defK.piyade||0} | 🎯${defK.nisanci||0} Nişancı | 🐎${defK.suvari||0} | 💣${defK.topcu||0} | <b>%${defK.moral||100} Moral</b></small></div>`;
 
         out += `<div style="padding:6px; background:rgba(197,160,89,0.15); border:1px solid var(--border-gold); text-align:center; font-weight:bold; color:var(--gold); border-radius:3px;">`;
         out += `⚔️ Muharebe Durumu: ${obj.kazanan}</div>`;
@@ -449,7 +562,7 @@ window.formatGeminiResponse = function(raw) {
 };
 
 window.sendBattleMessage = async function() {
-    if(!currentBattleRole) return;
+    if(!currentBattleRole || !currentBattleData) return;
 
     const input = document.getElementById('chat_input');
     const msgText = input.value.trim();
@@ -459,11 +572,11 @@ window.sendBattleMessage = async function() {
     input.disabled = true;
     
     const supabaseClient = (typeof sb !== 'undefined' ? sb : null);
-    const currentUser = (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail.split('@')[0] : 'Misafir';
+    const senderStateName = currentBattleRole === 'saldiran' ? currentBattleData.saldiran_id : currentBattleData.savunan_id;
     
     await supabaseClient.from('savas_mesajlari').insert([{
         savas_id: currentActiveBattleId,
-        gonderen: currentUser,
+        gonderen: senderStateName,
         mesaj: msgText
     }]);
     
@@ -496,7 +609,7 @@ window.endBattle = async function(savasId) {
     openBattleLobby();
 };
 
-// --- 4. GEMINI ASKERİ HAKEM ENTEGRASYONU ---
+// --- 4. GEMINI ASKERİ HAKEM ENTEGRASYONU (503 KORUMALI AUTO-FALLBACK) ---
 window.evaluateTurnWithGemini = async function(retryCount = 0) {
     const apiKey = localStorage.getItem("OSMOYUN_GEMINI_KEY");
     const activeModel = getGeminiModel();
@@ -525,6 +638,7 @@ HARP DOKTRİNİ VE KURALLAR:
 4. BİRİMLER:
    - Birimler tam olarak şunlardır: Piyade, Nişancı, Süvari, Topçu.
    - Asla taraf isimlerini karıştırma. Saldıran: ${attName}, Savunan: ${defName}.
+   - JSON çıktısındaki saldiran_oluler, savunan_oluler, saldiran_kalan, savunan_kalan içinde "nisanci" anahtarını kullan.
 5. EDEBİ VE SÜRÜKLEYİCİ SAVAŞ RAPORU:
    - İki komutanın gizli emirlerini, aralarındaki manevra düellosunu ve meydandaki kanlı çarpışmayı dönemin ruhuna uygun, heyecanlı bir dille anlat.
 
@@ -560,30 +674,50 @@ DÖNECEĞİN JSON FORMATI:
             }]);
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": apiKey
-            },
-            body: JSON.stringify(requestBody)
-        });
+        const candidateModels = [...new Set([activeModel, "gemini-3.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"])];
         
-        if (!response.ok) {
-            if((response.status === 503 || response.status === 429) && retryCount < 4) {
-                console.warn(`Gemini API Meşgul (${response.status}), tekrar deneniyor... (${retryCount + 1}. deneme)`);
-                let waitTime = response.status === 429 ? 10000 : 2000;
-                await new Promise(r => setTimeout(r, waitTime));
+        let response = null;
+        let successfulModel = activeModel;
+        let lastErrorMsg = "";
+
+        for (const modelToTry of candidateModels) {
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": apiKey
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (res.ok) {
+                    response = res;
+                    successfulModel = modelToTry;
+                    break;
+                } else {
+                    lastErrorMsg = `HTTP ${res.status} (${res.statusText})`;
+                    console.warn(`Model ${modelToTry} yanıt vermedi (${lastErrorMsg}), bir sonraki model deneniyor...`);
+                }
+            } catch(fetchErr) {
+                lastErrorMsg = fetchErr.message;
+            }
+        }
+        
+        if (!response) {
+            if(retryCount < 3) {
+                console.warn(`Tüm modeller meşgul, 2.5 saniye sonra tekrar deneniyor... (${retryCount + 1}. deneme)`);
+                await new Promise(r => setTimeout(r, 2500));
                 return window.evaluateTurnWithGemini(retryCount + 1);
             }
-            throw new Error(`HTTP ${response.status} (${response.statusText})`);
+            throw new Error(`Google YZ Sunucuları şu an yanıt veremiyor (${lastErrorMsg}). Lütfen birkaç saniye sonra tekrar deneyin.`);
         }
         
         const data = await response.json();
         const rawResponse = data.candidates[0].content.parts[0].text;
         
         await supabaseClient.from('savas_mesajlari').delete().like('mesaj', '%Game Master (% cephedeki son durumu değerlendiriyor%').eq('savas_id', currentActiveBattleId);
-        await supabaseClient.from('savas_mesajlari').insert([{ savas_id: currentActiveBattleId, gonderen: `Game Master (${activeModel})`, mesaj: rawResponse }]);
+        await supabaseClient.from('savas_mesajlari').insert([{ savas_id: currentActiveBattleId, gonderen: `Game Master (${successfulModel})`, mesaj: rawResponse }]);
         
         // Savaş verisini güncelle (Sonraki tur için)
         try {
