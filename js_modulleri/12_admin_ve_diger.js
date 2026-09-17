@@ -366,8 +366,8 @@ function passOneYear(){
             rpt.events.push(`🌱 Genç Nesil: +${num(maturing)} genç rüştüne erip vergi mükellefi ve nefer havuzuna katıldı`);
         }
 
-        // 4. YENİ DOĞUMLAR: Taze nesil dünyaya gelir (taban %1.65 + şifahane refahı + binalar)
-        let baseBirthPercent = 1.65 + (hospitalCoverage * 0.10); // %1.65 - %1.75
+        // 4. YENİ DOĞUMLAR: Taze nesil dünyaya gelir (taban %2.00 + şifahane refahı + binalar)
+        let baseBirthPercent = 2.00 + (hospitalCoverage * 0.10); // %2.00 - %2.10
         let totalGrowthPercent = baseBirthPercent;
         ["asevi", "su_degirmeni", "kervansaray", "pazar"].forEach(key => {
             const count = s[key] || 0;
@@ -856,13 +856,14 @@ async function openAdmin(defaultTab = 'askeriye'){
               <span class="admin-v2-card-badge" style="background:#1a2a3d; color:#3498db;">Talebe Yetiştirir</span>
             </div>
             <div class="admin-v2-grid-2" style="margin-top:4px;">
-              ${v2Field("f_p_okul", "Okul İnşaat Fiyatı (TL)", p.okul||100000, "number", "admin-v2-input-price")}
+              ${v2Field("f_p_okul", "Okul Taban Fiyatı (TL)", db?.settings?.schoolBaseCost||p.okul||100000, "number", "admin-v2-input-price")}
               ${v2Field("f_school_capacity", "Okul Talebe Kapasitesi (Kişi)", st.schoolCapacityPerBuilding||500, "number", "admin-v2-input-green")}
             </div>
-            <div style="margin-top:6px;">
-              ${v2Field("f_school_upkeep", "Okul Yıllık Gideri (Bina Başı TL)", st.schoolUpkeep||10000, "number", "admin-v2-input-upkeep")}
+            <div class="admin-v2-grid-2" style="margin-top:6px;">
+              ${v2Field("f_school_cost_per_person", "Kişi Başı Ek Maliyet (TL)", st.schoolCostPerPerson||0.15, "number", "admin-v2-input-price")}
+              ${v2Field("f_school_upkeep", "Okul Yıllık Gideri (Bina Başı TL)", st.schoolUpkeep||30000, "number", "admin-v2-input-upkeep")}
             </div>
-            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">Her medrese 500 talebeyi eğitir. Yetişen eğitimli sınıf, Maliye sekmesindeki çarpanla daha çok vergi verir.</p>
+            <p style="margin:4px 0 0; font-size:11px; color:#8c8270;">İnşa Fiyatı = Taban Fiyat + (Vilayet Nüfusu × Kişi Başı Çarpan) olarak dinamik hesaplanır. Her medrese talebe eğitir.</p>
           </div>
         </div>
 
@@ -1485,11 +1486,13 @@ function saveAdmin(doClose = true){
  const mapIntelCostEl=document.getElementById("f_map_intel_cost"); if(mapIntelCostEl)db.settings.mapIntelReportCost=Math.max(0,Number(mapIntelCostEl.value)||0);
  const schoolCapacityEl=document.getElementById("f_school_capacity"); if(schoolCapacityEl)db.settings.schoolCapacityPerBuilding=Math.max(0,Math.floor(Number(schoolCapacityEl.value)||0));
  const schoolUpkeepEl=document.getElementById("f_school_upkeep"); if(schoolUpkeepEl)db.settings.schoolUpkeep=Math.max(0,Number(schoolUpkeepEl.value)||0);
+ const schoolPopMultEl=document.getElementById("f_school_cost_per_person"); if(schoolPopMultEl)db.settings.schoolCostPerPerson=Math.max(0,Number(schoolPopMultEl.value)||0);
  const educatedMultiplierEl=document.getElementById("f_educated_tax_multiplier"); if(educatedMultiplierEl)db.settings.educatedTaxMultiplier=Math.max(0,Number(educatedMultiplierEl.value)||0);
  const popPerProvEl=document.getElementById("f_pop_per_province"); if(popPerProvEl)db.settings.popPerProvince=Math.max(1000,Number(popPerProvEl.value)||60000);
- const hospCapEl=document.getElementById("f_hospital_capacity"); if(hospCapEl)db.settings.hospitalCapacityPerBuilding=Math.max(1,Math.floor(Number(hospCapEl.value)||60000));
- const hospBaseEl=document.getElementById("f_hospital_base_cost"); if(hospBaseEl)db.settings.hospitalBaseCost=Math.max(0,Math.floor(Number(hospBaseEl.value)||35000));
+ const hospCapEl=document.getElementById("f_hospital_capacity"); if(hospCapEl)db.settings.hospitalCapacityPerBuilding=Math.max(1,Math.floor(Number(hospCapEl.value)||30000));
+ const hospBaseEl=document.getElementById("f_hospital_base_cost"); if(hospBaseEl)db.settings.hospitalBaseCost=Math.max(0,Math.floor(Number(hospBaseEl.value)||120000));
  Object.keys(db.settings.prices).forEach(k=>{ const el=document.getElementById("f_p_"+k); if(el) db.settings.prices[k]=Number(el.value||0); });
+ if (db.settings.prices.okul) db.settings.schoolBaseCost = db.settings.prices.okul;
  const garrisonPriceEl=document.getElementById("f_p_fortress_garrison"); if(garrisonPriceEl) db.settings.prices.fortress_garrison=Math.max(0,Number(garrisonPriceEl.value)||25);
  Object.keys(db.settings.capacity).forEach(k=>{ const el=document.getElementById("f_c_"+k); if(el) db.settings.capacity[k]=Number(el.value||0); });
  Object.keys(db.settings.upkeep).forEach(k=>{ const el=document.getElementById("f_u_"+k); if(el) db.settings.upkeep[k]=Number(el.value||0); });

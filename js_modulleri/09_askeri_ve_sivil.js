@@ -21,7 +21,14 @@ function buyBulk(id,key, labelName)
      }
  }
  
- const basePrice=db.settings.prices[key]||0;
+  let basePrice=db.settings.prices[key]||0;
+  if (key === 'okul' && s) {
+      const ownedCount = typeof getOwnedMapProvinceIds === 'function' ? Math.max(1, getOwnedMapProvinceIds(id).length) : 1;
+      const popPerProv = Math.round((Number(s.population) || 0) / ownedCount);
+      const schoolBase = Number(db?.settings?.schoolBaseCost || db?.settings?.prices?.okul) || 100000;
+      const schoolPopMult = Number(db?.settings?.schoolCostPerPerson) || 0.15;
+      basePrice = Math.max(schoolBase, Math.round(schoolBase + (popPerProv * schoolPopMult)));
+  }
  const adv = getAdvisorEffects(s);
  const disc = key.includes("liman") || key.includes("ocak") || key === "okul" || key === "istihbarat_binasi" ? adv.infraDiscount : adv.recruitDiscount;
  const baseUnitPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));

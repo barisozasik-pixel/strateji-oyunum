@@ -137,8 +137,8 @@ function calculateBuildingCost(s, key, baseUnitPrice, qty) {
 
   for (let i = 0; i < qty; i++) {
     const currentIdx = startCount + i;
-    // Her bina için %5 kademeli artış (Seçenek A - Exploit Korumalı)
-    const unitPrice = Math.max(1, Math.round(baseUnitPrice * (1 + (currentIdx * 0.05))));
+    // Her bina için %15 kademeli artış (Sert Exploit ve Spam Koruması)
+    const unitPrice = Math.max(1, Math.round(baseUnitPrice * (1 + (currentIdx * 0.15))));
     if (i === 0) firstUnitPrice = unitPrice;
     if (i === qty - 1) lastUnitPrice = unitPrice;
     totalCost += unitPrice;
@@ -175,6 +175,12 @@ function buildUnitCard(s, key, name, imgUrl, basePrice, baseUpkeep, capStr, canM
     let baseUnitPrice = Math.max(1, Math.round(basePrice * (1 - (disc / 100))));
     let displayPrice = baseUnitPrice;
     if (key === 'okul') {
+        const ownedCount = typeof getOwnedMapProvinceIds === 'function' ? Math.max(1, getOwnedMapProvinceIds(s.id).length) : 1;
+        const popPerProv = Math.round((Number(s.population) || 0) / ownedCount);
+        const schoolBase = Number(db?.settings?.schoolBaseCost || db?.settings?.prices?.okul) || 100000;
+        const schoolPopMult = Number(db?.settings?.schoolCostPerPerson) || 0.15;
+        baseUnitPrice = Math.max(schoolBase, Math.round(schoolBase + (popPerProv * schoolPopMult)));
+        if (disc > 0) baseUnitPrice = Math.max(1, Math.round(baseUnitPrice * (1 - (disc / 100))));
         displayPrice = calculateBuildingCost(s, 'okul', baseUnitPrice, 1).firstUnitPrice;
     }
 
@@ -289,11 +295,11 @@ function buildPopulationBuildingCard(s,key,name,imgUrl,canManage){
  let displayPrice = 0;
  let infoExtraHtml = '';
  if(key === 'hastane') {
-   const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
-   const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
+   const baseCost = Number(db?.settings?.hospitalBaseCost) || 120000;
+   const hospMult = costPerPerson > 0 ? costPerPerson : 0.20;
    baseUnitPrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
    displayPrice = calculateBuildingCost(s, 'hastane', baseUnitPrice, 1).firstUnitPrice;
-   const hospCap = Math.max(1, Number(db.settings.hospitalCapacityPerBuilding) || 60000);
+   const hospCap = Math.max(1, Number(db?.settings?.hospitalCapacityPerBuilding) || 30000);
    const totalPop = Math.max(1, Number(s.population) || 0);
    const cov = Math.min(100, (((s.hastane || 0) * hospCap) / totalPop) * 100);
    infoExtraHtml = `<div>Sağlık Güvencesi: <strong style="color:var(--green)">%${cov.toFixed(1)}</strong></div><div>Süre: <strong style="color:var(--cyan);">1 Yıl</strong></div>`;
@@ -1260,8 +1266,8 @@ function buildPopulationBuilding(stateId,key,labelName){
 
   let basePrice = 0;
   if (key === 'hastane') {
-    const baseCost = Number(db.settings.hospitalBaseCost) || 35000;
-    const hospMult = costPerPerson > 0 ? costPerPerson : 0.80;
+    const baseCost = Number(db?.settings?.hospitalBaseCost) || 120000;
+    const hospMult = costPerPerson > 0 ? costPerPerson : 0.20;
     basePrice = Math.max(baseCost, Math.round(baseCost + (popPerProv * hospMult)));
   } else {
     basePrice = Math.max(0, Math.round(oldPopulation * costPerPerson));
