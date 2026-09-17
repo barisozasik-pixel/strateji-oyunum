@@ -44,7 +44,22 @@ function calcPop(s)
   
   const taxRate = Math.max(0, Math.min(75, Number(s.tax)||0));
   let anarRate = hap >= 60 ? 0 : (60 - hap);
-  anarRate += Math.max(0, (taxRate - 50) * 0.5);
+  
+  // ⚖️ LAFFER EĞRİSİ VE SERT VERGİ NERFÜ (Üstel Anarşi & Kaçak):
+  // %40'a kadar: Adil/Normal vergi bandı (%0 ek anarşi)
+  // %40 - %50 arası: Hafif homurdanma (Her %1 için +%0.5 anarşi)
+  // %50 - %60 arası: Ağır vergi yükü (Her %1 için +%1.5 anarşi)
+  // %60 üzeri (Zulüm Vergisi): Dağa çıkma ve tam isyan (Her %1 için +%3.0 anarşi!)
+  if (taxRate > 40) {
+      anarRate += (Math.min(taxRate, 50) - 40) * 0.5;
+  }
+  if (taxRate > 50) {
+      anarRate += (Math.min(taxRate, 60) - 50) * 1.5;
+  }
+  if (taxRate > 60) {
+      anarRate += (taxRate - 60) * 3.0;
+  }
+
   if(anarRate > 100) anarRate = 100;
   if(adv.stopAnarchy) anarRate = 0;
   
