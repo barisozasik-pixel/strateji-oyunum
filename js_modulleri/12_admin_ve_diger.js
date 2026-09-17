@@ -968,7 +968,7 @@ async function openAdmin(defaultTab = 'askeriye'){
          </div>
        </div>
 
-               <!-- YENİ PAŞA EKLEME FORMU -->
+        <!-- YENİ PAŞA EKLEME FORMU -->
         <div class="admin-v2-card" style="background:#12161f; border-color:rgba(197,160,89,0.4);">
           <div class="admin-v2-card-header"><span style="color:#f0cf82;">➕ YENİ DİVAN PAŞASI EKLE</span></div>
           <div class="admin-v2-grid-3">
