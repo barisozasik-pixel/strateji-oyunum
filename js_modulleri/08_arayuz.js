@@ -435,7 +435,7 @@ function openDetail(id){
 
   const fortressCount = getOwnedMapProvinceIds(s.id).length;
   const currentGarrison = Math.max(0, Number(s.fortressGarrison) || 0);
-  const upkeepPerSoldier = Math.max(0, Number(db.settings.prices?.fortress_garrison) || Number(db.settings.garrisonUpkeep?.fortress) || 3);
+  const upkeepPerSoldier = Math.max(0, Number(db.settings.garrisonUpkeep?.fortress) ?? 3);
   const fortressLiveCost = currentGarrison * upkeepPerSoldier;
   const garrisonPerFortress = fortressCount > 0 ? Math.floor(currentGarrison / fortressCount) : 0;
   const garrisonRemainder = fortressCount > 0 ? (currentGarrison % fortressCount) : 0;
@@ -1185,10 +1185,10 @@ function saveCountryManagement(stateId){
  const available=calcPop(s).elig;
  if(added>available){alert(`Elverişli nüfus yetersiz! En fazla ${num(available)} yeni garnizon askeri ekleyebilirsiniz.`);return;}
  // ✅ BUG 4 FIX: Garnizon ekleme artık hazineden bedel kesiyor
- if(added > 0) {
-   if(rejectDebtPurchase(s))return;
-   const garrisonPrice = Math.max(1, Number(db.settings.prices?.fortress_garrison) || Number(db.settings.garrisonUpkeep?.fortress) || 50);
-   const garrisonCost = added * garrisonPrice;
+  if(added > 0) {
+    if(rejectDebtPurchase(s))return;
+    const garrisonPrice = Math.max(1, Number(db.settings.prices?.fortress_garrison) || 25);
+    const garrisonCost = added * garrisonPrice;
    if(s.treasury < garrisonCost){alert(`Hazine yetersiz! ${num(added)} garnizon askeri için ${money(garrisonCost)} gerekli.`);return;}
    const oldT = s.treasury;
    s.treasury -= garrisonCost;

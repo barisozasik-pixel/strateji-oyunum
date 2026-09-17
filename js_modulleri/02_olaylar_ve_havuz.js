@@ -196,6 +196,7 @@ const defaultSettings={
  edictCost:{erzak:2, karakol:1.5, panayir:1, ibadethane:3, anit:2.5, denetim:0.5},
  campaignCost:{piyade:2, suvari:5, nisanci:3, kucuk_top:200, orta_top:500, buyuk_top:1000, kucuk_gemi:400, orta_gemi:800, buyuk_gemi:1500},
  schoolEducation:2,
+ popPerProvince:60000,
  mapIntelReportCost:100000,
  images:{piyade:"",suvari:"",nisanci:"",kucuk_top:"",orta_top:"",buyuk_top:"",kucuk_gemi:"",orta_gemi:"",buyuk_gemi:"",kucuk_liman:"",orta_liman:"",buyuk_liman:"",kucuk_ocak:"",orta_ocak:"",buyuk_ocak:"",okul:"",istihbarat_binasi:"",fortress:"",fortress_garrison:"",hastane:"",asevi:"",su_degirmeni:"",kervansaray:"",pazar:""},
  customItems: [] 

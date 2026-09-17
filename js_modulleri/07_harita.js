@@ -38,7 +38,8 @@ function refreshMapFortressCounts(){
    const next=Math.max(0,getOwnedMapProvinceIds(s.id).length);
    const applied=Math.max(0,Math.floor(Number(s.fortressPopulationCount)||0));
    const fortressDelta=next-applied;
-   if(fortressDelta)s.population=Math.max(0,(Number(s.population)||0)+(fortressDelta*30000));
+   const popPerProvince = Math.max(1000, Number(db.settings?.popPerProvince) || 60000);
+   if(fortressDelta)s.population=Math.max(0,(Number(s.population)||0)+(fortressDelta*popPerProvince));
    s.fortressPopulationCount=next;
    s.fortressCount=next;
    // ✅ FIX #3: Toprak kaybedildiğinde binalar da toprak sayısına kırpılsın
